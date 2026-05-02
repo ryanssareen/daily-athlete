@@ -26,10 +26,10 @@ infra/      Deployment runbook (Fly.io, Vercel, Supabase wiring)
 
 ## Prerequisites
 
-- Node 20.11+ and pnpm 9
-- Python 3.13 and [uv](https://docs.astral.sh/uv/)
+- Node 20.11+ and pnpm 9 (`brew install pnpm` / `corepack enable`)
+- Python 3.13 and [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` on macOS/Linux; `irm https://astral.sh/uv/install.ps1 | iex` on Windows)
 - Docker (for local Postgres + Redis)
-- Supabase CLI (`brew install supabase/tap/supabase`)
+- Supabase CLI — macOS: `brew install supabase/tap/supabase`; Linux: see [supabase/cli releases](https://github.com/supabase/cli/releases); Windows: `scoop install supabase`
 
 ## First-time setup
 

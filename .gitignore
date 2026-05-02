@@ -55,3 +55,4 @@ logs/
 coverage/
 .coverage
 htmlcov/
+/.context/

@@ -255,7 +255,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `apps/api/src/auth.py` (Supabase JWT verifier, FastAPI dependency)
-- Create: `apps/api/migrations/001_init.sql` (or Alembic equivalent)
+- Create: `supabase/migrations/0001_init.sql`
 - Create: `apps/api/src/models/user.py`, `models/athlete_profile.py`, `models/coach.py`
 - Create: `apps/mobile/src/auth/`, `apps/web/src/auth/` (Supabase client wrappers)
 - Modify: env files for `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
@@ -372,7 +372,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `apps/api/src/strava/oauth.py`, `apps/api/src/strava/client.py`
-- Create: `apps/api/migrations/002_strava_tokens.sql`
+- Create: `supabase/migrations/0002_strava_tokens.sql`
 - Create: `apps/api/src/models/strava_token.py`
 - Create: `apps/mobile/src/integrations/strava.tsx`
 - Create: `apps/api/tests/test_strava_oauth.py`
@@ -406,7 +406,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/api/src/strava/backfill.py`
 - Create: `apps/api/src/jobs/backfill_strava.py` (Arq task)
-- Create: `apps/api/migrations/003_completed_workouts.sql`
+- Create: `supabase/migrations/0003_completed_workouts.sql`
 - Create: `apps/api/src/models/completed_workout.py`
 - Create: `apps/api/tests/test_strava_backfill.py`
 
@@ -472,7 +472,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 - Create: `apps/api/src/webhooks/strava.py` (verification + ingest)
 - Create: `apps/api/src/jobs/strava_hydrate.py`
 - Create: `apps/api/src/services/match_workout.py`
-- Create: `apps/api/migrations/004_planned_workouts.sql` (planned_workouts + workout_matches tables)
+- Create: `supabase/migrations/0004_planned_workouts.sql` (planned_workouts + workout_matches tables)
 - Create: `apps/mobile/app/(modals)/log-workout.tsx` (manual completion)
 - Create: `apps/api/tests/test_strava_webhook.py`, `tests/test_match_workout.py`
 
@@ -580,7 +580,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 - Create: `apps/api/src/ai/schemas/plan.py` (Pydantic models)
 - Create: `apps/api/src/jobs/generate_plan.py` (Arq task)
 - Create: `apps/api/src/api/plans.py` (POST /plans, GET /plans/{id})
-- Create: `apps/api/migrations/005_plans.sql`
+- Create: `supabase/migrations/0005_plans.sql`
 - Create: `apps/mobile/app/(modals)/new-plan.tsx`
 - Create: `apps/api/tests/test_plan_pipeline.py`
 
@@ -644,7 +644,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/api/src/ai/weekly_review.py`
 - Create: `apps/api/src/jobs/weekly_review.py` (Arq scheduled job)
-- Create: `apps/api/migrations/006_weekly_reviews.sql`
+- Create: `supabase/migrations/0006_weekly_reviews.sql`
 - Create: `apps/mobile/app/(modals)/weekly-review.tsx`
 - Create: `apps/api/src/api/weekly_review.py` (POST accept / reject / modify)
 - Create: `apps/api/tests/test_weekly_review.py`
@@ -680,7 +680,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `apps/api/src/api/coach_invites.py`
-- Create: `apps/api/migrations/007_coach_athlete.sql` (coach_athlete_links + coach_invites)
+- Create: `supabase/migrations/0007_coach_athlete.sql` (coach_athlete_links + coach_invites)
 - Create: `apps/web/app/(coach)/roster/page.tsx` (real version)
 - Create: `apps/mobile/app/(modals)/invite-coach.tsx`
 - Create: `apps/api/tests/test_coach_invite.py`
@@ -715,7 +715,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 - Create: `apps/web/app/(coach)/athletes/[id]/calendar/page.tsx`
 - Create: `apps/web/app/(coach)/athletes/[id]/workouts/[wid]/page.tsx` (editor)
 - Create: `apps/api/src/api/coach_edits.py`
-- Create: `apps/api/migrations/008_workout_comments.sql`
+- Create: `supabase/migrations/0008_workout_comments.sql`
 - Create: `apps/api/src/models/workout_comment.py`
 
 **Approach:**
@@ -777,7 +777,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/api/src/ai/insights.py`
 - Create: `apps/api/src/jobs/insight_for.py` (Arq task)
-- Create: `apps/api/migrations/009_insights.sql`
+- Create: `supabase/migrations/0009_insights.sql`
 - Modify: `apps/mobile/app/workout/[id].tsx`, `apps/mobile/app/(tabs)/index.tsx` (Today)
 
 **Approach:**
@@ -837,7 +837,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `apps/api/src/webhooks/revenuecat.py`
-- Create: `apps/api/migrations/010_entitlements.sql`
+- Create: `supabase/migrations/0010_entitlements.sql`
 - Create: `apps/api/src/auth/entitlements.py` (decorator)
 - Create: `apps/mobile/src/billing/revenuecat.tsx`
 - Create: `apps/web/src/billing/stripe-redirect.ts` (RevenueCat-managed Stripe)

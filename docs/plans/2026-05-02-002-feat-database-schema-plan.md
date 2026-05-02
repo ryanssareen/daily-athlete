@@ -69,7 +69,7 @@ This plan additionally excludes:
 ### Relevant Code and Patterns
 
 Greenfield repo — no existing patterns. The product plan ([2026-05-02-001](2026-05-02-001-feat-ai-endurance-training-app-plan.md)) sets these conventions which this plan follows:
-- Migrations live under `apps/api/migrations/` (or `supabase/migrations/` if we settle on the Supabase CLI — see Open Questions).
+- Migrations live under `supabase/migrations/`, applied via the Supabase CLI (resolved during planning — see Key Technical Decisions).
 - Models under `apps/api/src/models/`.
 - Pydantic schemas in `apps/api/src/schemas/` separate from SQLAlchemy ORM models in `apps/api/src/models/`.
 - Tests under `apps/api/tests/`.

@@ -5,7 +5,6 @@ from sqlalchemy.exc import IntegrityError
 from src.models import StravaRawPayload
 
 
-@pytest.mark.asyncio
 async def test_insert_webhook_payload(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     await session.execute(
@@ -26,7 +25,6 @@ async def test_insert_webhook_payload(session, make_auth_user) -> None:
     assert rows[0].payload == {"object_id": 1}
 
 
-@pytest.mark.asyncio
 async def test_kind_check_constraint(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     with pytest.raises(IntegrityError):
@@ -40,7 +38,6 @@ async def test_kind_check_constraint(session, make_auth_user) -> None:
         await session.commit()
 
 
-@pytest.mark.asyncio
 async def test_retention_query_finds_old_rows(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     # Old row

@@ -8,7 +8,6 @@ from src.models import StravaToken
 from src.security import TokenCryptoError, decrypt_strava_token, encrypt_strava_token
 
 
-@pytest.mark.asyncio
 async def test_round_trip_encrypt_decrypt(session) -> None:
     plaintext = "strava-access-token-1234567890abcdef"
     enc = await encrypt_strava_token(session, plaintext)
@@ -17,18 +16,31 @@ async def test_round_trip_encrypt_decrypt(session) -> None:
     assert pt == plaintext
 
 
-@pytest.mark.asyncio
-async def test_encrypt_rejects_placeholder_key(session, monkeypatch) -> None:
+async def test_encrypt_rejects_committed_placeholder_key(session, monkeypatch) -> None:
+    from src.config import get_settings
+    from src.security.token_crypto import _ENV_PLACEHOLDER
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("STRAVA_TOKEN_KEY", _ENV_PLACEHOLDER)
+    try:
+        with pytest.raises(TokenCryptoError):
+            await encrypt_strava_token(session, "anything")
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_encrypt_rejects_short_key(session, monkeypatch) -> None:
     from src.config import get_settings
 
     get_settings.cache_clear()
-    monkeypatch.setenv("STRAVA_TOKEN_KEY", "replace-me-please")
-    with pytest.raises(TokenCryptoError):
-        await encrypt_strava_token(session, "anything")
-    get_settings.cache_clear()
+    monkeypatch.setenv("STRAVA_TOKEN_KEY", "too-short")
+    try:
+        with pytest.raises(TokenCryptoError):
+            await encrypt_strava_token(session, "anything")
+    finally:
+        get_settings.cache_clear()
 
 
-@pytest.mark.asyncio
 async def test_strava_token_persistence(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     access_enc = await encrypt_strava_token(session, "access-1")
@@ -60,7 +72,6 @@ async def test_strava_token_persistence(session, make_auth_user) -> None:
     assert (await decrypt_strava_token(session, row.access_token_enc)) == "access-1"
 
 
-@pytest.mark.asyncio
 async def test_athlete_strava_id_is_unique_across_users(session, make_auth_user) -> None:
     alice = await make_auth_user()
     bob = await make_auth_user()

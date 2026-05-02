@@ -41,7 +41,18 @@ def main() -> int:
     conn = psycopg2.connect(sync_url)
     conn.autocommit = True
     try:
+        # Refuse to drop schemas if we somehow point at a non-test DB. The drift check
+        # is destructive (DROP SCHEMA CASCADE on public + auth); a misconfigured
+        # DATABASE_URL_TEST_SYNC pointing at staging/prod would wipe data.
         with conn.cursor() as cur:
+            cur.execute("SELECT current_database()")
+            db_name = cur.fetchone()[0]
+            if not db_name.endswith("_test"):
+                print(
+                    f"FAIL: refusing to drop schemas in database {db_name!r} — "
+                    f"drift check requires a test DB whose name ends with `_test`."
+                )
+                return 2
             cur.execute("DROP SCHEMA IF EXISTS public CASCADE;")
             cur.execute("DROP SCHEMA IF EXISTS auth CASCADE;")
             cur.execute("CREATE SCHEMA public;")

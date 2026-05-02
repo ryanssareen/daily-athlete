@@ -12,16 +12,25 @@ def _bearer_token(authorization: Annotated[str | None, Header()] = None) -> str:
             detail="missing bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return authorization.split(" ", 1)[1].strip()
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
 
 
 def current_user(token: Annotated[str, Depends(_bearer_token)]) -> SupabaseClaims:
     try:
         return decode_supabase_jwt(token)
     except InvalidTokenError as exc:
+        # Don't echo the underlying JWT error — it leaks "expired" vs "bad signature"
+        # which helps attackers probing for valid tokens.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"invalid token: {exc}",
+            detail="invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 

@@ -7,7 +7,6 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from src.models import Entitlement, User
 
 
-@pytest.mark.asyncio
 async def test_auth_user_mirrors_into_public_users(session, make_auth_user) -> None:
     user_id = await make_auth_user(email="alice@example.test")
     user = await session.get(User, user_id)
@@ -17,7 +16,6 @@ async def test_auth_user_mirrors_into_public_users(session, make_auth_user) -> N
     assert user.timezone == "UTC"
 
 
-@pytest.mark.asyncio
 async def test_user_role_flags_must_be_subset(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     with pytest.raises(IntegrityError):
@@ -31,7 +29,18 @@ async def test_user_role_flags_must_be_subset(session, make_auth_user) -> None:
         await session.commit()
 
 
-@pytest.mark.asyncio
+async def test_user_role_flags_rejects_empty_array(session, make_auth_user) -> None:
+    user_id = await make_auth_user()
+    with pytest.raises(IntegrityError):
+        await session.execute(
+            text(
+                "UPDATE public.users SET role_flags = ARRAY[]::TEXT[] WHERE id = :id"
+            ),
+            {"id": user_id},
+        )
+        await session.commit()
+
+
 async def test_user_role_flags_accepts_athlete_and_coach(session, make_auth_user) -> None:
     user_id = await make_auth_user(role_flags=["athlete", "coach"])
     user = await session.get(User, user_id)
@@ -39,7 +48,6 @@ async def test_user_role_flags_accepts_athlete_and_coach(session, make_auth_user
     assert set(user.role_flags) == {"athlete", "coach"}
 
 
-@pytest.mark.asyncio
 async def test_entitlements_upsert_toggles_active(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     # Insert
@@ -77,7 +85,6 @@ async def test_entitlements_upsert_toggles_active(session, make_auth_user) -> No
     assert row.active is False
 
 
-@pytest.mark.asyncio
 async def test_entitlements_source_check_constraint(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     with pytest.raises(IntegrityError):
@@ -91,8 +98,20 @@ async def test_entitlements_source_check_constraint(session, make_auth_user) -> 
         await session.commit()
 
 
-@pytest.mark.asyncio
 async def test_rls_user_can_select_own_row_only(session, make_auth_user, as_user) -> None:
+    """
+    KNOWN VACUOUS: this test exercises the predicate `auth.uid() = id` via an
+    explicit WHERE, not the RLS policy itself. The connecting role is the schema
+    owner (`da2`), and migrations do not call `FORCE ROW LEVEL SECURITY`, so RLS
+    is bypassed for owners regardless of the policy.
+
+    To actually prove RLS enforcement, either:
+      (a) add `ALTER TABLE ... FORCE ROW LEVEL SECURITY` to the migration, OR
+      (b) create a non-owner `authenticated` role in tests/sql/test_bootstrap.sql
+          and `SET ROLE authenticated` here before the unfiltered SELECT.
+
+    Tracked in the ce:review residual work for Wave 1.
+    """
     alice = await make_auth_user(email="alice@example.test")
     bob = await make_auth_user(email="bob@example.test")
 
@@ -100,11 +119,6 @@ async def test_rls_user_can_select_own_row_only(session, make_auth_user, as_user
     rows = (await session.execute(select(User))).scalars().all()
     assert {u.id for u in rows} >= {alice, bob}
 
-    # Authenticated user RLS path: switch role and verify visibility.
-    # Note: Postgres only enforces RLS for non-superusers, so we re-connect
-    # via SET ROLE to a role without BYPASSRLS. In Supabase this happens at
-    # the JWT-verifier layer. Here we approximate with set_config + RLS-applies-to-all.
-    await session.execute(text("SET LOCAL row_security = on"))
     await as_user(alice)
     visible_via_rls = await session.execute(
         text(
@@ -117,7 +131,6 @@ async def test_rls_user_can_select_own_row_only(session, make_auth_user, as_user
     assert visible_ids == {alice}
 
 
-@pytest.mark.asyncio
 async def test_user_deleted_at_excludes_from_active_reads(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     await session.execute(
@@ -125,5 +138,17 @@ async def test_user_deleted_at_excludes_from_active_reads(session, make_auth_use
         {"id": user_id},
     )
     await session.commit()
+
+    # Active read filter should exclude soft-deleted users.
+    active = await session.execute(
+        text(
+            "SELECT id FROM public.users "
+            "WHERE id = :id AND deleted_at IS NULL"
+        ),
+        {"id": user_id},
+    )
+    assert active.first() is None
+
+    # Admin read (no filter) still sees the row with the tombstone.
     user = await session.get(User, user_id)
     assert user is not None and user.deleted_at is not None

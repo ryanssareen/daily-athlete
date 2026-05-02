@@ -22,6 +22,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MIGRATIONS_DIR = REPO_ROOT / "supabase" / "migrations"
@@ -72,7 +73,7 @@ def _schema_setup() -> Iterator[None]:
 
 @pytest_asyncio.fixture
 async def session(_schema_setup: None) -> AsyncIterator[AsyncSession]:
-    engine = create_async_engine(_test_db_url_async(), poolclass=None)
+    engine = create_async_engine(_test_db_url_async(), poolclass=NullPool)
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with Session() as s:
@@ -124,12 +125,14 @@ async def as_user(session: AsyncSession):
     """
 
     async def _set(user_id: UUID, role: str = "authenticated") -> None:
+        # is_local=false so the GUC persists across statements within the session
+        # (autocommit otherwise discards transaction-local settings between executes).
         await session.execute(
-            text("SELECT set_config('request.jwt.claim.sub', :sub, true)"),
+            text("SELECT set_config('request.jwt.claim.sub', :sub, false)"),
             {"sub": str(user_id)},
         )
         await session.execute(
-            text("SELECT set_config('request.jwt.claim.role', :role, true)"),
+            text("SELECT set_config('request.jwt.claim.role', :role, false)"),
             {"role": role},
         )
 

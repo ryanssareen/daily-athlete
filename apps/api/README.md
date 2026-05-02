@@ -11,10 +11,8 @@ uv sync
 # Local DB (run from repo root)
 docker compose up -d postgres redis
 
-# Apply migrations to dev DB
-psql "$DATABASE_URL_SYNC" -f ../../supabase/migrations/0000_extensions.sql
-psql "$DATABASE_URL_SYNC" -f ../../supabase/migrations/0001_users_and_entitlements.sql
-psql "$DATABASE_URL_SYNC" -f ../../supabase/migrations/0002_strava_infra.sql
+# Apply migrations to dev DB (in order — file names are alphanumeric).
+for f in ../../supabase/migrations/*.sql; do psql "$DATABASE_URL_SYNC" -f "$f"; done
 
 # Or use Supabase CLI for the full local stack:
 # supabase start

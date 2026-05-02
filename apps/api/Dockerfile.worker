@@ -16,4 +16,7 @@ RUN uv sync --frozen --no-dev || uv sync --no-dev
 
 COPY src ./src
 
-CMD ["uv", "run", "arq", "src.jobs.worker.WorkerSettings"]
+# src/jobs/worker.py lands in Wave 2 (Strava webhook hydration). Until then this
+# image is a placeholder for Fly.io worker-process scaffolding; running it should
+# fail loudly rather than silently appear to work.
+CMD ["sh", "-c", "echo 'da2 worker not yet implemented (Wave 2 deliverable)' && exit 1"]

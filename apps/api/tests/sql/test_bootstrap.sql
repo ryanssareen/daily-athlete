@@ -4,6 +4,19 @@
 -- In real Supabase, the auth schema, auth.users, and auth.uid() are provided by Supabase
 -- Auth. Here we emulate just enough to satisfy FK targets and RLS expressions.
 
+-- Refuse to bootstrap a non-test database. Catches misconfigured DATABASE_URL pointing
+-- at staging/prod — running this would CREATE OR REPLACE auth.uid() with a stub that
+-- reads any client-set GUC, granting RLS bypass to any client that can SET
+-- request.jwt.claim.sub. The convention: every test DB ends with `_test`.
+DO $$
+BEGIN
+    IF current_database() NOT LIKE '%\_test' ESCAPE '\' THEN
+        RAISE EXCEPTION
+            'refusing to bootstrap database %: name must end with _test',
+            current_database();
+    END IF;
+END $$;
+
 CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE TABLE IF NOT EXISTS auth.users (

@@ -8,12 +8,22 @@ class TokenCryptoError(Exception):
     pass
 
 
+_PLACEHOLDER_DEFAULT = "dev-only-replace-with-32-bytes-from-secrets-token-hex-32"
+_ENV_PLACEHOLDER = "replace-with-32-bytes-of-randomness-from-secrets-token-hex-32"
+
+
 def _key() -> str:
     key = get_settings().strava_token_key
-    if not key or "replace" in key.lower():
+    # Reject committed placeholders by exact match, and require ≥32-char hex so an
+    # operator can't ship something like "changeme" or a low-entropy passphrase.
+    if not key or key in (_PLACEHOLDER_DEFAULT, _ENV_PLACEHOLDER):
         raise TokenCryptoError(
-            "STRAVA_TOKEN_KEY is unset or still using the placeholder value. "
+            "STRAVA_TOKEN_KEY is unset or still using a placeholder value. "
             "Generate one with `python -c \"import secrets; print(secrets.token_hex(32))\"`."
+        )
+    if len(key) < 32:
+        raise TokenCryptoError(
+            f"STRAVA_TOKEN_KEY is too short ({len(key)} chars); require at least 32."
         )
     return key
 

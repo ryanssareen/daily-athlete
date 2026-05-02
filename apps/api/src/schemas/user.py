@@ -1,14 +1,16 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    email: EmailStr | None
+    # Plain str: auth.users.email is TEXT and Supabase Auth owns format validation
+    # upstream. EmailStr would 500 on any historically-permitted edge case.
+    email: str | None
     display_name: str | None
     role_flags: list[str]
     timezone: str
