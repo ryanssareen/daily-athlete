@@ -229,10 +229,10 @@ When you finish, fill in the four `**Result:**` fields in [docs/solutions/prefli
 
 | Result | What I'll do |
 |---|---|
-| All four **OK** | Start Unit 1 as planned. |
 | Probe 1 **NOT OK** | Reshape Unit 4 to fold retention into the keepalive endpoint. ~30 min plan edit. |
 | Probe 2 **OK WITH CAVEAT** (asymmetric) | Switch Unit 1 auth.ts to `createRemoteJWKSet`. Rename env var `SUPABASE_JWT_SECRET` → `SUPABASE_JWT_JWKS_URL`. ~30 min plan edit. |
+| All four **OK** | Start Unit 1 as planned. |
 | Probe 3 **OK WITH CAVEAT** | Update Unit 7 design note's per-stage budget. Pure docs change. |
 | Probe 4 **NOT OK** | **Stop.** This is critical — the entire auth-to-DB architecture changes. Reconvene with full re-plan. |
 
-If anything is genuinely confusing or a step won't work, paste the exact error and I'll debug.
+If anything is genuinely confusing or a step won't work, paste the exact error and I'll debug. 

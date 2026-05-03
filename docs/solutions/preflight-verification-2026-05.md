@@ -1,7 +1,8 @@
 ---
 title: Pivot Preflight Verification (May 2026)
 date: 2026-05-03
-status: pending
+status: complete
+verified_against: the-daily-athlete (gukhwozgnunbqzllobbd.supabase.co) + Vercel team ryans-projects-da410e7c
 plan: docs/plans/2026-05-03-001-refactor-stack-pivot-typescript-vercel-plan.md
 ---
 
@@ -64,7 +65,7 @@ After verification completes, both throwaway projects can be deleted.
 | Extension blocked on free tier | Mark **NOT OK**. Reshape Unit 4: fold retention into the keepalive endpoint (one Vercel cron handles both: `select 1` for keepalive + `DELETE ... WHERE arrived_at < now() - interval '30 days'` for retention). The cron-budget rule in AGENTS.md becomes "1 of 2 slots used; second slot reserved for Wave 3 weekly review." |
 | `CREATE EXTENSION` works but `cron.schedule` fails | Mark **NOT OK**. Same reshape as above. |
 
-**Result:** _pending_
+**Result:** **OK**. `pg_cron 1.6.4` installed cleanly on the linked project (`gukhwozgnunbqzllobbd`). `cron.schedule('preflight-noop', '*/5 * * * *', 'SELECT 1')` returned the expected row from `cron.job`; `cron.unschedule` returned `true`. Plan unchanged — Strava raw-payload retention sweep can live on `pg_cron`, freeing up the second Vercel cron slot for Wave-3 weekly review.
 
 ---
 
@@ -94,7 +95,7 @@ After verification completes, both throwaway projects can be deleted.
 | Asymmetric (ES256 / RS256) with JWKS | Mark **OK WITH CAVEAT**. Update Unit 1: `auth.ts` uses `createRemoteJWKSet(new URL(JWKS_URL))` instead of a single secret. Replace `SUPABASE_JWT_SECRET` env var with `SUPABASE_JWT_JWKS_URL`. Test scenarios remain the same; verifier internals change. Add a 2-line note to AGENTS.md "RLS posture" section. |
 | Both schemes available, project chose HS256 by default | Same as HS256. Note that asymmetric is opt-in; don't switch unless there's a reason. |
 
-**Result:** _pending_
+**Result:** **OK WITH CAVEAT — asymmetric (ES256/JWKS)**. Decoded JWT header from a real signed-in user: `{"alg":"ES256","kid":"263ebaae-deb5-441b-a6ba-a05141d9655f","typ":"JWT"}`. Issuer in payload: `https://gukhwozgnunbqzllobbd.supabase.co/auth/v1`. JWKS endpoint returns one P-256 ECDSA key with matching `kid`. **Plan impact:** Unit 1's `auth.ts` MUST use `createRemoteJWKSet(new URL(jwks_url))` from `jose` instead of a single `SUPABASE_JWT_SECRET` shared string. Env var rename: replace `SUPABASE_JWT_SECRET` with `SUPABASE_JWT_JWKS_URL` (or derive it from `SUPABASE_URL`). Test scenarios remain the same; verifier internals change. ~30 minutes of plan + Unit 1 amendments needed before Unit 1 implementation begins.
 
 ---
 
@@ -128,7 +129,9 @@ After verification completes, both throwaway projects can be deleted.
 | Returns 504 / killed before 240s | Mark **OK WITH CAVEAT**. Record the actual ceiling (e.g., "Hobby capped at 90s in May 2026"). Update Unit 7 design note: per-stage budget = `(actual_ceiling / 5)` for safe retry headroom. Plan still ships; the AI pipeline is sized differently. |
 | Returns instantly with an error about `maxDuration` config rejected | Mark **NOT OK**. Hobby no longer accepts `maxDuration` overrides. The pivot's AI orchestration story collapses; reshape the resumable pipeline to use Supabase Edge Functions (which have their own 150s/400s ceiling) for stage execution, with Vercel only kicking off the chain. |
 
-**Result:** _pending_
+**Result:** **OK**. Deployed a tiny Next.js 15.5 app (`/api/longrun` with `export const maxDuration = 300`) to Vercel Hobby team `ryans-projects-da410e7c`. Tested 120s sleep: returned `{"ok":true,"slept_ms":120000,"elapsed_ms":120000}` after 121.1s, HTTP 200. Tested 240s sleep (env-configured): returned `{"ok":true,"slept_ms":240000,"elapsed_ms":240000}` after 241.0s, HTTP 200. The 300s budget on Hobby Fluid Compute is real. Plan's "60s per AI stage with 5x retry headroom inside 300s" sizing is supported.
+
+Side note discovered during probe: new Vercel Hobby projects ship with **Deployment Protection (SSO) enabled by default**. The throwaway test had to disable it via the project settings API (`PATCH /v9/projects/<id>` with `{ssoProtection: null, passwordProtection: null}`) before unauthenticated requests could reach the function. **Plan impact:** Unit 8's "Vercel preview-deploy posture" Operational Note is correct that previews are protected by default; the separate-Supabase-project-for-previews mitigation already documented stands. Add an explicit deploy-time step: confirm Deployment Protection state matches intent (off for the public coach app on production, off-or-bypassable for previews depending on the security stance).
 
 ---
 
@@ -177,18 +180,23 @@ After verification completes, both throwaway projects can be deleted.
 | Both requests return both rows | Mark **NOT OK**. RLS is not being enforced via the JWT — something is wrong with the project's auth config (extremely unusual). Re-check the policy + service-role insert ordering. If reproducible across projects, the entire auth-to-DB binding needs a different design (likely `pg`-direct connections with `SET LOCAL` inside an explicit transaction). |
 | Either request returns 401 | Anon key or JWT was wrong; redo step 5. Not a verification failure. |
 
-**Result:** _pending_
+**Result:** **OK**. Created two real users (alice + bob) via the admin endpoint with `email_confirm: true`. Inserted one RLS-protected row per user (service-role bypass). Hit `/rest/v1/preflight_rows?select=*` with each user's signed-in JWT:
+- Alice's JWT → `[{"id":1,"owner":"<alice>","data":"alice secret"}]` (1 row, her own).
+- Bob's JWT → `[{"id":2,"owner":"<bob>","data":"bob secret"}]` (1 row, his own).
+- Anon (no JWT, just apikey) → `[]` (RLS denies).
+
+The corrected architecture (anon-key client + per-request `Authorization: Bearer <jwt>`) works as the plan now describes. The original `SET LOCAL` design that document-review caught is correctly abandoned.
 
 ---
 
-## Verification summary (fill in once all four resolved)
+## Verification summary
 
 | # | Probe | Result | Plan impact |
 |---|---|---|---|
-| 1 | `pg_cron` on Supabase free | _pending_ | _pending_ |
-| 2 | JWT signing scheme | _pending_ | _pending_ |
-| 3 | 300s on Hobby | _pending_ | _pending_ |
-| 4 | PostgREST JWT propagation | _pending_ | _pending_ |
+| 1 | `pg_cron` on Supabase free | **OK** (`pg_cron 1.6.4` installs + schedules cleanly) | None — plan unchanged |
+| 2 | JWT signing scheme | **OK WITH CAVEAT** (`alg=ES256`, asymmetric/JWKS) | Unit 1 `auth.ts` must use `createRemoteJWKSet`; env var renames |
+| 3 | 300s on Hobby | **OK** (verified to 240s via real deployed function) | None — plan unchanged. Side finding: Deployment Protection on by default for new Hobby projects |
+| 4 | PostgREST JWT propagation | **OK** (RLS scopes correctly, no cross-tenant leakage) | None — plan unchanged |
 
-When complete, change frontmatter `status: pending` to `status: complete`,
-record the date, and commit. Then proceed to Unit 1.
+**Net status:** **GO** with one ~30-minute plan amendment (Unit 1 verifier shape).
+Proceed to amend the plan, then start Unit 1.

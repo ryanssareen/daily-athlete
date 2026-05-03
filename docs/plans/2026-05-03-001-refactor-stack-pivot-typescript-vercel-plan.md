@@ -372,12 +372,12 @@ independently of documentation.
 - Create: `apps/web/tests/server/config.test.ts`
 - Create: `apps/web/tests/server/auth.test.ts`
 - Modify: `apps/web/package.json` (deps: `@supabase/supabase-js`, `jose`, `zod`; devDeps: `vitest`, `@vitest/coverage-v8`, `pg`, `@types/pg`; scripts: `test`, `test:watch`)
-- Modify: `apps/web/.env.example` (add server-side env: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `SUPABASE_JWT_ISSUER`, `SUPABASE_JWT_AUD`, `STRAVA_TOKEN_KEYS`, `CRON_SECRET`, `APP_ENV`, `CORS_ORIGINS`, `TRUSTED_HOSTS`)
+- Modify: `apps/web/.env.example` (add server-side env: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_JWKS_URL`, `SUPABASE_JWT_ISSUER`, `SUPABASE_JWT_AUD`, `STRAVA_TOKEN_KEYS`, `CRON_SECRET`, `APP_ENV`, `CORS_ORIGINS`, `TRUSTED_HOSTS`). Note: Unit-0 preflight verified the production project uses ES256/JWKS, so `SUPABASE_JWT_SECRET` (the legacy HS256 single-secret env) is NOT used; replaced by `SUPABASE_JWT_JWKS_URL` which defaults to `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
 
 **Approach:**
-- `config.ts` exports `getConfig()`, validated with Zod. Throws `ConfigError` if `app_env in {staging, production}` and any of `SUPABASE_JWT_SECRET`, `SUPABASE_JWT_ISSUER`, `STRAVA_TOKEN_KEYS` (or `STRAVA_TOKEN_KEY`), `TRUSTED_HOSTS`, `CRON_SECRET` are placeholders/empty. **`SUPABASE_JWT_ISSUER` is required in non-dev environments (security finding from review): without it, a cross-project JWT replay is possible if the secret is ever shared between Supabase projects.** Mirrors and extends the Python `Settings._validate_secrets_for_env` from ce:review.
+- `config.ts` exports `getConfig()`, validated with Zod. Throws `ConfigError` if `app_env in {staging, production}` and any of `SUPABASE_JWT_JWKS_URL`, `SUPABASE_JWT_ISSUER`, `STRAVA_TOKEN_KEYS` (or `STRAVA_TOKEN_KEY`), `TRUSTED_HOSTS`, `CRON_SECRET` are placeholders/empty. **`SUPABASE_JWT_ISSUER` is required in non-dev environments (security finding from review): without it, a cross-project JWT replay is possible.** Mirrors and extends the Python `Settings._validate_secrets_for_env` from ce:review.
 - `supabase.ts` exports `createUserScopedClient(jwt: string)` (anon key + `Authorization` header — RLS applies per request via PostgREST's automatic JWT-claim parsing) and `getServiceClient()` (service-role, RLS bypasses; lives behind a server-only import, used only by webhooks and cascade routines added in later waves). **No `SET LOCAL` GUC manipulation; no transaction wrapping needed.**
-- `auth.ts` exports `verifyBearer(request: Request) -> SupabaseClaims`. Uses `jose`. If preflight (Unit 0) found HS256, uses the shared secret. If asymmetric, uses `createRemoteJWKSet`. Required claims `[sub, exp, aud]`. Pins `iss` if configured (forced in non-dev by `config.ts`). Rejects empty bearer tokens. Throws typed errors that `errors.ts` maps to 401 responses with detail `"invalid token"` (no decode-reason leak — ce:review hardening).
+- `auth.ts` exports `verifyBearer(request: Request) -> SupabaseClaims`. Uses `jose.createRemoteJWKSet(new URL(config.supabase_jwt_jwks_url))` because Unit-0 preflight confirmed the production project signs JWTs with ES256 (asymmetric, P-256). Required claims `[sub, exp, aud]`. Pins `iss` (forced in non-dev by `config.ts`). Rejects empty bearer tokens. Throws typed errors that `errors.ts` maps to 401 responses with detail `"invalid token"` (no decode-reason leak — ce:review hardening). The JWKS client caches the public key set with reasonable defaults; `kid` rotation handled by `jose` automatically.
 - `errors.ts` exports `ApiError` + `respondError(error)`; 401 includes `WWW-Authenticate: Bearer`.
 - `tests/setup.ts` is invoked once per test session via `vitest.config.ts`'s `globalSetup`. Refuses to run against a database whose name does not end with `_test` (carries forward the ce:review hardening).
 - `tests/helpers/db.ts` provides a `withTestDb(testFn)` wrapper that opens a `pg.Client`, runs the body, TRUNCATEs the user-data tables on exit. Concurrent tests use separate clients; the harness pins `pool: false` to avoid PgBouncer transaction-mode quirks.
@@ -396,8 +396,9 @@ independently of documentation.
 - Edge case: token with correct `iss` when configured → succeeds.
 - Edge case: empty bearer scheme (`"Bearer "`) → throws.
 - Error path: invalid signature → throws; response detail is `"invalid token"`, no decode reason leaked.
-- Edge case: `app_env=production` and `SUPABASE_JWT_SECRET="local-jwt-secret-replace-me"` → throws.
+- Edge case: `app_env=production` and `SUPABASE_JWT_JWKS_URL=""` → throws.
 - Edge case: `app_env=production` and `SUPABASE_JWT_ISSUER=""` → throws (issuer required in non-dev).
+- Edge case: token signed by a different (test) JWKS not matching the configured URL → throws (verifies JWKS pinning works).
 - Edge case: `app_env=production` and `STRAVA_TOKEN_KEYS=""` and `STRAVA_TOKEN_KEY` is the placeholder → throws.
 - Edge case: `app_env=production` and `TRUSTED_HOSTS=""` → throws.
 - Edge case: `app_env=production` and `CRON_SECRET=""` → throws.
