@@ -12,8 +12,8 @@ const _PLACEHOLDER_SERVICE_KEY = "replace-with-supabase-service-role-key";
 const _PLACEHOLDER_TOKEN_KEY = "replace-with-32-byte-random-key";
 
 export class ConfigError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = "ConfigError";
   }
 }
@@ -70,10 +70,17 @@ export interface Config {
   databaseUrlTestSync: string;
 }
 
-function buildConfig(env: NodeJS.ProcessEnv = process.env): Config {
+type RawEnv = Record<string, string | undefined>;
+
+function buildConfig(env: RawEnv = process.env): Config {
   const parsed = RawSchema.safeParse(env);
   if (!parsed.success) {
-    throw new ConfigError(`Invalid environment configuration: ${parsed.error.message}`);
+    const fields = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+      .join("; ");
+    throw new ConfigError(`Invalid environment configuration: ${fields}`, {
+      cause: parsed.error,
+    });
   }
   const raw = parsed.data;
 
@@ -112,6 +119,33 @@ function validateForEnv(cfg: Config): void {
 
   if (!cfg.supabaseJwtJwksUrl) {
     errors.push("SUPABASE_JWT_JWKS_URL must be set (or SUPABASE_URL must be set so it can be derived)");
+  } else {
+    // Defense in depth: even if an attacker compromises the JWKS env var, an
+    // http:// URL or one whose origin doesn't match SUPABASE_URL is detectable
+    // here at boot rather than after a successful JWKS-substitution attack.
+    let parsedJwks: URL | undefined;
+    try {
+      parsedJwks = new URL(cfg.supabaseJwtJwksUrl);
+    } catch {
+      errors.push("SUPABASE_JWT_JWKS_URL is not a valid URL");
+    }
+    if (parsedJwks && parsedJwks.protocol !== "https:") {
+      errors.push(
+        `SUPABASE_JWT_JWKS_URL must use https:// in app_env=${cfg.appEnv} (got ${parsedJwks.protocol})`,
+      );
+    }
+    if (parsedJwks && cfg.supabaseUrl) {
+      try {
+        const supabaseOrigin = new URL(cfg.supabaseUrl).origin;
+        if (parsedJwks.origin !== supabaseOrigin) {
+          errors.push(
+            `SUPABASE_JWT_JWKS_URL origin (${parsedJwks.origin}) must match SUPABASE_URL origin (${supabaseOrigin})`,
+          );
+        }
+      } catch {
+        errors.push("SUPABASE_URL is not a valid URL");
+      }
+    }
   }
   if (!cfg.supabaseJwtIssuer) {
     errors.push("SUPABASE_JWT_ISSUER must be set to defend against cross-project JWT replay");

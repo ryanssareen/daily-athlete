@@ -48,12 +48,24 @@ export default async function globalSetup(): Promise<void> {
   try {
     await client.connect();
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ECONNREFUSED" || code === "ENOTFOUND") {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? (err as { code: unknown }).code
+        : undefined;
+    const isUnreachable = code === "ECONNREFUSED" || code === "ENOTFOUND";
+
+    // In CI we want loud failures: a missing Postgres sidecar is a config bug,
+    // not an acceptable degraded mode. Locally, warn-and-skip lets non-DB tests
+    // run without docker compose.
+    if (isUnreachable && !process.env.CI) {
       console.warn(
         `[tests/setup] skipping schema bootstrap — no Postgres at ${url} ` +
-          `(set DATABASE_URL_TEST_SYNC or start docker compose). DB-touching tests will fail clearly.`,
+          `(set DATABASE_URL_TEST_SYNC or start docker compose). ` +
+          `withTestDb() will throw a clear "Postgres unavailable" error.`,
       );
+      // Mark the skip so withTestDb can produce a clearer error than a raw
+      // ECONNREFUSED stack from each individual test.
+      process.env.__DA2_TEST_DB_BOOTSTRAP_SKIPPED__ = "1";
       return;
     }
     throw err;
@@ -75,7 +87,8 @@ export default async function globalSetup(): Promise<void> {
       try {
         await client.query(sql);
       } catch (err) {
-        throw new Error(`migration ${f} failed: ${(err as Error).message}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`migration ${f} failed: ${msg}`);
       }
     }
   } finally {

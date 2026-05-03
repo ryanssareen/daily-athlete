@@ -22,7 +22,10 @@ export interface TestKeyPair {
 
 export async function mintTestKeyPair(kid = "test-kid-1"): Promise<TestKeyPair> {
   const { publicKey, privateKey } = await generateKeyPair("ES256", { extractable: true });
-  const publicJwk = (await exportJWK(publicKey)) as JWK;
+  const publicJwk = await exportJWK(publicKey);
+  if (!publicJwk.crv || !publicJwk.x || !publicJwk.y) {
+    throw new Error("exportJWK did not populate EC fields (crv/x/y) — jose API regression?");
+  }
   const fullJwk = { ...publicJwk, kid, alg: "ES256" as const, use: "sig" };
   return {
     publicKey,

@@ -129,6 +129,31 @@ describe("decodeSupabaseJwt", () => {
     const claims = await decodeSupabaseJwt(token);
     expect(claims.sub).toBe("11111111-1111-1111-1111-111111111111");
   });
+
+  it("rejects tokens carrying a non-allowlisted role (e.g. service_role)", async () => {
+    const token = await makeToken({ withClaims: { role: "service_role" } });
+    await expect(decodeSupabaseJwt(token)).rejects.toBeInstanceOf(InvalidTokenError);
+  });
+
+  it("normalizes empty-string email to undefined", async () => {
+    const token = await makeToken({ withClaims: { email: "" } });
+    const claims = await decodeSupabaseJwt(token);
+    expect(claims.email).toBeUndefined();
+  });
+
+  it("accepts role='anon' (public anon-key sessions are valid Supabase tokens)", async () => {
+    const token = await makeToken({ withClaims: { role: "anon" } });
+    const claims = await decodeSupabaseJwt(token);
+    expect(claims.role).toBe("anon");
+  });
+
+  it("rejects tokens whose JWKS endpoint is unreachable (closed port)", async () => {
+    process.env.SUPABASE_JWT_JWKS_URL = "http://127.0.0.1:1/.well-known/jwks.json";
+    resetConfigCache();
+    resetJwksCache();
+    const token = await makeToken();
+    await expect(decodeSupabaseJwt(token)).rejects.toBeInstanceOf(InvalidTokenError);
+  });
 });
 
 describe("extractBearer", () => {
@@ -165,6 +190,18 @@ describe("extractBearer", () => {
       /missing bearer token/,
     );
   });
+
+  it("accepts lowercase 'bearer' scheme (RFC 7235 case-insensitivity)", () => {
+    expect(extractBearer(reqWith("bearer abc.def.ghi"))).toBe("abc.def.ghi");
+  });
+
+  it("accepts uppercase 'BEARER' scheme", () => {
+    expect(extractBearer(reqWith("BEARER abc.def.ghi"))).toBe("abc.def.ghi");
+  });
+
+  it("accepts tab-separated 'Bearer\\ttoken' (regex matches \\s+, not just space)", () => {
+    expect(extractBearer(reqWith("Bearer\tabc.def.ghi"))).toBe("abc.def.ghi");
+  });
 });
 
 describe("verifyBearer (end-to-end)", () => {
@@ -197,4 +234,34 @@ describe("verifyBearer (end-to-end)", () => {
       detail: "missing bearer token",
     });
   });
+
+  it("returns generic 'invalid token' detail for an expired token (no leak)", async () => {
+    const token = await makeToken({ expiresInSec: -60 });
+    await expect(verifyBearer(reqWith(`Bearer ${token}`))).rejects.toMatchObject({
+      status: 401,
+      detail: "invalid token",
+    });
+  });
+
+  it("returns generic 'invalid token' detail for wrong audience (no leak)", async () => {
+    const token = await makeToken({ audience: "some-other-app" });
+    await expect(verifyBearer(reqWith(`Bearer ${token}`))).rejects.toMatchObject({
+      status: 401,
+      detail: "invalid token",
+    });
+  });
+
+  it("returns generic 'invalid token' detail for wrong issuer (no leak)", async () => {
+    const token = await makeToken({ issuer: "https://attacker.example/auth/v1" });
+    await expect(verifyBearer(reqWith(`Bearer ${token}`))).rejects.toMatchObject({
+      status: 401,
+      detail: "invalid token",
+    });
+  });
+
+  // RLS round-trip — deferred to Unit 3 when the actual /api/me route lands.
+  // Tracked here so the gap surfaces in the test reporter.
+  it.todo(
+    "Unit 3: createUserScopedClient(jwt for userA) returns only userA's rows from RLS-protected query",
+  );
 });
