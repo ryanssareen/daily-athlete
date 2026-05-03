@@ -7,22 +7,29 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.46.0",
-    "next": "15.0.3",
-    "react": "19.0.0-rc-66855b96-20241106",
-    "react-dom": "19.0.0-rc-66855b96-20241106",
+    "jose": "^5.9.0",
+    "next": "^15.5.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "@types/pg": "^8.11.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vitest/coverage-v8": "^2.1.0",
     "eslint": "^9.14.0",
-    "eslint-config-next": "15.0.3",
-    "typescript": "^5.7.2"
+    "eslint-config-next": "^15.5.0",
+    "pg": "^8.13.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.0"
   }
 }
