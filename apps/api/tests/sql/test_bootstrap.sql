@@ -36,3 +36,40 @@ CREATE OR REPLACE FUNCTION auth.role() RETURNS TEXT
 LANGUAGE sql STABLE AS $$
     SELECT COALESCE(NULLIF(current_setting('request.jwt.claim.role', true), ''), 'anon')
 $$;
+
+-- Mirror Supabase's role separation in tests so RLS policies are actually
+-- exercised (Postgres bypasses RLS for table owners and BYPASSRLS roles —
+-- without these non-owner roles, every RLS test passes vacuously).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN NOINHERIT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        CREATE ROLE authenticated NOLOGIN NOINHERIT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
+    END IF;
+END $$;
+
+-- The connecting role (the test harness) must be allowed to SET ROLE to these.
+DO $$
+DECLARE
+    me TEXT := current_user;
+BEGIN
+    EXECUTE format('GRANT anon, authenticated, service_role TO %I', me);
+END $$;
+
+-- Grant minimal schema usage so SET ROLE authenticated; SELECT … works.
+GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT ON TABLES TO anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT EXECUTE ON FUNCTIONS TO authenticated, service_role, anon;
+GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO authenticated, service_role, anon;
+GRANT SELECT ON auth.users TO authenticated, service_role;

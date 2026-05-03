@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, LargeBinary, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, LargeBinary, SmallInteger, String, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,7 @@ class StravaToken(Base):
     )
     access_token_enc: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     refresh_token_enc: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    key_version: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     scope: Mapped[str] = mapped_column(String, nullable=False)
     athlete_strava_id: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)

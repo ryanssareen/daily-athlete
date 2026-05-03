@@ -22,6 +22,32 @@ infra/        Provisioning runbook (Supabase / Fly.io / Vercel / EAS)
 
 The `docs/{brainstorms,plans,solutions}/` paths are durable artifacts of the compound-engineering pipeline. **Never** delete or gitignore them.
 
+## RLS posture (read this before writing any user-data query)
+
+The FastAPI server runs with credentials that bypass RLS (schema owner in dev;
+`service_role` in prod). **RLS is therefore not a defense at the API tier.**
+Every query that returns user-scoped rows MUST filter by the authenticated user
+explicitly:
+
+```python
+# right
+await session.execute(select(Plan).where(Plan.athlete_id == claims.sub))
+
+# wrong — relies on RLS that doesn't apply
+await session.execute(select(Plan))
+```
+
+RLS exists to protect direct-from-client paths (Supabase JS with the anon key,
+Realtime subscriptions, future PostgREST endpoints). Tests verify policies via
+the `as_authenticated` fixture which `SET ROLE authenticated` to a non-owner
+role that DOES respect RLS — every athlete-data table needs a positive RLS
+test (own row visible) and a negative one (other user's row hidden) before its
+defining migration ships.
+
+The per-request session also pins `request.jwt.claim.sub` via
+`set_authenticated_user_guc()` so that any database trigger that reads
+`auth.uid()` sees the right user.
+
 ## Database & migrations
 
 - Migrations live at `supabase/migrations/NNNN_<imperative_description>.sql`.
@@ -60,8 +86,9 @@ Every setup instruction in a README must include macOS, Linux, and Windows paths
 ## Secrets
 
 - Never inline a generated secret into a shell command in a doc. Generate to a 0600 file, set the secret from the file, then `shred` the file.
-- Encryption keys (`STRAVA_TOKEN_KEY`) live in Fly secrets / Vercel env / GitHub Actions — never in the repo, never in migrations, never in shell history.
-- Keys must be at least 32 bytes; rotation requires a versioned-ciphertext header (TODO: implement before first paying user).
+- Encryption keys live in Fly secrets / Vercel env / GitHub Actions — never in the repo, never in migrations, never in shell history.
+- Strava token encryption uses Python-side Fernet AEAD (`apps/api/src/security/token_crypto.py`) — the symmetric key never traverses SQL. Multiple keys are supported via `STRAVA_TOKEN_KEYS=v:hex,v2:hex,...`; the highest version is used for new encryptions, all listed versions are tried for decryption. Each `strava_tokens` row stamps its `key_version` so rotation can be incremental.
+- The startup config validator (`apps/api/src/config.py::Settings._validate_secrets_for_env`) refuses to boot with placeholder secrets in `app_env in {staging, production}`. Every new sensitive setting added here must extend that validator.
 
 ## Tooling for agents
 

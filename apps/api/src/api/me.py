@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -5,13 +6,26 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth import CurrentUser
-from src.db import get_session
+from src.db import get_session, set_authenticated_user_guc
 from src.models import Entitlement, User
 from src.schemas import EntitlementOut, UserOut, UserUpdate
 
 router = APIRouter(prefix="/me", tags=["me"])
 
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+async def authed_session(
+    claims: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AsyncIterator[AsyncSession]:
+    """Yield an AsyncSession with the JWT subject pinned via set_config so any
+    triggers / RLS-aware code reads the right `auth.uid()`. Routes still must
+    filter explicitly by user_id (RLS is not a defense at the API tier — see
+    db/session.py)."""
+    await set_authenticated_user_guc(session, claims.sub)
+    yield session
+
+
+SessionDep = Annotated[AsyncSession, Depends(authed_session)]
 
 
 @router.get("", response_model=UserOut)

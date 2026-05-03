@@ -38,6 +38,20 @@ async def test_kind_check_constraint(session, make_auth_user) -> None:
         await session.commit()
 
 
+@pytest.mark.skip(
+    reason=(
+        "R15 (webhook idempotency): the planned_workouts + completed_workouts + "
+        "workout_matches tables that enforce 'one row per real-world activity' "
+        "land in Wave 2 (schema plan Unit 6). This placeholder ensures the "
+        "invariant is not silently dropped from the test plan."
+    )
+)
+async def test_webhook_replay_is_idempotent_r15(session) -> None:
+    """100x replay of the same Strava webhook → exactly one completed_workouts
+    row. Implement when Wave 2 ships completed_workouts + the webhook ingest path.
+    """
+
+
 async def test_retention_query_finds_old_rows(session, make_auth_user) -> None:
     user_id = await make_auth_user()
     # Old row

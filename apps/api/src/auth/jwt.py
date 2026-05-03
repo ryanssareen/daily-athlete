@@ -19,14 +19,15 @@ class SupabaseClaims:
 
 def decode_supabase_jwt(token: str) -> SupabaseClaims:
     settings = get_settings()
+    decode_kwargs: dict = {
+        "algorithms": ["HS256"],
+        "audience": settings.supabase_jwt_aud,
+        "options": {"require": ["sub", "exp", "aud"]},
+    }
+    if settings.supabase_jwt_issuer:
+        decode_kwargs["issuer"] = settings.supabase_jwt_issuer
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-            options={"require": ["sub", "exp"]},
-        )
+        payload = jwt.decode(token, settings.supabase_jwt_secret, **decode_kwargs)
     except jwt.PyJWTError as exc:
         raise InvalidTokenError(str(exc)) from exc
 

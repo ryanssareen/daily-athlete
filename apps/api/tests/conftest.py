@@ -120,13 +120,13 @@ async def make_auth_user(session: AsyncSession):
 
 @pytest_asyncio.fixture
 async def as_user(session: AsyncSession):
-    """Run a block of work as a specific authenticated user (sets the GUCs read by
-    auth.uid() and auth.role() so RLS policies evaluate correctly).
+    """Set the GUCs read by auth.uid() / auth.role() so RLS policies see the
+    requested user. Does NOT switch role — the connecting role (typically the
+    schema owner in local dev) bypasses RLS, so this fixture alone tests the
+    predicate but not the policy. Use `as_authenticated` to actually exercise RLS.
     """
 
     async def _set(user_id: UUID, role: str = "authenticated") -> None:
-        # is_local=false so the GUC persists across statements within the session
-        # (autocommit otherwise discards transaction-local settings between executes).
         await session.execute(
             text("SELECT set_config('request.jwt.claim.sub', :sub, false)"),
             {"sub": str(user_id)},
@@ -137,3 +137,32 @@ async def as_user(session: AsyncSession):
         )
 
     return _set
+
+
+@pytest_asyncio.fixture
+async def as_authenticated(session: AsyncSession):
+    """Run subsequent statements on this session as the `authenticated` Postgres
+    role, with auth.uid() returning the given user_id. This actually exercises
+    RLS (the role is non-owner and lacks BYPASSRLS).
+
+    Yields a context manager so tests can SET ROLE for a block, then RESET on
+    exit, freeing the session to do owner-level setup before/after.
+    """
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def _ctx(user_id: UUID):
+        await session.execute(
+            text("SELECT set_config('request.jwt.claim.sub', :sub, false)"),
+            {"sub": str(user_id)},
+        )
+        await session.execute(
+            text("SELECT set_config('request.jwt.claim.role', 'authenticated', false)")
+        )
+        await session.execute(text("SET LOCAL ROLE authenticated"))
+        try:
+            yield session
+        finally:
+            await session.execute(text("RESET ROLE"))
+
+    return _ctx
