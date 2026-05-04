@@ -72,3 +72,36 @@ export async function findUserByEmail(email: string): Promise<{ id: string } | n
   const match = data.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
   return match ? { id: match.id } : null;
 }
+
+const ANON_KEY =
+  process.env.E2E_SUPABASE_ANON_KEY ??
+  // The anon key is published to the browser anyway; safe default for local
+  // e2e runs. CI / non-default projects should set E2E_SUPABASE_ANON_KEY.
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1a2h3b3pnbnVuYnF6bGxvYmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NzUwNDMsImV4cCI6MjA5MzM1MTA0M30.ZI74qT05RsjH8MjcpbfeposTaRBiZ2XkBCjxczV95wA";
+
+/**
+ * Mint a real Supabase access token for a test user by exchanging their
+ * email+password for a session. Used by API e2e tests that need a bearer that
+ * `verifyBearer` (production verifier) will accept.
+ */
+export async function getAccessToken(user: TestUser): Promise<string> {
+  const res = await fetch(
+    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+    {
+      method: "POST",
+      headers: {
+        apikey: ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email: user.email, password: user.password }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`getAccessToken failed: ${res.status} ${await res.text()}`);
+  }
+  const data = (await res.json()) as { access_token?: string };
+  if (!data.access_token) {
+    throw new Error(`getAccessToken: no access_token in response`);
+  }
+  return data.access_token;
+}

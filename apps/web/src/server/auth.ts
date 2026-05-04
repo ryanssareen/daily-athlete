@@ -126,11 +126,29 @@ export function extractBearer(request: Request): string {
 
 /** End-to-end: pull bearer + verify. Throws ApiError(401) on failure. */
 export async function verifyBearer(request: Request): Promise<SupabaseClaims> {
+  const { claims } = await verifyBearerWithToken(request);
+  return claims;
+}
+
+/**
+ * Like `verifyBearer`, but also returns the original token string so callers
+ * (route handlers) can hand it to `createUserScopedClient` without re-parsing
+ * the Authorization header.
+ *
+ * Throws `Unauthorized()` with detail "missing bearer token" when no usable
+ * bearer is present, and "invalid token" when the bearer fails verification.
+ * Crucially, the underlying decode reason is swallowed — we never echo
+ * "expired" vs "bad signature" vs "wrong issuer" to the client.
+ */
+export async function verifyBearerWithToken(
+  request: Request,
+): Promise<{ claims: SupabaseClaims; token: string }> {
   const token = extractBearer(request);
   try {
-    return await decodeSupabaseJwt(token);
+    const claims = await decodeSupabaseJwt(token);
+    return { claims, token };
   } catch (err) {
-    void err; // intentionally don't leak the reason to the client
+    void err;
     throw Unauthorized();
   }
 }
