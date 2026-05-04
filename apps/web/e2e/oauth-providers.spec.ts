@@ -17,7 +17,7 @@ test.describe("Google OAuth provider wiring", () => {
 
     // Parameters Supabase should hand to Google
     expect(loc.searchParams.get("client_id")).toBe(
-      "7331907591-v2647f62gf5h8c1n5mjajme9255imes.apps.googleusercontent.com",
+      "7331907591-v2647tf62gf5h8c1n5mjajme9255imes.apps.googleusercontent.com",
     );
     expect(loc.searchParams.get("redirect_uri")).toBe(
       `${SUPABASE_URL}/auth/v1/callback`,
