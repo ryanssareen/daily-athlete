@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DA2 — Coach",
+  title: "DA2",
   description: "AI-paced training for endurance athletes.",
 };
 

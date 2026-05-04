@@ -16,7 +16,7 @@ export default function SignInPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/roster` },
+      options: { emailRedirectTo: `${window.location.origin}/` },
     });
     if (error) {
       setErrorMsg(error.message);
@@ -28,7 +28,7 @@ export default function SignInPage() {
 
   return (
     <main style={{ maxWidth: 420, margin: "120px auto", padding: 24 }}>
-      <h1 style={{ marginBottom: 8 }}>Coach sign-in</h1>
+      <h1 style={{ marginBottom: 8 }}>Sign in</h1>
       <p style={{ color: "var(--ink-subtle)", marginBottom: 24 }}>
         We&apos;ll email you a sign-in link.
       </p>

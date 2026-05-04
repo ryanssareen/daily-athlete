@@ -97,7 +97,7 @@ None yet. After this plan ships, write `docs/solutions/strava-webhook-dedup.md` 
 - **Soft-delete via `deleted_at TIMESTAMPTZ` on the five mutation-prone tables** (`completed_workouts`, `planned_workouts`, `plans`, `coach_athlete_links`, `workout_comments`). All read paths add `deleted_at IS NULL` by default; admin paths can pass through.
 - **RLS-by-default on every user-data table.** Service-role key bypasses RLS for FastAPI (which does its own authz); the Supabase anon key relies on RLS.
 - **One active plan per athlete enforced by partial unique index** `UNIQUE (athlete_id) WHERE status = 'active' AND deleted_at IS NULL`. Same pattern for one active coach link.
-- **Strava token encryption uses `pgcrypto` symmetric encryption with the key stored as a Fly secret**, not in the DB. Refresh and access tokens encrypted before insert; decrypted only inside FastAPI when the StravaClient needs them.
+- **Strava token encryption uses `pgcrypto` symmetric encryption with the key stored as a host-PaaS secret** (provider TBD per Unit 1.5; Fly.io is out), not in the DB. Refresh and access tokens encrypted before insert; decrypted only inside FastAPI when the StravaClient needs them.
 - **`completed_workouts` UNIQUE on `(athlete_id, strava_activity_id) WHERE strava_activity_id IS NOT NULL`.** Manual rows have NULL strava_activity_id and are not constrained by uniqueness (a busy day could have multiple manual workouts).
 - **`workout_matches` is a 1:1 link table with at most one active match per planned and per completed.** Enforced by partial unique indexes on each side `WHERE deleted_at IS NULL`. Manual relinks soft-delete the prior match.
 - **`workout_edits` is append-only, no soft-delete, no updates.** Audit log integrity.
@@ -113,7 +113,7 @@ None yet. After this plan ships, write `docs/solutions/strava-webhook-dedup.md` 
 - *ORM*: SQLAlchemy 2.x async; Pydantic v2 separate.
 - *PK type*: UUID via `gen_random_uuid()`.
 - *Soft-delete vs hard-delete*: soft-delete by default; hard-delete on account deletion only.
-- *Token storage*: pgcrypto symmetric, key in Fly secrets.
+- *Token storage*: pgcrypto symmetric, key in the host-PaaS secret store (provider TBD per Unit 1.5).
 - *JSONB vs normalized intervals*: JSONB for structure; columns for query fields.
 
 ### Deferred to Implementation
@@ -346,7 +346,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - `strava_raw_payloads`: `id`, `user_id`, `kind TEXT CHECK (kind IN ('webhook','hydration'))`, `payload JSONB`, `arrived_at TIMESTAMPTZ DEFAULT now()`. Index on `arrived_at`.
 - Retention sweeper: Arq daily job deletes rows with `arrived_at < now() - INTERVAL '30 days'`. Configurable via env (`STRAVA_RAW_RETENTION_DAYS`, default 30).
 - RLS: self-only on both tables (write is service-role-only — only FastAPI inserts).
-- Encryption key (`STRAVA_TOKEN_KEY`) lives in Fly secrets; never in DB or migration.
+- Encryption key (`STRAVA_TOKEN_KEY`) lives in the host-PaaS secret store (provider TBD per Unit 1.5); never in DB or migration.
 
 **Patterns to follow:** pgcrypto symmetric-encryption pattern; Arq scheduled job pattern (will be established in product plan Unit 1.5).
 

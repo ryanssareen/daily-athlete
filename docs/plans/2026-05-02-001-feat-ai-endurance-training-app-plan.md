@@ -64,10 +64,10 @@ This plan additionally excludes:
 | LLM (insights, free tier) | **Claude Haiku 4.5** or **GPT-5-mini** | Cheap, cached athlete-profile system prompt drops cost ~80%. | Mid-tier model (cost too high at free-tier scale). |
 | Subscriptions | **RevenueCat** | Industry default for App Store + Play Store + Stripe entitlement unification. | Adapty (similar; pick if paywall A/B testing matters more). |
 | Eval harness | **Promptfoo** (CI) + **Langfuse** (prod traces) | Lightest-weight scoring with deterministic + LLM-as-judge rubric; production tracing tied to evals. | Braintrust (heavier), Inspect (research-flavored). |
-| Hosting | **Fly.io** (backend + Arq workers) + **Vercel** (Next.js) + **Supabase** (Postgres + Realtime + Auth) | Single-region MVP, cheap, websocket-friendly, fast deploys. | Render (similar), AWS (premature complexity). |
-| Observability | **Sentry** (errors) + **Langfuse** (LLM) + Fly metrics | Cheap, covers what matters at MVP. | Datadog (overkill for MVP). |
+| Hosting | **Container PaaS — TBD** (Railway or Render) for backend + Arq workers, **Vercel** (Next.js), **Supabase** (Postgres + Realtime + Auth) | Single-region MVP, cheap, websocket-friendly, fast deploys. Final pick deferred to Unit 1.5. | AWS (premature complexity), Fly.io (ruled out). |
+| Observability | **Sentry** (errors) + **Langfuse** (LLM) + host metrics | Cheap, covers what matters at MVP. | Datadog (overkill for MVP). |
 
-The unifying choice is **Supabase as the platform layer** (Postgres + Auth + Realtime + Storage Edge) plus **Fly.io for the FastAPI app + Arq workers**. This minimizes the number of moving vendors while keeping the AI/job code in Python where the ecosystem is.
+The unifying choice is **Supabase as the platform layer** (Postgres + Auth + Realtime + Storage Edge) plus **a container PaaS (TBD — Railway or Render) for the FastAPI app + Arq workers**. This minimizes the number of moving vendors while keeping the AI/job code in Python where the ecosystem is. Fly.io is explicitly out.
 
 ## Context & Research
 
@@ -136,7 +136,7 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
             │ REST + Supabase Realtime channel          │
             ▼                                            ▼
  ┌──────────────────────────────────────────────────────────────────┐
- │  FastAPI (Fly.io)                                                │
+ │  FastAPI (container PaaS — TBD)                                  │
  │  - Auth proxy (Supabase JWT verify)                              │
  │  - REST: profiles, plans, workouts, comments, entitlements       │
  │  - Webhooks: Strava activity, RevenueCat                         │
@@ -146,7 +146,7 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
            ▼                                       ▼
  ┌────────────────────┐                  ┌────────────────────┐
  │  Postgres (Supabase)│                 │  Arq workers       │
- │  + Realtime broker  │                 │  (Fly.io)          │
+ │  + Realtime broker  │                 │  (container PaaS)  │
  │                     │                 │  - plan_generate   │
  │                     │                 │  - weekly_review   │
  │                     │                 │  - insight_for     │
@@ -335,23 +335,26 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 - [ ] **Unit 1.5: Hosting, observability, secrets**
 
-**Goal:** Deploy infra so subsequent units have a target. Fly.io app for FastAPI + Arq workers, Vercel for Next.js, Supabase project, Sentry, Langfuse.
+**Goal:** Deploy infra so subsequent units have a target. Container PaaS (TBD — Railway or Render) for FastAPI + Arq workers, Vercel for Next.js, Supabase project, Sentry, Langfuse. **Fly.io is out of scope.**
 
 **Requirements:** R31
 
 **Dependencies:** 1.1.
 
+**Pre-work (decision):** Pick the container PaaS. Default candidates are **Railway** (multi-process apps, simple env, built-in Redis add-on) and **Render** (separate web/worker services, managed Redis). Decide before writing the Dockerfiles so service shape and config format are settled.
+
 **Files:**
-- Create: `apps/api/fly.toml`, `apps/api/Dockerfile`, `apps/api/Dockerfile.worker`
+- Create: `apps/api/Dockerfile`, `apps/api/Dockerfile.worker`
+- Create: provider config — Railway: `apps/api/railway.toml` and a worker service definition, **or** Render: `render.yaml` at repo root with web + worker services
 - Create: `apps/web/vercel.json` (if needed)
-- Create: `infra/README.md` documenting environments (dev/staging/prod)
+- Create: `infra/README.md` documenting environments (dev/staging/prod) and the chosen PaaS
 - Modify: `.github/workflows/deploy-api.yml`, `.github/workflows/deploy-web.yml`
 
 **Approach:**
-- Two Fly processes: `web` (FastAPI/uvicorn) and `worker` (Arq).
-- Redis (Upstash or Fly Redis) for Arq queue.
+- Two backend processes on the chosen PaaS: `web` (FastAPI/uvicorn) and `worker` (Arq). Both built from the same repo, separate Dockerfiles or start commands.
+- Redis via **Upstash** (provider-agnostic, works regardless of which PaaS we pick) for the Arq queue.
 - Sentry on both API and clients; Langfuse SDK initialized in `apps/api/src/llm/`.
-- Secrets via Fly secrets / Vercel env / GitHub Actions.
+- Secrets via the chosen PaaS's secret store + Vercel env + GitHub Actions.
 
 **Test scenarios:** none — pure config/scaffolding.
 - Test expectation: none — infrastructure scaffolding; verified by deployment success.

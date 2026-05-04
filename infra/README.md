@@ -9,7 +9,8 @@ and production.
 | Service | Purpose | Wave 1 | Wave 2+ |
 |---|---|---|---|
 | Supabase | Postgres + Auth + Realtime + Storage | Required for staging | — |
-| Fly.io | FastAPI + Arq workers | Required for staging | — |
+| Container PaaS (Railway or Render — TBD, see Unit 1.5) | FastAPI + Arq workers | Required for staging | — |
+| Upstash Redis | Arq job queue | Required for staging | — |
 | Vercel | Next.js coach web | Required for staging | — |
 | Expo EAS | iOS + Android builds | Optional in Wave 1 | Required by Wave 2 |
 | Sentry | Error tracking | Optional | Recommended before public beta |
@@ -41,21 +42,32 @@ Then copy these values into `apps/api/.env`, `apps/web/.env.local`, and `apps/mo
 
 Also: enable Apple + Google sign-in providers in the Supabase Auth dashboard.
 
-## 2. Fly.io (FastAPI + Arq)
+## 2. Container PaaS (FastAPI + Arq) — TBD
 
-```bash
-fly launch --copy-config --no-deploy
-# Edit fly.toml as needed
-fly secrets set \
-  DATABASE_URL=... \
-  SUPABASE_JWT_SECRET=... \
-  STRAVA_TOKEN_KEY=$(python -c "import secrets; print(secrets.token_hex(32))") \
-  REDIS_URL=...
-fly deploy
-```
+The host for the FastAPI `web` process and the Arq `worker` process is not yet
+chosen. Fly.io is **explicitly out**. The two candidates evaluated in Unit 1.5 are
+**Railway** and **Render**; pick one before writing the Dockerfiles.
 
-For Redis, either use Fly Redis or Upstash. The Strava token encryption key must be
-set before any user connects Strava — without it, encrypt/decrypt fail at startup.
+Whichever is picked, the shape is the same:
+
+- Two services from this repo: `web` (uvicorn) and `worker` (Arq), each with its own
+  Dockerfile (`apps/api/Dockerfile`, `apps/api/Dockerfile.worker`) or start command.
+- Secrets set via the provider's secret store. Required at minimum:
+  - `DATABASE_URL` — Supabase Postgres connection string
+  - `SUPABASE_JWT_SECRET`
+  - `STRAVA_TOKEN_KEY` — `python -c "import secrets; print(secrets.token_hex(32))"`
+  - `REDIS_URL` — Upstash (see below)
+
+Provider-specific config files land in Unit 1.5 (`railway.toml` *or* `render.yaml`).
+
+The Strava token encryption key must be set before any user connects Strava —
+without it, encrypt/decrypt fail at startup.
+
+### Redis (Upstash)
+
+Use Upstash Redis regardless of which PaaS is chosen — it's provider-agnostic and
+keeps the queue layer portable. Create a database, copy the `REDIS_URL`, and set it
+as a secret on both the `web` and `worker` services.
 
 ## 3. Vercel (Next.js)
 
