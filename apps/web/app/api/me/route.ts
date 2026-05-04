@@ -59,9 +59,17 @@ function userOut(row: UserRow): UserOut {
   };
 }
 
+/**
+ * PATCH body schema. Both fields use `.nullish()` (= `.optional().nullable()`)
+ * so an explicit JSON `null` is treated identically to omitting the key — a
+ * no-op update. This mirrors Python's `display_name: str | None = Field(...)`
+ * where `None` short-circuits the `if payload.display_name is not None` guard
+ * and the field is left untouched. Clients that send `{display_name: null}`
+ * to mean "don't update" now get 200 (was 400 under the original `.optional()`).
+ */
 const UserUpdate = z.object({
-  display_name: z.string().min(1).max(120).optional(),
-  timezone: z.string().min(1).max(64).optional(),
+  display_name: z.string().min(1).max(120).nullish(),
+  timezone: z.string().min(1).max(64).nullish(),
 });
 
 export async function GET(request: Request): Promise<Response> {
@@ -74,7 +82,7 @@ export async function GET(request: Request): Promise<Response> {
       .eq("id", claims.sub)
       .maybeSingle<UserRow>();
     if (error) {
-      throw new ApiError(500, "internal error");
+      throw new ApiError(500, "internal error", {}, error);
     }
     if (!data || data.deleted_at !== null) {
       throw new ApiError(404, "user not found");
@@ -110,22 +118,25 @@ export async function PATCH(request: Request): Promise<Response> {
       .eq("id", claims.sub)
       .maybeSingle<{ id: string; deleted_at: string | null }>();
     if (existingErr) {
-      throw new ApiError(500, "internal error");
+      throw new ApiError(500, "internal error", {}, existingErr);
     }
     if (!existing || existing.deleted_at !== null) {
       throw new ApiError(404, "user not found");
     }
 
+    // Build the update payload. `.nullish()` means parse.data.<field> can be
+    // `string | null | undefined`. Treat null and undefined identically — both
+    // mean "don't update this field" (Python parity: `if payload.field is not None`).
     const updates: Record<string, string> = {};
-    if (parse.data.display_name !== undefined) updates.display_name = parse.data.display_name;
-    if (parse.data.timezone !== undefined) updates.timezone = parse.data.timezone;
+    if (parse.data.display_name != null) updates.display_name = parse.data.display_name;
+    if (parse.data.timezone != null) updates.timezone = parse.data.timezone;
     if (Object.keys(updates).length > 0) {
       const { error: upErr } = await supabase
         .from("users")
         .update(updates)
         .eq("id", claims.sub);
       if (upErr) {
-        throw new ApiError(500, "internal error");
+        throw new ApiError(500, "internal error", {}, upErr);
       }
     }
 
@@ -135,7 +146,14 @@ export async function PATCH(request: Request): Promise<Response> {
       .eq("id", claims.sub)
       .maybeSingle<UserRow>();
     if (refreshErr || !refreshed) {
-      throw new ApiError(500, "internal error");
+      throw new ApiError(500, "internal error", {}, refreshErr ?? "refresh returned no row");
+    }
+    // Re-check soft-delete on the refresh: if a concurrent admin / cascade
+    // soft-deleted the row between the existence check and the refresh, return
+    // 404 instead of 200. Closes the adversarial-review TOCTOU window where
+    // PATCH would silently update a tombstoned row and respond 200.
+    if (refreshed.deleted_at !== null) {
+      throw new ApiError(404, "user not found");
     }
     return Response.json(userOut(refreshed));
   } catch (err) {
