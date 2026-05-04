@@ -43,7 +43,7 @@ export default function SignInPage() {
     }
 
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -53,7 +53,11 @@ export default function SignInPage() {
       if (error) {
         setErrorMsg(error.message);
         setStatus("error");
+      } else if (data.session) {
+        // Email confirmation is disabled — user is already signed in.
+        window.location.href = ROSTER_PATH;
       } else {
+        // Confirmation email required.
         setStatus("sent");
       }
       return;
