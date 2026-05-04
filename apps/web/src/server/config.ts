@@ -25,9 +25,14 @@ const RawSchema = z.object({
   LOG_LEVEL: z.string().default("info"),
 
   // Supabase. Accept empty values here; downstream validator decides whether
-  // non-dev environments require them.
+  // non-dev environments require them. The `NEXT_PUBLIC_*` variants are read
+  // as fallbacks because the browser-facing `@/auth/supabase.ts` already
+  // depends on them — duplicating to bare `SUPABASE_*` would just be two
+  // env vars that must stay in lockstep.
   SUPABASE_URL: z.string().default(""),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().default(""),
   SUPABASE_ANON_KEY: z.string().default(""),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().default(""),
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(""),
 
   SUPABASE_JWT_JWKS_URL: z.string().default(""),
@@ -84,16 +89,22 @@ function buildConfig(env: RawEnv = process.env): Config {
   }
   const raw = parsed.data;
 
-  // Derive the JWKS URL from SUPABASE_URL if not explicitly set.
+  // Resolve Supabase URL / anon key from either the bare or NEXT_PUBLIC_ form.
+  // Bare form wins when both are set (lets us point the server at a different
+  // project than the browser, e.g. a private mirror, without rebuilding).
+  const supabaseUrl = raw.SUPABASE_URL || raw.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = raw.SUPABASE_ANON_KEY || raw.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Derive the JWKS URL from the resolved Supabase URL if not explicitly set.
   const derivedJwksUrl =
     raw.SUPABASE_JWT_JWKS_URL ||
-    (raw.SUPABASE_URL ? `${raw.SUPABASE_URL.replace(/\/$/, "")}/auth/v1/.well-known/jwks.json` : "");
+    (supabaseUrl ? `${supabaseUrl.replace(/\/$/, "")}/auth/v1/.well-known/jwks.json` : "");
 
   const cfg: Config = {
     appEnv: raw.APP_ENV,
     logLevel: raw.LOG_LEVEL,
-    supabaseUrl: raw.SUPABASE_URL,
-    supabaseAnonKey: raw.SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
     supabaseServiceRoleKey: raw.SUPABASE_SERVICE_ROLE_KEY,
     supabaseJwtJwksUrl: derivedJwksUrl,
     supabaseJwtIssuer: raw.SUPABASE_JWT_ISSUER,

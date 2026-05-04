@@ -57,6 +57,41 @@ describe("config validation", () => {
     );
   });
 
+  it("falls back to NEXT_PUBLIC_SUPABASE_URL when bare SUPABASE_URL is unset", () => {
+    const cfg = buildConfig(
+      envFixture({
+        SUPABASE_URL: "",
+        NEXT_PUBLIC_SUPABASE_URL: "https://nextpub-project.supabase.co",
+      }),
+    );
+    expect(cfg.supabaseUrl).toBe("https://nextpub-project.supabase.co");
+    // JWKS URL is derived from the resolved URL, not the bare-only one.
+    expect(cfg.supabaseJwtJwksUrl).toBe(
+      "https://nextpub-project.supabase.co/auth/v1/.well-known/jwks.json",
+    );
+  });
+
+  it("falls back to NEXT_PUBLIC_SUPABASE_ANON_KEY when bare SUPABASE_ANON_KEY is unset", () => {
+    const cfg = buildConfig(
+      envFixture({
+        SUPABASE_ANON_KEY: "",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-from-public",
+      }),
+    );
+    expect(cfg.supabaseAnonKey).toBe("anon-key-from-public");
+  });
+
+  it("bare SUPABASE_URL wins over NEXT_PUBLIC_SUPABASE_URL when both are set", () => {
+    const cfg = buildConfig(
+      envFixture({
+        SUPABASE_URL: "https://bare.supabase.co",
+        NEXT_PUBLIC_SUPABASE_URL: "https://public.supabase.co",
+        SUPABASE_JWT_ISSUER: "https://bare.supabase.co/auth/v1",
+      }),
+    );
+    expect(cfg.supabaseUrl).toBe("https://bare.supabase.co");
+  });
+
   it("production rejects http:// JWKS URLs", () => {
     expect(() =>
       buildConfig(
