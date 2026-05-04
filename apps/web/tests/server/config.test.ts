@@ -81,6 +81,19 @@ describe("config validation", () => {
     expect(cfg.supabaseAnonKey).toBe("anon-key-from-public");
   });
 
+  it("production refuses to boot when SUPABASE_JWT_JWKS_URL is set but no Supabase URL is available (origin pinning would be skipped)", () => {
+    expect(() =>
+      buildConfig(
+        envFixture({
+          SUPABASE_URL: "",
+          NEXT_PUBLIC_SUPABASE_URL: "",
+          SUPABASE_JWT_JWKS_URL:
+            "https://attacker.example/auth/v1/.well-known/jwks.json",
+        }),
+      ),
+    ).toThrowError(/SUPABASE_JWT_JWKS_URL is set but SUPABASE_URL.*empty/);
+  });
+
   it("bare SUPABASE_URL wins over NEXT_PUBLIC_SUPABASE_URL when both are set", () => {
     const cfg = buildConfig(
       envFixture({

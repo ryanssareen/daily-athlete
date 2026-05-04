@@ -156,6 +156,16 @@ function validateForEnv(cfg: Config): void {
       } catch {
         errors.push("SUPABASE_URL is not a valid URL");
       }
+    } else if (parsedJwks && !cfg.supabaseUrl) {
+      // ce:review hardening — without a Supabase URL the origin check above
+      // can't run. Boot would otherwise accept any https:// JWKS URL, which
+      // means an attacker who flips just SUPABASE_JWT_JWKS_URL (and leaves
+      // SUPABASE_URL unset) can substitute an attacker-controlled JWKS and
+      // forge tokens. Refuse to boot in production rather than accept an
+      // un-pinnable JWKS.
+      errors.push(
+        "SUPABASE_JWT_JWKS_URL is set but SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL are both empty — origin pinning is impossible",
+      );
     }
   }
   if (!cfg.supabaseJwtIssuer) {

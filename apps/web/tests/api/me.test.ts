@@ -387,6 +387,70 @@ describe("PATCH /api/me", () => {
     expect(JSON.stringify(body)).not.toContain("deadlock");
   });
 
+  it("PATCH 500 when the refresh select itself fails (refreshErr branch)", async () => {
+    // Three calls: existence check (success), update (success), refresh (fails).
+    // We wire failNextSelect to fire on the 3rd .from('users') select.
+    const fake = makeSupabaseFake({ users: [sampleUser] });
+    let fromCallCount = 0;
+    const originalFrom = fake.client.from;
+    fake.client.from = ((table: string) => {
+      fromCallCount++;
+      // Inject a select error on the refresh call only.
+      if (fromCallCount === 3) {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: null,
+                  error: { message: "pg: refresh broke" },
+                }),
+            }),
+          }),
+        } as unknown as ReturnType<typeof originalFrom>;
+      }
+      return originalFrom(table);
+    }) as typeof fake.client.from;
+    supabaseMock.current = fake.client;
+
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const res = await PATCH(
+      new Request("https://test.example/api/me", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: "Bob" }),
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ detail: "internal error" });
+  });
+
+  it("respondError keeps responding even when cause.toString() throws (logging hardening)", async () => {
+    // Build a cause whose toString throws. The handler still must return a
+    // 500 Response — logging failure must never stall the response.
+    const hostileCause = {
+      toString() {
+        throw new Error("hostile");
+      },
+    };
+    // Stub the supabase fake so the existence check throws ApiError(500, cause: hostileCause).
+    // Easiest path: use failNextSelect with the hostile object as the error.
+    supabaseMock.current = makeSupabaseFake(
+      { users: [sampleUser] },
+      { failNextSelect: { table: "users", error: hostileCause } },
+    ).client;
+    const token = await bearerFor();
+    const { GET } = await import("@/../app/api/me/route");
+    const res = await GET(
+      new Request("https://test.example/api/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ detail: "internal error" });
+  });
+
   it("PATCH 404 when refresh reads the row and finds it soft-deleted (TOCTOU close)", async () => {
     // Seed an active user, then mutate the underlying row to soft-deleted
     // *during* the request to simulate a concurrent admin soft-delete after
