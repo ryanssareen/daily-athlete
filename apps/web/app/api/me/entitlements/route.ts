@@ -48,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
       .select("entitlement_key, active, expires_at")
       .eq("user_id", claims.sub);
     if (error) {
-      throw new ApiError(500, "internal error");
+      throw new ApiError(500, "internal error", {}, error);
     }
     const rows = (data ?? []) as EntitlementRow[];
     return Response.json(rows.map(entitlementOut));

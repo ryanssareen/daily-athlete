@@ -184,6 +184,25 @@ describe("GET /api/me", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("500 with generic 'internal error' detail when Supabase select errors", async () => {
+    supabaseMock.current = makeSupabaseFake(
+      { users: [sampleUser] },
+      { failNextSelect: { table: "users", error: { message: "pg: connection refused" } } },
+    ).client;
+    const token = await bearerFor();
+    const { GET } = await import("@/../app/api/me/route");
+    const res = await GET(
+      new Request("https://test.example/api/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    // No leak of the underlying postgres error message
+    expect(body).toEqual({ detail: "internal error" });
+    expect(JSON.stringify(body)).not.toContain("connection refused");
+  });
 });
 
 describe("PATCH /api/me", () => {
@@ -271,6 +290,134 @@ describe("PATCH /api/me", () => {
     });
     const res = await PATCH(req);
     expect(res.status).toBe(404);
+  });
+
+  it("PATCH timezone happy path: 200, response reflects new timezone, row mutated", async () => {
+    const fake = makeSupabaseFake({ users: [sampleUser] });
+    supabaseMock.current = fake.client;
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ timezone: "America/New_York" }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.timezone).toBe("America/New_York");
+    expect(fake.rows.users[0].timezone).toBe("America/New_York");
+    // display_name unchanged
+    expect(body.display_name).toBe("Alice");
+  });
+
+  it("PATCH null fields are no-ops (Python parity: None means 'don't update')", async () => {
+    const fake = makeSupabaseFake({ users: [sampleUser] });
+    supabaseMock.current = fake.client;
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: null, timezone: null }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Both fields unchanged
+    expect(body.display_name).toBe("Alice");
+    expect(body.timezone).toBe("UTC");
+    // No update was attempted
+    expect(fake.rows.users[0].display_name).toBe("Alice");
+    expect(fake.rows.users[0].timezone).toBe("UTC");
+  });
+
+  it("PATCH empty body {} is a no-op (no fields to update); returns current row", async () => {
+    const fake = makeSupabaseFake({ users: [sampleUser] });
+    supabaseMock.current = fake.client;
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.display_name).toBe("Alice");
+    expect(body.timezone).toBe("UTC");
+  });
+
+  it("PATCH 400 errors return generic detail string in body, not stack trace", async () => {
+    supabaseMock.current = makeSupabaseFake({ users: [sampleUser] }).client;
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: "" }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    // Body must have a `detail` string. Don't pin the exact Zod-issue text
+    // (it could change with library upgrades), but lock the shape.
+    expect(typeof body.detail).toBe("string");
+    expect(body.detail.length).toBeGreaterThan(0);
+    expect(Object.keys(body)).toEqual(["detail"]);
+  });
+
+  it("PATCH 500 when Supabase update fails; no internal error leak", async () => {
+    supabaseMock.current = makeSupabaseFake(
+      { users: [sampleUser] },
+      { failNextUpdate: { table: "users", error: { message: "pg: deadlock detected" } } },
+    ).client;
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: "Bob" }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ detail: "internal error" });
+    expect(JSON.stringify(body)).not.toContain("deadlock");
+  });
+
+  it("PATCH 404 when refresh reads the row and finds it soft-deleted (TOCTOU close)", async () => {
+    // Seed an active user, then mutate the underlying row to soft-deleted
+    // *during* the request to simulate a concurrent admin soft-delete after
+    // the existence check but before/around the refresh. The fake serves the
+    // same row store throughout, so flipping deleted_at after the existence
+    // check is observed by the refresh select.
+    const fake = makeSupabaseFake({ users: [sampleUser] });
+    // Wire a hook: after the first .from("users") call (existence check)
+    // returns, mutate deleted_at before the next select sees the row.
+    let fromCallCount = 0;
+    const originalFrom = fake.client.from;
+    fake.client.from = ((table: string) => {
+      fromCallCount++;
+      // After the existence check + update, before the refresh:
+      if (fromCallCount === 3) {
+        fake.rows.users[0].deleted_at = "2026-04-01T00:00:00Z";
+      }
+      return originalFrom(table);
+    }) as typeof fake.client.from;
+    supabaseMock.current = fake.client;
+
+    const token = await bearerFor();
+    const { PATCH } = await import("@/../app/api/me/route");
+    const req = new Request("https://test.example/api/me", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: "Should not stick" }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ detail: "user not found" });
   });
 
   it("integration: PATCH then GET reflects the change without a 'stale read'", async () => {
