@@ -61,6 +61,24 @@ function logUnexpectedError(cause: unknown, context: string): void {
   // Best-effort structured logging: stringify so PostgrestError-shaped objects
   // and plain Errors both surface their fields. console.error goes to stderr
   // which Vercel collects as runtime logs.
-  // eslint-disable-next-line no-console
-  console.error(`[respondError] ${context}:`, cause);
+  //
+  // Wrapped in try/catch as ce:review hardening — `console.error` will invoke
+  // toString() on the cause, and a hostile cause (e.g., an upstream object
+  // whose toString throws, or a circular structure that some loggers reject)
+  // could otherwise unwind out of respondError and prevent the route handler
+  // from sending its 500 response, stalling the request until the function
+  // timeout. Logging is best-effort; never block the response on it.
+  try {
+    // eslint-disable-next-line no-console
+    console.error(`[respondError] ${context}:`, cause);
+  } catch {
+    // Last resort — if the structured cause itself can't be logged, at least
+    // record the context line so ops know an error occurred.
+    try {
+      // eslint-disable-next-line no-console
+      console.error(`[respondError] ${context}: (cause not loggable)`);
+    } catch {
+      // Give up. The response is what matters.
+    }
+  }
 }
