@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Plan documents (units, waves, requirements)
+    url: https://github.com/ryanssareen/daily-athlete/tree/main/docs/plans
+    about: Read the implementation plan before opening a unit-tracking issue.
+  - name: Brainstorm / requirements
+    url: https://github.com/ryanssareen/daily-athlete/tree/main/docs/brainstorms
+    about: Source-of-truth requirements behind the plan units.

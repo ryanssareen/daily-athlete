@@ -1,0 +1,64 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+title: "[bug]: "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. The clearer the repro, the faster the fix.
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: Where did this happen? (production / preview URL / local dev / e2e)
+      placeholder: e.g. https://da2-one.vercel.app, signed in via Google
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A short, factual description. One paragraph is plenty.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: One sentence is enough.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Numbered steps. Include URLs and any inputs that matter.
+      placeholder: |
+        1. Go to /sign-in
+        2. Click "Continue with Google"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, network errors
+      description: Paste error messages verbatim. Mask secrets — never paste service-role keys, OAuth secrets, JWTs, or session cookies.
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - "S0 — production broken, no workaround"
+        - "S1 — production broken, workaround exists"
+        - "S2 — feature broken in non-critical path"
+        - "S3 — papercut / cosmetic"
+      default: 2
+    validations:
+      required: true
+  - type: input
+    id: related-unit
+    attributes:
+      label: Related plan unit (if any)
+      description: e.g. Unit 2, Wave 1. Leave blank if not tied to a plan unit.

@@ -1,0 +1,26 @@
+name: Miscellaneous
+description: Chores, questions, refactors, debt, observations — anything that doesn't fit bug or feature.
+title: "[misc]: "
+labels: ["type:misc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for chores, questions, follow-ups, or low-priority observations. If it grows into a real feature or bug, convert it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What is this
+      description: One paragraph. Be specific.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters (or why we shouldn't do it)
+      description: Cost, risk, or value. Even a one-liner.
+  - type: input
+    id: related
+    attributes:
+      label: Related issue / PR / unit (if any)
+      description: e.g. #12, Unit 3.

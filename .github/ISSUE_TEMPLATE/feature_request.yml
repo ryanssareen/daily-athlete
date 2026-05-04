@@ -1,0 +1,57 @@
+name: Feature request
+description: A new capability or a meaningful improvement to an existing one.
+title: "[feature]: "
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most features should start as a brainstorm doc in `docs/brainstorms/` before they become an issue. Use this template for tracking work that's already been thought through, or for surfacing a sharp idea that needs scoping.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What's the user/operator/agent problem? Avoid jumping to a solution here.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Highest-level shape of the fix. Bullet points are fine.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this issue intentionally does *not* cover. Helps prevent scope creep.
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+      description: How we'll know this shipped correctly. Concrete checks.
+      placeholder: |
+        - [ ] e2e test exists for X
+        - [ ] Vercel deploy passes
+        - [ ] Doc updated in docs/...
+  - type: input
+    id: related-unit
+    attributes:
+      label: Related plan unit / wave (if any)
+      description: e.g. Unit 4, Wave 3. Blank if greenfield.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Surface
+      options:
+        - Web (coach app)
+        - Mobile (athlete app)
+        - Backend / API routes
+        - Database / migrations
+        - CI / infra
+        - Auth / security
+        - Docs
+        - Cross-cutting
+    validations:
+      required: true

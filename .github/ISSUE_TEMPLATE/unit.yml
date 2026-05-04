@@ -1,0 +1,68 @@
+name: Plan unit
+description: Track a unit of work from a plan document. Every plan unit gets one of these.
+title: "[unit N]: short title"
+labels: ["type:unit"]
+body:
+  - type: input
+    id: unit-number
+    attributes:
+      label: Unit number
+      placeholder: "3"
+    validations:
+      required: true
+  - type: input
+    id: plan-doc
+    attributes:
+      label: Plan document
+      description: Path to the plan that defines this unit.
+      placeholder: docs/plans/2026-05-03-001-refactor-stack-pivot-typescript-vercel-plan.md
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Copy-paste the **Goal** sentence verbatim from the plan.
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements satisfied
+      description: e.g. R1, R4, R14.
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Files created / modified / deleted, env vars added, services configured.
+      placeholder: |
+        - apps/web/src/server/foo.ts
+        - apps/web/tests/server/foo.test.ts
+        - Vercel env: FOO_KEY (production)
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies (other units)
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Concrete checks for "done."
+      placeholder: |
+        - [ ] `pnpm --filter @da2/web vitest run` passes
+        - [ ] `pnpm e2e` passes against deployed URL
+        - [ ] Doc updated in docs/...
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: Status
+      options:
+        - Planned (not started)
+        - In progress
+        - Blocked
+        - Done (close issue when checking this)
+      default: 0
+    validations:
+      required: true
