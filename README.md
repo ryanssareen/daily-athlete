@@ -37,14 +37,19 @@ The backend lives inside `apps/web` as Next.js Route Handlers under `app/api/*` 
 # Install workspace deps
 pnpm install
 
-# Copy env files
+# Copy env files (use the equivalent on Windows: `copy` in cmd, `Copy-Item` in PowerShell)
 cp .env.example .env
 cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example apps/web/.env
 
-# Generate a Strava token encryption key (32 bytes hex)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-# paste into STRAVA_TOKEN_KEY in apps/web/.env
+# Generate a Strava token encryption key (32 bytes hex). Per AGENTS.md, never
+# inline a generated secret in shell history — write it to a 0600 file, set it
+# from the file, then shred. Example for macOS/Linux:
+umask 077 && node -e "console.log('STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex'))" > /tmp/da2-strava-key
+# Inspect, append (or merge) into apps/web/.env, then:
+shred -u /tmp/da2-strava-key 2>/dev/null || rm -P /tmp/da2-strava-key
+# Windows (PowerShell): use `New-Item -ItemType File` with appropriate ACL, then
+# Remove-Item after pasting; do not echo the key to the terminal.
 
 # Bring up local Postgres
 docker compose up -d

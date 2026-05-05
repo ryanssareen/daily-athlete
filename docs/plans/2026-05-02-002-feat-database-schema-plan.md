@@ -269,7 +269,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - Create: `packages/shared/src/index.ts` (re-export point for all table-family modules)
 - Create: `apps/web/src/db/__tests__/setup.ts` (test DB bootstrap; one transaction per test, rolled back)
 
-- Modify: `.github/workflows/ci.yml` to spin up Postgres 17, apply `supabase/migrations/*.sql`, run pytest
+- Modify: `.github/workflows/ci.yml` to spin up Postgres 17, apply `supabase/migrations/*.sql`, run vitest
 - Create: `docs/solutions/migration-conventions.md`
 
 **Approach:**
@@ -284,7 +284,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Test scenarios:**
 - Happy path: a no-op migration applies cleanly; test fixture creates a session and rolls back.
-- Integration: `check_schema_drift.py` flags a deliberate drift (e.g., model adds a column not in any migration) and passes when in sync.
+- Integration: the deferred TS drift check (see `docs/solutions/migration-conventions.md`) lands as a follow-up unit; for now CI only verifies that all migrations apply cleanly against an ephemeral Postgres.
 
 **Verification:** CI runs migrations + drift check on every PR; both green.
 
@@ -342,7 +342,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - Create: `apps/web/src/db/__tests__/strava-tokens.test.ts`, `apps/web/src/db/__tests__/strava-raw-payloads.test.ts`
 
 **Approach:**
-- `strava_tokens`: `user_id PK`, `access_token_enc BYTEA`, `refresh_token_enc BYTEA`, `expires_at`, `scope TEXT`, `athlete_strava_id BIGINT UNIQUE` (athlete's Strava ID), `created_at`, `last_used_at`. Tokens encrypted via `pgp_sym_encrypt(...)` at write, decrypted only in app code by `token_crypto.py`.
+- `strava_tokens`: `user_id PK`, `access_token_enc BYTEA`, `refresh_token_enc BYTEA`, `expires_at`, `scope TEXT`, `athlete_strava_id BIGINT UNIQUE` (athlete's Strava ID), `created_at`, `last_used_at`. Tokens encrypted via `pgp_sym_encrypt(...)` at write, decrypted only in app code by `apps/web/src/security/token-crypto.ts`.
 - `strava_raw_payloads`: `id`, `user_id`, `kind TEXT CHECK (kind IN ('webhook','hydration'))`, `payload JSONB`, `arrived_at TIMESTAMPTZ DEFAULT now()`. Index on `arrived_at`.
 - Retention sweeper: Inngest daily scheduled function deletes rows with `arrived_at < now() - INTERVAL '30 days'`. Configurable via env (`STRAVA_RAW_RETENTION_DAYS`, default 30).
 - RLS: self-only on both tables (write is service-role-only — only Next.js webhook handlers insert).
@@ -684,7 +684,7 @@ Phases overlap with product plan phases; this plan's Phase A maps to product pla
 
 ## Operational / Rollout Notes
 
-- Migrations apply in CI before pytest; local dev uses `supabase db reset` after pulling new migrations.
+- Migrations apply in CI before vitest; local dev uses `supabase db reset` after pulling new migrations.
 - No production data exists during this work — the plan assumes greenfield. Re-evaluate if this plan is ever applied against an existing dataset.
 - After Unit 10 ships, manually exercise account-deletion against a populated staging account before linking the privacy policy claim.
 - After Unit 8 ships, run the RLS matrix against staging with two distinct test users (coach + athlete) to validate the policies under real Supabase auth, not just unit tests.

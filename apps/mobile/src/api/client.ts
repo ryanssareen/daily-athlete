@@ -2,7 +2,10 @@ import Constants from "expo-constants";
 
 import { supabase } from "@/auth/supabase";
 
-const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) ?? "http://localhost:8000";
+// Points at the Next.js app (apps/web) which now hosts the API under /api/*.
+// Local dev: `pnpm --filter @da2/web dev` runs on :3000. Override via
+// EXPO_PUBLIC_API_URL / app.config.ts extra.apiUrl in staging + prod.
+const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string) ?? "http://localhost:3000";
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

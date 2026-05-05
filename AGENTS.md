@@ -64,6 +64,7 @@ Every athlete-data table needs a positive RLS test (own row visible) and a negat
 - API code lives at `apps/web/app/api/<resource>/route.ts`. Each handler validates input with a Zod schema from `packages/shared`, instantiates the Supabase client via `@supabase/ssr`, and returns `NextResponse.json(...)`.
 - Cross-app types and Zod schemas are hand-authored in `packages/shared`. Mobile and web both import from there. There is no codegen step.
 - Lint with ESLint, typecheck with `tsc --noEmit`. Both run in CI.
+- `pnpm-lock.yaml` is **tracked** at the repo root. It is the source of truth for reproducible installs — never delete it or add it to `.gitignore`. CI today installs with `pnpm install --frozen-lockfile=false`; tighten to `--frozen-lockfile` once the dependency set stabilises.
 
 ## Background jobs
 

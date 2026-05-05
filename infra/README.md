@@ -99,10 +99,18 @@ feature gracefully (no boot failure).
 ## Local development without any of the above
 
 ```bash
-# Postgres only
+# Recommended: full Supabase local stack (auth + Postgres + Realtime + Storage)
+supabase start
+# Then point NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY at the
+# values printed by `supabase status`.
+
+# Or, Postgres only (no auth/realtime locally):
 docker compose up -d
-# Next.js talks to local Postgres via DATABASE_URL.
-# JWT verification uses NEXT_PUBLIC_SUPABASE_URL pointed at `supabase start` for full auth,
-# or a local-dev fallback secret if you only need DB.
-# Strava + Sentry + Langfuse + RevenueCat all gracefully no-op.
+# Useful when iterating on migrations without running the full Supabase stack.
+# DATABASE_URL points at the local Postgres for migration / seed scripts only;
+# Next.js Route Handlers always go through supabase-js, never a direct pg
+# connection.
+
+# Strava + Sentry + Langfuse + RevenueCat all gracefully no-op when their
+# env vars are unset.
 ```

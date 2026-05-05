@@ -56,7 +56,7 @@ This plan additionally excludes:
 | Coach web | **Next.js 15 (App Router) + TypeScript** | Shares Zod schemas / API client with mobile; SSR for SEO on marketing surfaces; Vercel-ready. | Remix (smaller community), pure SPA (loses SEO). |
 | Backend | **Next.js 15 Route Handlers (TypeScript)** running on Vercel serverless | Single TS stack across web UI, mobile, and API; no separate Python service to deploy or pay for; Vercel + Supabase integrate cleanly; Anthropic + OpenAI Node SDKs are first-class for the AI work we need. | Python/FastAPI (drops out of the JS toolchain, separate service to host), Node/Hono (extra framework for no benefit when Next.js is already there). |
 | Database (primary) | **Postgres 17** (managed via Supabase or Neon) | Handles all v1 entities at MVP scale with proper indexing. | TimescaleDB only when raw stream rows dominate (deferred). |
-| Object storage | **Cloudflare R2** | Cheap, S3-compatible, no egress fees for stream summaries / report exports. | AWS S3. |
+| Object storage | **Supabase Storage** | Already in the stack via Supabase; one less vendor; sufficient for stream summaries and report exports at MVP scale. | Cloudflare R2 (no egress fees, better at scale; revisit if storage becomes a cost driver), AWS S3. |
 | Auth | **Supabase Auth** (if on Supabase) **/ Clerk** otherwise | Email + Apple + Google + magic link out of the box; Strava is a per-user resource grant handled separately. | better-auth (more control, more setup). |
 | Real-time sync | **Supabase Realtime** (Postgres row broadcast over websockets) | Coach edits are last-write-wins on server-authoritative rows — no CRDT needed. | Ably if not on Supabase. |
 | Background jobs | **Inngest** (default candidate; final choice TBD per Unit 1.5) | Vercel-friendly, durable steps + retries + cron, fits Next.js handler model; required because Vercel functions have execution-time limits. | QStash (simpler, no orchestration), Supabase Edge Functions + pg_cron (lacks retry/orchestration primitives). |
@@ -552,8 +552,8 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 - Create: `apps/web/evals/promptfooconfig.yaml`
 - Create: `apps/web/evals/fixtures/athletes/` (athlete profile JSONs)
 - Create: `apps/web/evals/fixtures/reference_plans/` (coach-approved plan JSONs)
-- Create: `apps/web/evals/assertions/deterministic.py` (volume ramp, taper presence, brick placement, recovery spacing, zone math)
-- Create: `apps/web/evals/assertions/judge.py` (LLM-as-judge prompt)
+- Create: `apps/web/evals/assertions/deterministic.ts` (volume ramp, taper presence, brick placement, recovery spacing, zone math)
+- Create: `apps/web/evals/assertions/judge.ts` (LLM-as-judge prompt)
 - Create: `.github/workflows/evals.yml`
 
 **Approach:**
@@ -585,7 +585,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `apps/web/src/ai/plan-pipeline.ts`
-- Create: `apps/web/src/ai/prompts/periodization.ts`, `prompts/week_expansion.py`, `prompts/workout_detail.py`
+- Create: `apps/web/src/ai/prompts/periodization.ts`, `prompts/week-expansion.ts`, `prompts/workout-detail.ts`
 - Create: `packages/shared/src/plan.ts` (Zod schemas)
 - Create: `apps/web/src/jobs/generate-plan.ts` (Inngest function)
 - Create: `apps/web/app/api/plans/route.ts` (POST /plans, GET /plans/{id})
