@@ -58,15 +58,15 @@ timezone lives on `public.users.timezone` and is applied at the read/render boun
 
 ## Drift check
 
-The previous Python-based drift checker (which compared SQLAlchemy `Base.metadata` to
-the live schema) is **deferred** following the move to Next.js + Supabase — there is
-no longer a server-side ORM to compare against. The schema is the source of truth;
-client-side TS types and Zod schemas in `packages/shared` are hand-authored and kept
-in sync via review.
+`apps/api/scripts/check_schema_drift.py` reflects the test database after applying all
+migrations, then compares to the SQLAlchemy `Base.metadata`. Drift flags:
 
-A future TS drift checker may reintroduce automated verification by comparing
-generated `database.types.ts` (via `supabase gen types typescript`) to the
-hand-authored types in `packages/shared`.
+- Tables in ORM but not in DB (FAIL — write a migration).
+- Columns in ORM but not in DB (FAIL — write a migration).
+- Tables/columns in DB but not in ORM (WARN — could be deliberate, e.g. Supabase-owned
+  tables).
+
+CI runs this on every PR; merge is blocked on FAIL.
 
 ## Account deletion safety
 
@@ -77,9 +77,7 @@ referenced in the function body.
 
 ## Testing
 
-Migration tests run against a local Postgres (Docker Compose or `supabase start`) by
-applying every `supabase/migrations/*.sql` file in order. RLS policies are exercised
-from TS test helpers that sign in as a real Supabase user (or set `request.jwt.claim.sub`
-via `set_config` for direct-DB tests) before issuing queries. A positive test (own row
-visible) and a negative test (other user's row hidden) are required for every
-user-data table.
+`apps/api/tests/conftest.py` applies `tests/sql/test_bootstrap.sql` (auth-schema stub
+for plain Postgres) followed by every `supabase/migrations/*.sql` file before each
+test session. RLS is exercised via `auth.uid()` reading from `request.jwt.claim.sub`
+which the `as_user` fixture sets.

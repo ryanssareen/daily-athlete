@@ -10,12 +10,12 @@ origin: docs/brainstorms/2026-05-02-database-schema-requirements.md
 
 ## Overview
 
-Convert the 36 schema requirements from the brainstorm into a sequenced set of Postgres migrations, RLS policies, and TS types/Zod schemas in `packages/shared` against Supabase Postgres 17. Schema is the foundation for the broader product plan ([docs/plans/2026-05-02-001-feat-ai-endurance-training-app-plan.md](2026-05-02-001-feat-ai-endurance-training-app-plan.md)) — all API units in that plan depend on tables defined here.
+Convert the 36 schema requirements from the brainstorm into a sequenced set of Postgres migrations, RLS policies, Pydantic models, and SQLAlchemy mappings on Supabase Postgres 17. Schema is the foundation for the broader product plan ([docs/plans/2026-05-02-001-feat-ai-endurance-training-app-plan.md](2026-05-02-001-feat-ai-endurance-training-app-plan.md)) — all backend units in that plan depend on tables defined here.
 
 This plan focuses on:
 - Migration tooling and conventions.
 - Tables, constraints, indexes, RLS policies.
-- The TS type + Zod schema layer (in `packages/shared`) that mirrors each table.
+- The Pydantic + SQLAlchemy model layer that wraps each table.
 - Account-deletion / soft-delete machinery.
 - The minimum tests needed to prove schema invariants (uniqueness, RLS, soft-delete behavior, audit completeness).
 
@@ -60,7 +60,7 @@ Success criteria from the brainstorm (calendar P95 <50ms, weekly-review P95 <100
 Carry forward from the brainstorm — same v1 schema non-goals (no raw 1Hz streams, no multi-coach, no multi-active-plan, no full plan versioning, no team/club, no public sharing, no first-class race/event entity, no nutrition, no equipment, no OLAP split).
 
 This plan additionally excludes:
-- No Hasura / PostgREST auto-generated API layer; Next.js Route Handlers (in `apps/web/app/api/*`) own the write surface and call Supabase via `@supabase/ssr` (RLS-enforced) for reads.
+- No Hasura / PostgREST auto-generated API layer; FastAPI owns the read/write surface and uses Supabase only for Auth + Realtime + the Postgres instance itself.
 - No Postgres extensions beyond `pgcrypto` (encrypt-at-rest for Strava tokens) and `uuid-ossp` (or `gen_random_uuid()` from pgcrypto). No TimescaleDB, no pgvector in v1.
 - No materialized views in v1. Trend reports compute live; revisit if P95 latency targets fail.
 
@@ -70,10 +70,10 @@ This plan additionally excludes:
 
 Greenfield repo — no existing patterns. The product plan ([2026-05-02-001](2026-05-02-001-feat-ai-endurance-training-app-plan.md)) sets these conventions which this plan follows:
 - Migrations live under `supabase/migrations/`, applied via the Supabase CLI (resolved during planning — see Key Technical Decisions).
-
-- TS types and Zod schemas in `packages/shared/src/` (one file per logical table family).
-- DB tests under `apps/web/src/db/__tests__/` (via Vitest + a local Postgres or `supabase start`).
-
+- Models under `apps/api/src/models/`.
+- Pydantic schemas in `apps/api/src/schemas/` separate from SQLAlchemy ORM models in `apps/api/src/models/`.
+- Tests under `apps/api/tests/`.
+- Shared Zod schemas generated into `packages/shared/` from Pydantic.
 
 ### Institutional Learnings
 
@@ -84,25 +84,25 @@ None yet. After this plan ships, write `docs/solutions/strava-webhook-dedup.md` 
 - Supabase RLS: https://supabase.com/docs/guides/database/postgres/row-level-security
 - Supabase migrations CLI: https://supabase.com/docs/guides/cli/local-development#database-migrations
 - Postgres partial unique indexes: https://www.postgresql.org/docs/17/indexes-partial.html
-- supabase-js + @supabase/ssr: https://supabase.com/docs/reference/javascript
+- SQLAlchemy 2.x async: https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html
 - Strava data deletion API: https://developers.strava.com/docs/reference/#api-Activities (per-activity DELETE) and https://www.strava.com/legal/api
 
 ## Key Technical Decisions
 
-- **Plain SQL migrations under `supabase/migrations/` managed via the Supabase CLI**. RLS policies, triggers, and Realtime publication tweaks all live in raw SQL; the Supabase CLI knows about the `auth` schema and the `supabase_realtime` publication. The application layer (Next.js Route Handlers using supabase-js) does not own migrations.
-- **supabase-js as the database client**, with Zod schemas in `packages/shared` providing typed request/response contracts at API boundaries. No ORM. Where complex queries are needed, raw SQL via `supabase.rpc()` or a small typed-query helper.
+- **Plain SQL migrations under `supabase/migrations/` managed via the Supabase CLI**, not Alembic. Reasoning: RLS policies, triggers, and Realtime publication tweaks all live in raw SQL anyway; a single migration tool that knows about Supabase auth schemas is simpler than Alembic + sidecar SQL. FastAPI reads/writes via SQLAlchemy 2.x async, which doesn't need to own migrations.
+- **SQLAlchemy 2.x async + Pydantic v2** for the model layer. Pydantic models are the contract surface (FastAPI request/response, Zod generation); SQLAlchemy mappers handle persistence. No domain-rich ORM relationships beyond what queries need.
 - **UUIDv7 (or v4) primary keys everywhere**, generated server-side via `gen_random_uuid()`. Stable identifiers across Strava, RevenueCat, and our DB.
 - **`users.id` is the Supabase `auth.users.id`** (UUID). Mirror table in `public.users` for app-level columns; foreign keys point to `public.users.id`. Avoids the "two parallel user identifiers" problem.
 - **JSONB for variable-shape columns** (workout structure, summary stats, weekly review proposals); first-class columns for everything filtered, sorted, or grouped on (athlete_id, scheduled_date, sport, status, planned_load).
 - **Soft-delete via `deleted_at TIMESTAMPTZ` on the five mutation-prone tables** (`completed_workouts`, `planned_workouts`, `plans`, `coach_athlete_links`, `workout_comments`). All read paths add `deleted_at IS NULL` by default; admin paths can pass through.
-- **RLS-by-default on every user-data table — RLS is the primary defense.** Route handlers in `apps/web/app/api/*` use the user JWT via `@supabase/ssr` so RLS enforces row scoping. The service-role key is reserved for webhook handlers and admin paths, where queries must explicitly filter by user.
+- **RLS-by-default on every user-data table.** Service-role key bypasses RLS for FastAPI (which does its own authz); the Supabase anon key relies on RLS.
 - **One active plan per athlete enforced by partial unique index** `UNIQUE (athlete_id) WHERE status = 'active' AND deleted_at IS NULL`. Same pattern for one active coach link.
-- **Strava token encryption uses `pgcrypto` symmetric encryption with the key stored as a Vercel env secret**, not in the DB. Refresh and access tokens encrypted before insert; decrypted only inside Next.js Route Handlers when the StravaClient needs them.
+- **Strava token encryption uses `pgcrypto` symmetric encryption with the key stored as a host-PaaS secret** (provider TBD per Unit 1.5; Fly.io is out), not in the DB. Refresh and access tokens encrypted before insert; decrypted only inside FastAPI when the StravaClient needs them.
 - **`completed_workouts` UNIQUE on `(athlete_id, strava_activity_id) WHERE strava_activity_id IS NOT NULL`.** Manual rows have NULL strava_activity_id and are not constrained by uniqueness (a busy day could have multiple manual workouts).
 - **`workout_matches` is a 1:1 link table with at most one active match per planned and per completed.** Enforced by partial unique indexes on each side `WHERE deleted_at IS NULL`. Manual relinks soft-delete the prior match.
 - **`workout_edits` is append-only, no soft-delete, no updates.** Audit log integrity.
 - **`strava_raw_payloads` retention bounded by a daily cleanup job**, not a TTL feature; default 30 days. Driven by an `arrived_at` index.
-- **Account deletion is a single Postgres function** invoked by a Next.js Route Handler: cascades through the users tables, revokes Strava tokens, and enqueues a queue function (Inngest) to call Strava's per-activity deletion endpoint for stored activity IDs. Asynchronous Strava-side cleanup is acceptable given Strava ToS allows up to 48h.
+- **Account deletion is a single Postgres function** invoked by FastAPI: cascades through the user's tables, revokes Strava tokens, and enqueues an Arq job to call Strava's per-activity deletion endpoint for stored activity IDs. Asynchronous Strava-side cleanup is acceptable given Strava ToS allows up to 48h.
 - **Realtime publication explicit, not "all tables".** Only `plans`, `planned_workouts`, `completed_workouts`, `workout_comments`, `workout_edits` (for attribution updates), and `weekly_reviews` get added to the Realtime publication. Sensitive tables (`strava_tokens`, `entitlements`) are excluded.
 
 ## Open Questions
@@ -110,7 +110,7 @@ None yet. After this plan ships, write `docs/solutions/strava-webhook-dedup.md` 
 ### Resolved During Planning
 
 - *Migration tool*: Supabase CLI / plain SQL (see Key Decisions).
-- *ORM*: none — supabase-js with Zod-typed boundaries.
+- *ORM*: SQLAlchemy 2.x async; Pydantic v2 separate.
 - *PK type*: UUID via `gen_random_uuid()`.
 - *Soft-delete vs hard-delete*: soft-delete by default; hard-delete on account deletion only.
 - *Token storage*: pgcrypto symmetric, key in the host-PaaS secret store (provider TBD per Unit 1.5).
@@ -244,11 +244,11 @@ entitlements                          self only                                 
 coach_athlete_links                   athlete sees their own; coach sees their own            (coach side same row)
 ```
 
-Route handlers use the user JWT via `@supabase/ssr` (so RLS enforces row scoping); service-role usage is restricted to webhook handlers and admin paths, where queries must explicitly filter by user.
+FastAPI uses the service-role key and applies its own checks (it has full visibility), but the policies above protect direct anon-key clients (Realtime, future direct-from-client reads) by construction.
 
 ## Implementation Units
 
-Units split into three phases. A unit lands as one (or two) atomic migrations + the matching TS types and Zod schemas in `packages/shared` + tests. Migration filenames are sequence-prefixed (`0001_*.sql`, `0002_*.sql`, …) so order is unambiguous.
+Units split into three phases. A unit lands as one (or two) atomic migrations + the matching SQLAlchemy/Pydantic code + tests. Migration filenames are sequence-prefixed (`0001_*.sql`, `0002_*.sql`, …) so order is unambiguous.
 
 ---
 
@@ -256,7 +256,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 - [ ] **Unit 1: Migration tooling + conventions**
 
-**Goal:** Stand up the Supabase migrations directory, naming/numbering conventions, the `packages/shared` TS-types skeleton, and a CI step that applies migrations against an ephemeral Postgres for tests.
+**Goal:** Stand up the Supabase migrations directory, naming/numbering conventions, the SQLAlchemy + Pydantic skeleton, and a CI step that applies migrations against an ephemeral Postgres for tests.
 
 **Requirements:** R34 (UTC); cross-cutting conventions for all subsequent units.
 
@@ -264,11 +264,11 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/.keep`, `supabase/config.toml`
-- Create: `apps/web/src/db/server.ts` (server-side supabase-js client factory)
-
-- Create: `packages/shared/src/index.ts` (re-export point for all table-family modules)
-- Create: `apps/web/src/db/__tests__/setup.ts` (test DB bootstrap; one transaction per test, rolled back)
-
+- Create: `apps/api/src/db/__init__.py`, `apps/api/src/db/session.py` (async engine + session factory)
+- Create: `apps/api/src/db/base.py` (SQLAlchemy DeclarativeBase, naming convention for indexes/constraints)
+- Create: `apps/api/src/models/__init__.py`, `apps/api/src/schemas/__init__.py`
+- Create: `apps/api/tests/conftest.py` (async DB fixture, transactional rollback per test)
+- Create: `apps/api/scripts/check_schema_drift.py` (CI check: SQLAlchemy metadata matches latest migration)
 - Modify: `.github/workflows/ci.yml` to spin up Postgres 17, apply `supabase/migrations/*.sql`, run pytest
 - Create: `docs/solutions/migration-conventions.md`
 
@@ -280,7 +280,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - Naming: snake_case tables/columns; PK is always `id UUID DEFAULT gen_random_uuid()` except where explicitly noted.
 - Test fixture wraps each test in a transaction and rolls back — fast, avoids cross-test bleed.
 
-**Patterns to follow:** Standard Supabase + supabase-js server-client setup.
+**Patterns to follow:** Standard Supabase + SQLAlchemy 2.x async setup.
 
 **Test scenarios:**
 - Happy path: a no-op migration applies cleanly; test fixture creates a session and rolls back.
@@ -300,9 +300,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0001_users_and_entitlements.sql`
-- Create: `packages/shared/src/users.ts`, `packages/shared/src/entitlement.ts`
-
-- Create: `apps/web/src/db/__tests__/users-entitlements.test.ts`
+- Create: `apps/api/src/models/user.py`, `apps/api/src/models/entitlement.py`
+- Create: `apps/api/src/schemas/user.py`, `apps/api/src/schemas/entitlement.py`
+- Create: `apps/api/tests/test_users_entitlements.py`
 
 **Approach:**
 - `public.users.id` is `UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE`.
@@ -335,26 +335,26 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0002_strava_infra.sql`
-- Create: `packages/shared/src/strava-token.ts`, `packages/shared/src/strava-raw-payload.ts`
-
-- Create: `apps/web/src/security/token-crypto.ts` (Node-side AES-256-GCM via `node:crypto`; key from env, never traverses SQL)
-- Create: `apps/web/src/jobs/strava-payload-retention.ts` (Inngest scheduled function — cleanup)
-- Create: `apps/web/src/db/__tests__/strava-tokens.test.ts`, `apps/web/src/db/__tests__/strava-raw-payloads.test.ts`
+- Create: `apps/api/src/models/strava_token.py`, `apps/api/src/models/strava_raw_payload.py`
+- Create: `apps/api/src/schemas/strava.py`
+- Create: `apps/api/src/security/token_crypto.py` (encrypt/decrypt helpers using pgcrypto)
+- Create: `apps/api/src/jobs/strava_payload_retention.py` (Arq scheduled task — cleanup)
+- Create: `apps/api/tests/test_strava_tokens.py`, `apps/api/tests/test_strava_raw_payloads.py`
 
 **Approach:**
 - `strava_tokens`: `user_id PK`, `access_token_enc BYTEA`, `refresh_token_enc BYTEA`, `expires_at`, `scope TEXT`, `athlete_strava_id BIGINT UNIQUE` (athlete's Strava ID), `created_at`, `last_used_at`. Tokens encrypted via `pgp_sym_encrypt(...)` at write, decrypted only in app code by `token_crypto.py`.
 - `strava_raw_payloads`: `id`, `user_id`, `kind TEXT CHECK (kind IN ('webhook','hydration'))`, `payload JSONB`, `arrived_at TIMESTAMPTZ DEFAULT now()`. Index on `arrived_at`.
-- Retention sweeper: Inngest daily scheduled function deletes rows with `arrived_at < now() - INTERVAL '30 days'`. Configurable via env (`STRAVA_RAW_RETENTION_DAYS`, default 30).
-- RLS: self-only on both tables (write is service-role-only — only Next.js webhook handlers insert).
+- Retention sweeper: Arq daily job deletes rows with `arrived_at < now() - INTERVAL '30 days'`. Configurable via env (`STRAVA_RAW_RETENTION_DAYS`, default 30).
+- RLS: self-only on both tables (write is service-role-only — only FastAPI inserts).
 - Encryption key (`STRAVA_TOKEN_KEY`) lives in the host-PaaS secret store (provider TBD per Unit 1.5); never in DB or migration.
 
-**Patterns to follow:** pgcrypto symmetric-encryption pattern; Inngest scheduled-function pattern (will be established in product plan Unit 1.5).
+**Patterns to follow:** pgcrypto symmetric-encryption pattern; Arq scheduled job pattern (will be established in product plan Unit 1.5).
 
 **Test scenarios:**
 - Happy path: insert encrypted token, decrypt round-trips to original plaintext.
 - Edge case: missing encryption key → encrypt helper raises a clear error, never inserts plaintext.
 - Edge case: `athlete_strava_id` collision (a user re-connects, but that Strava account is on another row) → upsert resolves to the latest user.
-- Integration: scheduled retention function deletes rows older than 30 days, leaves newer ones alone.
+- Integration: Arq retention job deletes rows older than 30 days, leaves newer ones alone.
 - Integration: anon-key SELECT on `strava_tokens` returns nothing (service-role-only writes; RLS blocks reads from anon).
 
 **Verification:** A test plaintext token is encrypted via the helper, stored, retrieved, and decrypted in tests. Retention job log shows N rows deleted on a seeded dataset.
@@ -373,9 +373,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0003_athlete_profiles.sql`
-- Create: `packages/shared/src/athlete-profile.ts`
-
-- Create: `apps/web/src/db/__tests__/athlete-profile.test.ts`
+- Create: `apps/api/src/models/athlete_profile.py`
+- Create: `apps/api/src/schemas/athlete_profile.py`
+- Create: `apps/api/tests/test_athlete_profile.py`
 
 **Approach:**
 - PK is `user_id` (1:1 with `users`). FK on delete cascade.
@@ -405,9 +405,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0004_plans_and_planned_workouts.sql`
-- Create: `packages/shared/src/plan.ts`, `packages/shared/src/planned-workout.ts`
-
-- Create: `apps/web/src/db/__tests__/plans.test.ts`, `apps/web/src/db/__tests__/planned-workouts.test.ts`
+- Create: `apps/api/src/models/plan.py`, `apps/api/src/models/planned_workout.py`
+- Create: `apps/api/src/schemas/plan.py`, `apps/api/src/schemas/planned_workout.py`
+- Create: `apps/api/tests/test_plans.py`, `apps/api/tests/test_planned_workouts.py`
 
 **Approach:**
 - `plans`: `id`, `athlete_id FK users`, `status TEXT CHECK (status IN ('active','archived'))`, `event_type TEXT`, `event_date DATE`, `source TEXT CHECK (source IN ('ai_generated','coach_assigned','imported'))`, `created_from_review_id UUID NULL` (FK to `weekly_reviews` — added once that table exists in Unit 7; for now, declare as plain UUID and add FK in 0006), `created_at`, `archived_at`, `deleted_at`.
@@ -442,9 +442,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0005_completed_workouts_and_matches.sql`
-- Create: `packages/shared/src/completed-workout.ts`, `packages/shared/src/workout-match.ts`
-
-- Create: `apps/web/src/db/__tests__/completed-workouts.test.ts`, `apps/web/src/db/__tests__/workout-matches.test.ts`
+- Create: `apps/api/src/models/completed_workout.py`, `apps/api/src/models/workout_match.py`
+- Create: `apps/api/src/schemas/completed_workout.py`, `apps/api/src/schemas/workout_match.py`
+- Create: `apps/api/tests/test_completed_workouts.py`, `apps/api/tests/test_workout_matches.py`
 
 **Approach:**
 - `completed_workouts`: `id`, `athlete_id FK users`, `source TEXT CHECK (source IN ('strava','manual'))`, `strava_activity_id BIGINT NULL`, `started_at TIMESTAMPTZ NOT NULL`, `sport TEXT`, `distance_m NUMERIC NULL`, `duration_s INTEGER NULL`, `summary_stats JSONB` (avg/max HR, power, zones, normalized power, TSS-equivalent), `superseded_by_id UUID NULL FK completed_workouts(id)`, `created_at`, `deleted_at`.
@@ -483,9 +483,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0006_weekly_reviews.sql`, `supabase/migrations/0007_workout_edits.sql`, `supabase/migrations/0008_plans_review_fk.sql` (adds the FK from Unit 5's deferred `created_from_review_id`)
-- Create: `packages/shared/src/weekly-review.ts`, `packages/shared/src/workout-edit.ts`
-
-- Create: `apps/web/src/db/__tests__/weekly-reviews.test.ts`, `apps/web/src/db/__tests__/workout-edits.test.ts`
+- Create: `apps/api/src/models/weekly_review.py`, `apps/api/src/models/workout_edit.py`
+- Create: `apps/api/src/schemas/weekly_review.py`, `apps/api/src/schemas/workout_edit.py`
+- Create: `apps/api/tests/test_weekly_reviews.py`, `apps/api/tests/test_workout_edits.py`
 
 **Approach:**
 - `weekly_reviews`: `id`, `athlete_id FK users`, `plan_id FK plans`, `week_of DATE`, `proposed_changes JSONB` (list of patch objects keyed by `planned_workout_id`), `narrative TEXT`, `status TEXT CHECK (status IN ('proposed','accepted','rejected','partially_accepted','expired'))`, `generated_at`, `decided_at`, `deleted_at`.
@@ -494,7 +494,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - Migration 0008 retroactively adds the FK from `plans.created_from_review_id` to `weekly_reviews.id` (deferred from Unit 5 because of forward-reference).
 - Realtime publication: add `weekly_reviews` and `workout_edits` (the latter so coach attribution updates show live).
 - RLS: athlete sees own; coach sees linked.
-- Application-layer constraint: `workout_edits` rows are written by Next.js Route Handlers ONLY; no UPDATE or DELETE statements anywhere in the codebase. Lint rule + unit-test asserts no `UPDATE workout_edits` or `DELETE FROM workout_edits` appears in `apps/web/`.
+- Application-layer constraint: `workout_edits` rows are written by FastAPI ONLY; no UPDATE or DELETE statements anywhere in the codebase. Lint rule + unit-test asserts no `UPDATE workout_edits` or `DELETE FROM workout_edits` appears in `apps/api/src/`.
 
 **Patterns to follow:** Append-only audit table; FK back-reference for `weekly_review_id` so accepted-review edits can be traced.
 
@@ -521,9 +521,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0009_coach_athlete_links.sql`, `supabase/migrations/0010_coach_rls_policies.sql`
-- Create: `packages/shared/src/coach-athlete-link.ts`
-
-- Create: `apps/web/src/db/__tests__/coach-links.test.ts`, `apps/web/src/db/__tests__/coach-rls.test.ts`
+- Create: `apps/api/src/models/coach_athlete_link.py`
+- Create: `apps/api/src/schemas/coach_athlete_link.py`
+- Create: `apps/api/tests/test_coach_links.py`, `apps/api/tests/test_coach_rls.py`
 
 **Approach:**
 - `coach_athlete_links`: `id`, `coach_user_id FK users`, `athlete_user_id FK users`, `status TEXT CHECK (status IN ('pending','active','revoked'))`, `invite_token TEXT UNIQUE NULL`, `invite_expires_at TIMESTAMPTZ NULL`, `invited_at`, `accepted_at`, `revoked_at`, `deleted_at`.
@@ -561,9 +561,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0011_insights.sql`, `supabase/migrations/0012_workout_comments.sql`
-- Create: `packages/shared/src/insight.ts`, `packages/shared/src/workout-comment.ts`
-
-- Create: `apps/web/src/db/__tests__/insights.test.ts`, `apps/web/src/db/__tests__/workout-comments.test.ts`
+- Create: `apps/api/src/models/insight.py`, `apps/api/src/models/workout_comment.py`
+- Create: `apps/api/src/schemas/insight.py`, `apps/api/src/schemas/workout_comment.py`
+- Create: `apps/api/tests/test_insights.py`, `apps/api/tests/test_workout_comments.py`
 
 **Approach:**
 - `insights` (append-only): `id`, `athlete_id FK users`, `completed_workout_id FK completed_workouts`, `body TEXT`, `model TEXT`, `tokens_in INT`, `tokens_out INT`, `generated_at TIMESTAMPTZ DEFAULT now()`. No `deleted_at`.
@@ -592,7 +592,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 - [ ] **Unit 10: Account deletion + Strava data-deletion hook**
 
-**Goal:** A single Postgres function callable from a Next.js Route Handler that soft-then-hard deletes all user-owned rows; a queue function (Inngest) enqueued to call Strava's per-activity deletion endpoint for stored activity IDs.
+**Goal:** A single Postgres function callable from FastAPI that soft-then-hard deletes all user-owned rows; an Arq job enqueued to call Strava's per-activity deletion endpoint for stored activity IDs.
 
 **Requirements:** R35, R36.
 
@@ -600,20 +600,20 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 **Files:**
 - Create: `supabase/migrations/0013_account_deletion_function.sql`
-- Create: `apps/web/src/services/account-deletion.ts`
-- Create: `apps/web/src/jobs/strava-data-deletion.ts` (Inngest function)
-- Create: `apps/web/app/api/me/route.ts` (DELETE /api/me endpoint)
-- Create: `apps/web/src/services/__tests__/account-deletion.test.ts`
+- Create: `apps/api/src/services/account_deletion.py`
+- Create: `apps/api/src/jobs/strava_data_deletion.py` (Arq task)
+- Create: `apps/api/src/api/account.py` (DELETE /me endpoint)
+- Create: `apps/api/tests/test_account_deletion.py`
 - Create: `docs/launch/account-deletion-runbook.md`
 
 **Approach:**
 - Postgres function `delete_user_cascade(user_id UUID)` runs as `SECURITY DEFINER`: deletes from `insights`, `workout_comments`, `workout_edits`, `workout_matches`, `weekly_reviews`, `completed_workouts`, `planned_workouts`, `plans`, `athlete_profiles`, `coach_athlete_links` (both sides), `entitlements`, `strava_raw_payloads`, `strava_tokens`, `users`, then `auth.users`. All in a single transaction.
-- The Route Handler `DELETE /api/me` calls the function, then enqueues `strava-data-deletion({athlete_strava_id, activity_ids})` to Inngest.
-- The Inngest function calls Strava's `DELETE /activities/{id}` for each known activity. Function is best-effort — Strava ToS allows up to 48h. Failure to delete a specific activity is logged but does not retry indefinitely (cap at 5 attempts per activity).
+- FastAPI's `DELETE /me` calls the function, then enqueues `strava_data_deletion(athlete_strava_id, activity_ids)`.
+- Arq job calls Strava's `DELETE /activities/{id}` for each known activity. Job is best-effort — Strava ToS allows up to 48h. Failure to delete a specific activity is logged but does not retry indefinitely (cap at 5 attempts per activity).
 - Hard-delete (R35): this is the only path that hard-deletes rows. Strava `delete` events still soft-delete via `deleted_at`.
 - Privacy policy (linked in product plan Unit 5.5) cites this 30-day SLA; the runbook covers manual recovery if the deletion function fails partway.
 
-**Patterns to follow:** `SECURITY DEFINER` function for cross-table cascading; Inngest retry-with-cap pattern.
+**Patterns to follow:** `SECURITY DEFINER` function for cross-table cascading; Arq retry-with-cap pattern.
 
 **Test scenarios:**
 - Happy path: user with full data (profile + plan + 50 completed + 5 reviews + 100 insights + 10 comments + active coach link + Strava token) calls DELETE /me → all rows gone; coach's view of that athlete is empty; coach link gone.
@@ -629,10 +629,10 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 ## System-Wide Impact
 
-- **Interaction graph:** RLS policies attached in Unit 8 affect every read path on every athlete-data table; Route Handlers using the service-role key bypass RLS but must implement their own authorization checks. Realtime publication membership directly affects which row changes propagate to mobile + web; sensitive tables (`strava_tokens`, `entitlements`, `strava_raw_payloads`) must NOT be in the publication.
-- **Error propagation:** Migration failure in any unit blocks deploy of all later units — migrations are linearly ordered. Schema constraint violations (CHECK / unique / FK) surface as supabase-js errors with Postgres error codes (e.g. `23505` for unique violation) and must be translated to user-facing errors at the API boundary.
+- **Interaction graph:** RLS policies attached in Unit 8 affect every read path on every athlete-data table; FastAPI endpoints using the service-role key bypass RLS but must implement their own authorization checks. Realtime publication membership directly affects which row changes propagate to mobile + web; sensitive tables (`strava_tokens`, `entitlements`, `strava_raw_payloads`) must NOT be in the publication.
+- **Error propagation:** Migration failure in any unit blocks deploy of all later units — migrations are linearly ordered. Schema constraint violations (CHECK / unique / FK) surface as `IntegrityError` in SQLAlchemy and must be translated to user-facing errors at the API boundary.
 - **State lifecycle risks:** Soft-delete + RLS interaction — every read path must filter `deleted_at IS NULL` AND obey RLS. Forgetting one allows leakage. Account-deletion function is the sole hard-delete path; bugs there have privacy + legal blast radius.
-- **API surface parity:** Every entitlement-gated mutation in the Route Handler layer (covered in product plan) corresponds to RLS-permitted reads here. The two layers must agree; the test matrix in Unit 8 is the safety net.
+- **API surface parity:** Every entitlement-gated mutation in the FastAPI layer (covered in product plan) corresponds to RLS-permitted reads here. The two layers must agree; the test matrix in Unit 8 is the safety net.
 - **Integration coverage:** RLS visibility, Strava webhook idempotency, the manual-then-Strava merge path, and the account-deletion cascade all need integration tests, not just unit tests on individual tables.
 - **Unchanged invariants:** Supabase Auth schema (`auth.users`) is owned by Supabase — we mirror, never modify. Realtime publication is additive only — removing a table from it would silently break mobile/web subscriptions.
 
@@ -647,9 +647,9 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 | Encryption key for Strava tokens lost / rotated incorrectly | Low | High | Document key in the secrets runbook; add key-rotation procedure to launch runbook. Reading without the key returns a clear error, never plaintext. |
 | Realtime publication includes a sensitive table by accident | Low | High | Migration explicitly lists the publication membership in code review checklist; don't use `FOR ALL TABLES`. |
 | `created_from_review_id` forward-reference between Unit 5 and Unit 7 introduces sequencing bug | Med | Low | Migration 0008 cleans up the FK after weekly_reviews exists; deliberate split. |
-| JSONB structure drift between Zod schema and prompts | Med | Med | Schemas live in `packages/shared/src/`; eval harness (product plan Unit 3.1) validates against them. |
+| JSONB structure drift between Pydantic schema and prompts | Med | Med | Schemas live in `apps/api/src/schemas/`; eval harness (product plan Unit 3.1) validates against them. |
 | Migrations applied out of order in dev → broken local state | Low | Med | Supabase CLI enforces order; CI applies clean each PR; document `supabase db reset` in README. |
-| Soft-delete forgotten in a query → ghost rows in coach views | Med | Med | A query helper `withLiveRows()` defaults to `.is("deleted_at", null)` plus an ESLint rule banning bare `.from("<table>")` for soft-deleted tables; tests assert `deleted_at IS NULL` filter on every read path. |
+| Soft-delete forgotten in a query → ghost rows in coach views | Med | Med | SQLAlchemy default scope helper or explicit lint rule; tests assert `deleted_at IS NULL` filter on every read path. |
 
 ## Success Metrics
 
@@ -667,7 +667,7 @@ Add operational:
 
 ## Phased Delivery
 
-- **Phase A (Weeks 1–2): Foundations.** Units 1–3. After this, Route Handlers can authenticate users, store entitlements, and persist Strava tokens.
+- **Phase A (Weeks 1–2): Foundations.** Units 1–3. After this, FastAPI can authenticate users, store entitlements, and persist Strava tokens.
 - **Phase B (Weeks 2–4): Workout core.** Units 4–6. After this, athlete profile + AI plans + Strava completion + dedup + matching all have storage. Product plan Phase 2 + 3 can start ingesting and rendering.
 - **Phase C (Weeks 4–6): AI artifacts, coach, comments, deletion.** Units 7–10. After this, weekly review proposals, full coach RLS, comments, and account-deletion are live.
 
@@ -693,5 +693,5 @@ Phases overlap with product plan phases; this plan's Phase A maps to product pla
 
 - **Origin document:** [docs/brainstorms/2026-05-02-database-schema-requirements.md](../brainstorms/2026-05-02-database-schema-requirements.md)
 - **Product plan (parent):** [docs/plans/2026-05-02-001-feat-ai-endurance-training-app-plan.md](2026-05-02-001-feat-ai-endurance-training-app-plan.md)
-- External: Supabase RLS, Postgres partial unique indexes, supabase-js (links above).
+- External: Supabase RLS, Postgres partial unique indexes, SQLAlchemy 2.x async (links above).
 - No related PRs/issues — greenfield repo.

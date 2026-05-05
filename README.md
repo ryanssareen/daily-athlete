@@ -12,46 +12,52 @@ See:
 
 ```
 apps/
+  api/      FastAPI + SQLAlchemy 2.x + Pydantic v2 (Python 3.13)
   mobile/   Expo (React Native) — athlete app
-  web/      Next.js 15 — coach + athlete app, also hosts the API (App Router route handlers)
+  web/      Next.js 15 — coach app
 packages/
-  shared/   Cross-app TS types + Zod schemas
+  shared/   Cross-app TS types (Pydantic-generated Zod schemas land here)
 supabase/
   migrations/  Plain SQL migrations applied via Supabase CLI
 docs/
   brainstorms/, plans/, solutions/
-infra/      Deployment runbook (Vercel, Supabase, queue provider)
+infra/      Deployment runbook (Fly.io, Vercel, Supabase wiring)
 ```
-
-The backend lives inside `apps/web` as Next.js Route Handlers under `app/api/*` and runs as Vercel serverless functions. There is no separate Python service.
 
 ## Prerequisites
 
-- Node 20.11+ and pnpm 9 (`npm i -g pnpm` or `corepack enable`)
-- Docker (only needed if you want a local Postgres without the Supabase CLI stack)
+- Node 20.11+ and pnpm 9 (`brew install pnpm` / `corepack enable`)
+- Python 3.13 and [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` on macOS/Linux; `irm https://astral.sh/uv/install.ps1 | iex` on Windows)
+- Docker (for local Postgres + Redis)
 - Supabase CLI — macOS: `brew install supabase/tap/supabase`; Linux: see [supabase/cli releases](https://github.com/supabase/cli/releases); Windows: `scoop install supabase`
 
 ## First-time setup
 
 ```bash
-# Install workspace deps
+# Install root + workspace deps
 pnpm install
 
 # Copy env files
 cp .env.example .env
+cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example apps/web/.env
 
 # Generate a Strava token encryption key (32 bytes hex)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-# paste into STRAVA_TOKEN_KEY in apps/web/.env
+python -c "import secrets; print(secrets.token_hex(32))"
+# paste into STRAVA_TOKEN_KEY in apps/api/.env
 
-# Bring up local Postgres
+# Bring up local Postgres + Redis
 docker compose up -d
-# (or: `supabase start` for the full Supabase local stack)
 
 # Apply migrations
 supabase db reset --local --db-url "postgresql://da2:da2_dev@localhost:54322/da2"
+# (or run psql against each migration file in order)
+
+# Set up the API
+cd apps/api
+uv sync
+uv run pytest
 ```
 
 ## Running locally
@@ -60,16 +66,19 @@ supabase db reset --local --db-url "postgresql://da2:da2_dev@localhost:54322/da2
 # Terminal 1: services
 docker compose up
 
-# Terminal 2: web (also serves /api/*)
+# Terminal 2: API
+cd apps/api && uv run uvicorn src.main:app --reload --port 8000
+
+# Terminal 3: web
 pnpm --filter @da2/web dev
 
-# Terminal 3: mobile
+# Terminal 4: mobile
 pnpm --filter @da2/mobile start
 ```
 
 ## Deploying
 
-See [infra/README.md](infra/README.md) for the third-party provisioning runbook (Supabase project, Vercel project, queue provider, Sentry, Langfuse).
+See [infra/README.md](infra/README.md) for the third-party provisioning runbook (Supabase project, Fly.io app, Vercel project, Sentry, Langfuse).
 
 ## Conventions
 

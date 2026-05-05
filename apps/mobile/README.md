@@ -31,7 +31,7 @@ app/                       Expo Router routes (file-based)
     profile.tsx            Profile
 src/
   auth/supabase.ts         Supabase client (auth + realtime)
-  api/client.ts            Typed fetch wrapper for the Next.js API (apps/web/app/api/*)
+  api/client.ts            Typed fetch wrapper for FastAPI
   design/tokens.ts         Colors + typography
   realtime/supabase.ts     Realtime channel helpers (used in later phases)
 ```

@@ -9,8 +9,9 @@ and production.
 | Service | Purpose | Wave 1 | Wave 2+ |
 |---|---|---|---|
 | Supabase | Postgres + Auth + Realtime + Storage | Required for staging | — |
-| Vercel | Next.js app + API route handlers (serverless) | Required for staging | — |
-| Queue (TBD per Unit 1.5; default: Inngest) | Background jobs for LLM, Strava backfill, scheduled work | Optional in Wave 1 | Required by Wave 3 |
+| Container PaaS (Railway or Render — TBD, see Unit 1.5) | FastAPI + Arq workers | Required for staging | — |
+| Upstash Redis | Arq job queue | Required for staging | — |
+| Vercel | Next.js coach web | Required for staging | — |
 | Expo EAS | iOS + Android builds | Optional in Wave 1 | Required by Wave 2 |
 | Sentry | Error tracking | Optional | Recommended before public beta |
 | Langfuse | LLM tracing | Optional in Wave 1 | Required by Wave 3 (AI plans) |
@@ -32,51 +33,52 @@ supabase link --project-ref <project-ref>
 supabase db push
 ```
 
-Then copy these values into `apps/web/.env.local` and `apps/mobile/.env`:
+Then copy these values into `apps/api/.env`, `apps/web/.env.local`, and `apps/mobile/.env`:
 
-- `NEXT_PUBLIC_SUPABASE_URL` (mobile: `EXPO_PUBLIC_SUPABASE_URL`)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (mobile: `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
-- `SUPABASE_SERVICE_ROLE_KEY` (web only — server-side, used by webhook handlers and admin paths)
+- `SUPABASE_URL` (web/mobile: `NEXT_PUBLIC_SUPABASE_URL`)
+- `SUPABASE_ANON_KEY` (web/mobile: `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- `SUPABASE_SERVICE_ROLE_KEY` (api only)
+- `SUPABASE_JWT_SECRET` (api only — find via `supabase status` or dashboard)
 
 Also: enable Apple + Google sign-in providers in the Supabase Auth dashboard.
 
-## 2. Vercel (Next.js + API)
+## 2. Container PaaS (FastAPI + Arq) — TBD
 
-The Next.js app at `apps/web` hosts both the UI and the API. Route handlers under `app/api/*` deploy as serverless functions automatically.
+The host for the FastAPI `web` process and the Arq `worker` process is not yet
+chosen. Fly.io is **explicitly out**. The two candidates evaluated in Unit 1.5 are
+**Railway** and **Render**; pick one before writing the Dockerfiles.
+
+Whichever is picked, the shape is the same:
+
+- Two services from this repo: `web` (uvicorn) and `worker` (Arq), each with its own
+  Dockerfile (`apps/api/Dockerfile`, `apps/api/Dockerfile.worker`) or start command.
+- Secrets set via the provider's secret store. Required at minimum:
+  - `DATABASE_URL` — Supabase Postgres connection string
+  - `SUPABASE_JWT_SECRET`
+  - `STRAVA_TOKEN_KEY` — `python -c "import secrets; print(secrets.token_hex(32))"`
+  - `REDIS_URL` — Upstash (see below)
+
+Provider-specific config files land in Unit 1.5 (`railway.toml` *or* `render.yaml`).
+
+The Strava token encryption key must be set before any user connects Strava —
+without it, encrypt/decrypt fail at startup.
+
+### Redis (Upstash)
+
+Use Upstash Redis regardless of which PaaS is chosen — it's provider-agnostic and
+keeps the queue layer portable. Create a database, copy the `REDIS_URL`, and set it
+as a secret on both the `web` and `worker` services.
+
+## 3. Vercel (Next.js)
 
 ```bash
 # From apps/web
 vercel link
 vercel env add NEXT_PUBLIC_SUPABASE_URL
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
-vercel env add SUPABASE_SERVICE_ROLE_KEY
-vercel env add STRAVA_TOKEN_KEYS         # versioned hex keys, see Wave 2
-vercel env add STRAVA_CLIENT_ID
-vercel env add STRAVA_CLIENT_SECRET
-vercel env add OPENAI_API_KEY            # or ANTHROPIC_API_KEY, set in Wave 3
+vercel env add NEXT_PUBLIC_API_URL
 vercel deploy --prod
 ```
-
-Notes:
-- Default function timeout on Pro is 60s; enable **Fluid Compute** to push to 300s for AI plan generation. Anything longer goes through the queue.
-- Vercel Cron schedules live in `apps/web/vercel.json` once Wave 3 / Wave 5 introduce scheduled work.
-
-## 3. Background-job queue (TBD — Unit 1.5)
-
-The queue provider is decided in Unit 1.5. Default candidate: **Inngest**.
-
-Inngest sketch (placeholder until 1.5 lands):
-
-```bash
-# In apps/web
-pnpm add inngest
-# A handler at apps/web/app/api/inngest/route.ts serves the Inngest webhook.
-# Functions are defined in apps/web/src/jobs/*.ts and registered with the handler.
-```
-
-Alternatives:
-- **Upstash QStash** — simplest, just delayed HTTP POSTs; no step orchestration.
-- **Supabase Edge Functions + pg_cron** — keeps everything inside Supabase; awkward for long LLM calls and lacks retry/orchestration primitives.
 
 ## 4. Expo EAS (mobile builds)
 
@@ -93,16 +95,15 @@ are ready for device testing.
 ## 5. Sentry, Langfuse, RevenueCat
 
 Set the corresponding env vars when the projects are ready. The app code reads them via
-`apps/web/src/config.ts` and `apps/mobile/src/config.ts`; missing keys disable the
+`apps/api/src/config.py` and the JS env-var conventions; missing keys disable the
 feature gracefully (no boot failure).
 
 ## Local development without any of the above
 
 ```bash
-# Postgres only
+# Postgres + Redis only
 docker compose up -d
-# Next.js talks to local Postgres via DATABASE_URL.
-# JWT verification uses NEXT_PUBLIC_SUPABASE_URL pointed at `supabase start` for full auth,
-# or a local-dev fallback secret if you only need DB.
+# FastAPI talks to local Postgres directly via DATABASE_URL.
+# JWT verification uses SUPABASE_JWT_SECRET=local-jwt-secret-replace-me.
 # Strava + Sentry + Langfuse + RevenueCat all gracefully no-op.
 ```

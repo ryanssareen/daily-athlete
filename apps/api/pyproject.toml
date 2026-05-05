@@ -1,0 +1,62 @@
+[project]
+name = "da2-api"
+version = "0.0.1"
+description = "DA2 backend (FastAPI + SQLAlchemy + Supabase)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.9",
+    "pyjwt[crypto]>=2.10.0",
+    "httpx>=0.28.0",
+    "python-multipart>=0.0.20",
+    "arq>=0.26.0",
+    "redis>=5.2.0",
+    "sentry-sdk[fastapi]>=2.18.0",
+    "langfuse>=2.55.0",
+    "anthropic>=0.40.0",
+    "openai>=1.55.0",
+    "tenacity>=9.0.0",
+    "cryptography>=43.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "types-redis>=4.6.0",
+    "httpx>=0.28.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "ASYNC", "S", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["tests/"]
