@@ -6,47 +6,45 @@ Conventions for engineers (human and AI) working in this repo. The bar is: a new
 
 ```
 apps/
-  api/      FastAPI + SQLAlchemy 2.x async + Pydantic v2 (Python 3.13)
-  mobile/   Expo + React Native (athlete-facing)
-  web/      Next.js 15 App Router (coach-facing)
+  mobile/   Expo + React Native (athlete app)
+  web/      Next.js 15 App Router — coach + athlete UI AND the API (Route Handlers under app/api/*)
 packages/
-  shared/   Cross-app TS types — generated from Pydantic via apps/api/scripts/generate_shared_schemas.py (Wave 2+)
+  shared/   Cross-app TS types + Zod schemas (hand-authored)
 supabase/
   migrations/  Plain-SQL migrations applied via Supabase CLI
 docs/
   brainstorms/  Requirements docs (ce:brainstorm output) — protected
   plans/        Implementation plans (ce:plan output) — protected, contain progress checkboxes
   solutions/    Institutional learnings — protected
-infra/        Provisioning runbook (Supabase / Fly.io / Vercel / EAS)
+infra/        Provisioning runbook (Supabase / Vercel / queue / EAS)
 ```
+
+The backend is **not** a separate service. All API endpoints, webhooks, and background-job triggers live inside `apps/web` as App Router Route Handlers and run as Vercel serverless functions. There is no Python in this repo.
 
 The `docs/{brainstorms,plans,solutions}/` paths are durable artifacts of the compound-engineering pipeline. **Never** delete or gitignore them.
 
 ## RLS posture (read this before writing any user-data query)
 
-The FastAPI server runs with credentials that bypass RLS (schema owner in dev;
-`service_role` in prod). **RLS is therefore not a defense at the API tier.**
-Every query that returns user-scoped rows MUST filter by the authenticated user
-explicitly:
+RLS is the **primary** authorization defense. Route handlers in `apps/web/app/api/*` create a Supabase client via `@supabase/ssr` that forwards the user's JWT, so every query runs under that user's identity and Postgres enforces RLS policies.
 
-```python
-# right
-await session.execute(select(Plan).where(Plan.athlete_id == claims.sub))
+```ts
+// right — user JWT, RLS enforces row scoping
+const supabase = await createClient();
+const { data } = await supabase.from("plans").select("*");
 
-# wrong — relies on RLS that doesn't apply
-await session.execute(select(Plan))
+// wrong — service-role bypass without an explicit user filter is a leak
+const admin = createServiceClient();
+const { data } = await admin.from("plans").select("*");
 ```
 
-RLS exists to protect direct-from-client paths (Supabase JS with the anon key,
-Realtime subscriptions, future PostgREST endpoints). Tests verify policies via
-the `as_authenticated` fixture which `SET ROLE authenticated` to a non-owner
-role that DOES respect RLS — every athlete-data table needs a positive RLS
-test (own row visible) and a negative one (other user's row hidden) before its
-defining migration ships.
+Service-role usage is restricted to:
+- Webhook handlers (Strava activity, RevenueCat) where the caller is not the user.
+- Scheduled jobs / queue workers that operate on multiple users' rows.
+- Admin operations (account deletion cascade, migration scripts).
 
-The per-request session also pins `request.jwt.claim.sub` via
-`set_authenticated_user_guc()` so that any database trigger that reads
-`auth.uid()` sees the right user.
+In every service-role path, queries MUST explicitly filter by user — RLS is not running there. Add a `// service-role: explicit user filter required` comment so reviewers can scan for it.
+
+Every athlete-data table needs a positive RLS test (own row visible) and a negative one (other user's row hidden) before its defining migration ships.
 
 ## Database & migrations
 
@@ -58,37 +56,38 @@ The per-request session also pins `request.jwt.claim.sub` via
 - Hard-delete is reserved for the account-deletion cascade.
 - Every user-data table gets `ENABLE ROW LEVEL SECURITY` plus at least a SELECT policy. Writes for sensitive tables (`strava_tokens`, `entitlements`, `strava_raw_payloads`) are service-role only — no INSERT/UPDATE/DELETE policies.
 - Realtime publication membership is **opt-in per table**. Sensitive surfaces (`strava_tokens`, `entitlements`, `strava_raw_payloads`) must NEVER join `supabase_realtime`. Add a comment in any migration that touches a sensitive table noting the exclusion.
-- Drift check (`apps/api/scripts/check_schema_drift.py`) runs in CI on every PR and refuses to proceed against a database whose name does not end with `_test`.
-
-## Python (apps/api/)
-
-- Python 3.13. Managed via `uv`.
-- FastAPI for HTTP, SQLAlchemy 2.x async + Pydantic v2 for persistence, Arq + Redis for jobs.
-- Lint with `ruff`, typecheck with `mypy --strict`. Both run in CI.
-- Pydantic models live in `src/schemas/`; SQLAlchemy ORM in `src/models/`. Don't conflate them.
-- pytest with `asyncio_mode=auto` — do NOT add `@pytest.mark.asyncio` decorators (auto handles it).
-- Settings via `pydantic-settings`; default values are dev-only and the app must refuse to start in non-development environments with placeholder secrets (Wave 2 work — see ce:review residual).
 
 ## TypeScript (apps/web, apps/mobile, packages/shared)
 
-- Strict TS. Web uses Next.js 15 App Router. Mobile uses Expo Router.
+- Strict TS everywhere. Web uses Next.js 15 App Router; mobile uses Expo Router.
 - Auth is Supabase magic-link in v1. Apple + Google sign-in providers configured in Supabase dashboard, not code.
-- Never hand-write Zod schemas in `packages/shared/` — they're generated from Pydantic. Hand-edits will be overwritten and silently drift.
+- API code lives at `apps/web/app/api/<resource>/route.ts`. Each handler validates input with a Zod schema from `packages/shared`, instantiates the Supabase client via `@supabase/ssr`, and returns `NextResponse.json(...)`.
+- Cross-app types and Zod schemas are hand-authored in `packages/shared`. Mobile and web both import from there. There is no codegen step.
+- Lint with ESLint, typecheck with `tsc --noEmit`. Both run in CI.
+
+## Background jobs
+
+Vercel functions have execution-time limits. Anything long-running (LLM plan generation, Strava backfill of 200 activities, weekly review jobs) goes through the queue layer chosen in Unit 1.5 (default candidate: **Inngest**; alternatives: QStash, Supabase Edge Functions + pg_cron).
+
+Pattern:
+- HTTP route enqueues a job with a typed payload, returns `202 Accepted` immediately.
+- The queue worker (also a Vercel function or Inngest step) does the slow work, writes results to Postgres, and emits a Realtime event the client listens to.
+- Never `await` a long task inside an HTTP handler.
 
 ## Repo-relative paths
 
-All paths in docs, plans, brainstorms, and code comments use **repo-relative** form (`apps/api/src/foo.py`), never absolute (`/Users/ryan/Documents/da2/...`). Absolute paths break portability across machines and contributors.
+All paths in docs, plans, brainstorms, and code comments use **repo-relative** form (`apps/web/app/api/strava/route.ts`), never absolute (`/Users/ryan/Documents/da2/...`). Absolute paths break portability across machines and contributors.
 
 ## Cross-platform
 
-Every setup instruction in a README must include macOS, Linux, and Windows paths or use a portable installer (`curl|sh` script, `npm -g`, `pip install`). `brew install ...` alone is not acceptable; pair it with the Linux/Windows equivalent.
+Every setup instruction in a README must include macOS, Linux, and Windows paths or use a portable installer (`npm -g`, `curl|sh` script). `brew install ...` alone is not acceptable; pair it with the Linux/Windows equivalent.
 
 ## Secrets
 
 - Never inline a generated secret into a shell command in a doc. Generate to a 0600 file, set the secret from the file, then `shred` the file.
-- Encryption keys live in Fly secrets / Vercel env / GitHub Actions — never in the repo, never in migrations, never in shell history.
-- Strava token encryption uses Python-side Fernet AEAD (`apps/api/src/security/token_crypto.py`) — the symmetric key never traverses SQL. Multiple keys are supported via `STRAVA_TOKEN_KEYS=v:hex,v2:hex,...`; the highest version is used for new encryptions, all listed versions are tried for decryption. Each `strava_tokens` row stamps its `key_version` so rotation can be incremental.
-- The startup config validator (`apps/api/src/config.py::Settings._validate_secrets_for_env`) refuses to boot with placeholder secrets in `app_env in {staging, production}`. Every new sensitive setting added here must extend that validator.
+- Encryption keys live in Vercel env vars and GitHub Actions secrets — never in the repo, never in migrations, never in shell history.
+- Strava token encryption uses Node-side AES-256-GCM (Web Crypto / `node:crypto`) inside route handlers — the symmetric key never traverses SQL. Multiple keys are supported via `STRAVA_TOKEN_KEYS=v:hex,v2:hex,...`; the highest version is used for new encryptions, all listed versions are tried for decryption. Each `strava_tokens` row stamps its `key_version` so rotation can be incremental.
+- A startup config validator in `apps/web/src/config.ts` refuses to boot with placeholder secrets when `NODE_ENV === "production"`. Every new sensitive setting added here must extend that validator.
 
 ## Tooling for agents
 
