@@ -54,20 +54,20 @@ This plan additionally excludes:
 |---|---|---|---|
 | Athlete mobile | **React Native + Expo (EAS)** | TypeScript reuse with coach web; Expo Router + EAS for fast iteration; Strava OAuth via `expo-auth-session`; mature push, calendar, deep-linking. | Flutter (better custom canvas, weaker code sharing); two-native (wrong for small team + 3-4mo MVP). |
 | Coach web | **Next.js 15 (App Router) + TypeScript** | Shares Zod schemas / API client with mobile; SSR for SEO on marketing surfaces; Vercel-ready. | Remix (smaller community), pure SPA (loses SEO). |
-| Backend | **Python 3.13 + FastAPI** | AI tooling ecosystem (Pydantic v2, Instructor, eval libs) is Python-first in 2026; Strava webhooks + scheduled jobs fit cleanly. | Node/Hono (TS unification), but loses AI ergonomics. |
+| Backend | **Next.js 15 Route Handlers (TypeScript)** running on Vercel serverless | Single TS stack across web UI, mobile, and API; no separate Python service to deploy or pay for; Vercel + Supabase integrate cleanly; Anthropic + OpenAI Node SDKs are first-class for the AI work we need. | Python/FastAPI (drops out of the JS toolchain, separate service to host), Node/Hono (extra framework for no benefit when Next.js is already there). |
 | Database (primary) | **Postgres 17** (managed via Supabase or Neon) | Handles all v1 entities at MVP scale with proper indexing. | TimescaleDB only when raw stream rows dominate (deferred). |
-| Object storage | **Cloudflare R2** | Cheap, S3-compatible, no egress fees for stream summaries / report exports. | AWS S3. |
+| Object storage | **Supabase Storage** | Already in the stack via Supabase; one less vendor; sufficient for stream summaries and report exports at MVP scale. | Cloudflare R2 (no egress fees, better at scale; revisit if storage becomes a cost driver), AWS S3. |
 | Auth | **Supabase Auth** (if on Supabase) **/ Clerk** otherwise | Email + Apple + Google + magic link out of the box; Strava is a per-user resource grant handled separately. | better-auth (more control, more setup). |
 | Real-time sync | **Supabase Realtime** (Postgres row broadcast over websockets) | Coach edits are last-write-wins on server-authoritative rows — no CRDT needed. | Ably if not on Supabase. |
-| Background jobs | **Arq** (Python, Redis-backed) | Lightweight; integrates with FastAPI; weekly review + webhook hydration + insight generation. | Celery (heavier), Inngest (managed but pricey at insight-scale). |
+| Background jobs | **Inngest** (default candidate; final choice TBD per Unit 1.5) | Vercel-friendly, durable steps + retries + cron, fits Next.js handler model; required because Vercel functions have execution-time limits. | QStash (simpler, no orchestration), Supabase Edge Functions + pg_cron (lacks retry/orchestration primitives). |
 | LLM (plans) | **Claude Opus 4.7** primary, **GPT-5** fallback | Strongest at structured rubric-following for periodization; prompt caching for athlete-profile context. | Single-shot prompting (drifts on long-horizon structure). |
 | LLM (insights, free tier) | **Claude Haiku 4.5** or **GPT-5-mini** | Cheap, cached athlete-profile system prompt drops cost ~80%. | Mid-tier model (cost too high at free-tier scale). |
 | Subscriptions | **RevenueCat** | Industry default for App Store + Play Store + Stripe entitlement unification. | Adapty (similar; pick if paywall A/B testing matters more). |
 | Eval harness | **Promptfoo** (CI) + **Langfuse** (prod traces) | Lightest-weight scoring with deterministic + LLM-as-judge rubric; production tracing tied to evals. | Braintrust (heavier), Inspect (research-flavored). |
-| Hosting | **Container PaaS — TBD** (Railway or Render) for backend + Arq workers, **Vercel** (Next.js), **Supabase** (Postgres + Realtime + Auth) | Single-region MVP, cheap, websocket-friendly, fast deploys. Final pick deferred to Unit 1.5. | AWS (premature complexity), Fly.io (ruled out). |
-| Observability | **Sentry** (errors) + **Langfuse** (LLM) + host metrics | Cheap, covers what matters at MVP. | Datadog (overkill for MVP). |
+| Hosting | **Vercel** (Next.js app + serverless API route handlers) + **Supabase** (Postgres + Realtime + Auth) + queue provider (TBD per Unit 1.5) | Two managed vendors, no container PaaS, no Python runtime to babysit; matches the team's existing stack fluency. | AWS / container PaaS (premature complexity), Fly.io (ruled out). |
+| Observability | **Sentry** (errors) + **Langfuse** (LLM) + Vercel built-in metrics | Cheap, covers what matters at MVP. | Datadog (overkill for MVP). |
 
-The unifying choice is **Supabase as the platform layer** (Postgres + Auth + Realtime + Storage Edge) plus **a container PaaS (TBD — Railway or Render) for the FastAPI app + Arq workers**. This minimizes the number of moving vendors while keeping the AI/job code in Python where the ecosystem is. Fly.io is explicitly out.
+The unifying choice is **Supabase as the platform layer** (Postgres + Auth + Realtime + Storage) plus **Next.js + Vercel for the entire application surface — UI, API routes, webhooks, and queue handler**. There is no separate backend service. Background work that exceeds Vercel's function-time limit is pushed to a queue provider chosen in Unit 1.5 (default: Inngest). Fly.io and any Python service are explicitly out.
 
 ## Context & Research
 
@@ -76,8 +76,10 @@ The unifying choice is **Supabase as the platform layer** (Postgres + Auth + Rea
 - Expo Router + EAS: https://docs.expo.dev/router/introduction/
 - Strava OAuth + webhooks + rate limits: https://developers.strava.com/docs/authentication/, https://developers.strava.com/docs/webhooks/, https://developers.strava.com/docs/rate-limits/
 - Strava API agreement (storage limits): https://www.strava.com/legal/api
-- FastAPI + Pydantic structured outputs: https://fastapi.tiangolo.com/
-- Instructor (structured LLM outputs): https://python.useinstructor.com/
+- Next.js Route Handlers: https://nextjs.org/docs/app/building-your-application/routing/route-handlers
+- Anthropic Node SDK + structured outputs (tool-use): https://docs.anthropic.com/en/api/client-sdks
+- OpenAI Node SDK + structured outputs: https://platform.openai.com/docs/guides/structured-outputs
+- Inngest (background jobs for Next.js): https://www.inngest.com/docs
 - Supabase Realtime: https://supabase.com/docs/guides/realtime
 - RevenueCat docs + pricing: https://www.revenuecat.com/docs/, https://www.revenuecat.com/pricing/
 - Promptfoo: https://www.promptfoo.dev
@@ -91,14 +93,14 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
 
 ## Key Technical Decisions
 
-- **Monorepo with pnpm workspaces + Turborepo** for `apps/mobile`, `apps/web`, `apps/api`, `packages/shared` (Zod schemas + API client). Python `apps/api` lives in the same repo but is not part of the JS workspace; shared types are generated from Pydantic via `datamodel-code-generator` into `packages/shared`. Rationale: one source of truth for plan/workout schemas across athlete mobile, coach web, and backend.
+- **Monorepo with pnpm workspaces + Turborepo** for `apps/mobile`, `apps/web`, `packages/shared`. The API lives inside `apps/web` as Next.js App Router Route Handlers under `app/api/*`. Cross-app types and Zod schemas are hand-authored in `packages/shared` and consumed by both web and mobile — no codegen step.
 - **Server-authoritative state model.** All plan and workout edits write to Postgres; clients subscribe. This keeps the coach-edit-to-mobile flow simple (no CRDT, no offline merge logic).
 - **Strava is a per-user resource grant, not the auth provider.** Users sign up with email / Apple / Google via Supabase Auth, then connect Strava as a resource. This keeps the door open to additional sources (Garmin, HealthKit) without auth churn.
 - **AI plan generation is a multi-step structured pipeline**, not a single prompt. Step 1 produces the periodization skeleton (blocks + weekly TSS targets); Step 2 expands each block into week shapes; Step 3 details each workout. Each step uses JSON-schema structured outputs and is independently evalable.
-- **Adaptivity is weekly, athlete-confirmed.** A nightly Arq job per athlete builds a proposed adjustment for the next 1–3 weeks; the athlete sees it on Monday morning and accepts/edits/rejects. No silent replans.
+- **Adaptivity is weekly, athlete-confirmed.** A nightly queue job (Inngest scheduled function) per athlete builds a proposed adjustment for the next 1–3 weeks; the athlete sees it on Monday morning and accepts/edits/rejects. No silent replans.
 - **Strava webhooks are "go fetch" signals, not the source of truth.** Hydrate via `GET /activities/{id}` on receipt, store the canonical record, then run a matcher to link the completed workout to a planned workout (same-day + sport + duration tolerance). Manual completion takes the same path with `source = manual`.
 - **Subscription entitlements live in RevenueCat, mirrored to our DB on webhook.** Backend never trusts client claims; every paid feature checks an `entitlement` row updated by RevenueCat webhooks.
-- **Free vs paid gating is a single decorator.** Backend endpoints declare `@requires_entitlement("ai_plans" | "trend_reports" | "coach_invite")`; mobile + web read entitlements from a single endpoint and gray-out paid surfaces for free users.
+- **Free vs paid gating is a single helper.** Route handlers wrap their logic in `requireEntitlement(supabase, "ai_plans" | "trend_reports" | "coach_invite")` which short-circuits with 402 on miss; mobile + web read entitlements from a single endpoint and gray-out paid surfaces for free users.
 - **Eval harness ships before the AI feature.** No paid plan generation enters production without the harness scoring above an internal bar (≥80% of generated plans pass coach-graded review).
 
 ## Open Questions
@@ -106,7 +108,7 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
 ### Resolved During Planning
 
 - *Mobile stack*: Expo RN (see Stack Summary).
-- *Backend language*: Python + FastAPI (AI ecosystem fit).
+- *Backend language*: TypeScript via Next.js Route Handlers on Vercel (single-stack simplicity, no separate Python service).
 - *Database*: Postgres only at MVP; TimescaleDB deferred until raw stream rows dominate (>10M rows or >500ms weekly-report latency).
 - *Real-time sync*: Supabase Realtime — coach edits are last-write-wins, no CRDT needed.
 - *LLM provider*: Claude Opus 4.7 primary, GPT-5 fallback; Haiku/Mini for insights with prompt caching.
@@ -130,28 +132,30 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
 
 ```
  ┌──────────────────────┐                    ┌──────────────────────┐
- │  Athlete (Expo RN)   │                    │   Coach (Next.js)    │
- │  iOS + Android       │                    │   web                │
+ │  Athlete (Expo RN)   │                    │  Coach + Athlete     │
+ │  iOS + Android       │                    │  (Next.js web)       │
  └──────────┬───────────┘                    └──────────┬───────────┘
             │ REST + Supabase Realtime channel          │
             ▼                                            ▼
  ┌──────────────────────────────────────────────────────────────────┐
- │  FastAPI (container PaaS — TBD)                                  │
- │  - Auth proxy (Supabase JWT verify)                              │
- │  - REST: profiles, plans, workouts, comments, entitlements       │
- │  - Webhooks: Strava activity, RevenueCat                         │
- │  - Internal: triggers Arq jobs for AI work                       │
+ │  Next.js (Vercel) — apps/web                                     │
+ │  - app/api/* Route Handlers (serverless functions)               │
+ │      · Auth via @supabase/ssr (forwards user JWT → RLS enforces) │
+ │      · REST: profiles, plans, workouts, comments, entitlements   │
+ │      · Webhooks: Strava activity, RevenueCat (service-role)      │
+ │      · Enqueues background work to the queue provider            │
  └─────────┬───────────────────────────────────────┬────────────────┘
            │                                       │
            ▼                                       ▼
  ┌────────────────────┐                  ┌────────────────────┐
- │  Postgres (Supabase)│                 │  Arq workers       │
- │  + Realtime broker  │                 │  (container PaaS)  │
- │                     │                 │  - plan_generate   │
- │                     │                 │  - weekly_review   │
- │                     │                 │  - insight_for     │
- │                     │                 │  - strava_hydrate  │
- │                     │                 │  - profile_recompute│
+ │  Postgres (Supabase)│                │  Queue provider     │
+ │  + Realtime broker  │                │  (TBD — Inngest)    │
+ │                     │                │  Step functions:    │
+ │                     │                │  - plan_generate    │
+ │                     │                │  - weekly_review    │
+ │                     │                │  - insight_for      │
+ │                     │                │  - strava_hydrate   │
+ │                     │                │  - profile_recompute│
  └────────────────────┘                  └─────────┬──────────┘
                                                    │
                                                    ▼
@@ -162,7 +166,7 @@ None (greenfield repo). Build a `docs/solutions/` discipline starting with the e
                                          └────────────────────┘
 
 External:  Strava (OAuth + webhook)  ·  RevenueCat (subscription state)
-Storage:   Cloudflare R2 (stream summaries, report exports)
+Storage:   Supabase Storage (stream summaries, report exports)
 ```
 
 ### AI plan generation pipeline (Unit 3.1)
@@ -181,7 +185,7 @@ Step 2 (Week expansion, fan-out per block in parallel)
 Step 3 (Workout detailing, fan-out per workout in parallel)
   → Claude Haiku 4.5, schema = {structure: [...], rationale, target_pace_or_power}
 
-Each step's output is validated against a Pydantic model.
+Each step's output is validated against a Zod schema (and parsed via `safeParse` so a malformed LLM response surfaces as a typed error, not an unchecked cast).
 On schema-validation failure: one retry with the validation error included
 in the prompt. After two failures, surface a "couldn't generate plan;
 please retry" error to the athlete and log to Langfuse for prompt review.
@@ -193,10 +197,10 @@ please retry" error to the athlete and log to Langfuse for prompt review.
 Strava activity created
    │
    ▼
-Strava webhook  →  FastAPI /webhooks/strava
-                       │ enqueue Arq: strava_hydrate(activity_id, athlete_id)
+Strava webhook  →  Next.js POST /api/webhooks/strava
+                       │ enqueue strava-hydrate (Inngest function): {activity_id, athlete_id}
                        ▼
-                   Arq worker
+                   Inngest worker
                        │ GET /activities/{id} from Strava
                        │ upsert completed_workouts (athlete_id, strava_activity_id) UNIQUE
                        │ run matcher: same-day + sport + duration tolerance
@@ -225,21 +229,21 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 **Files:**
 - Create: `package.json`, `pnpm-workspace.yaml`, `turbo.json`
-- Create: `apps/mobile/`, `apps/web/`, `apps/api/`, `packages/shared/`
-- Create: `apps/api/pyproject.toml`, `apps/api/src/`, `apps/api/scripts/generate_shared_schemas.py`
+- Create: `apps/mobile/`, `apps/web/`, `packages/shared/`
+- Create: `apps/web/app/api/` (Route Handlers will land here from Wave 2 onward)
 - Create: `.github/workflows/ci.yml`
 - Create: `README.md`, `AGENTS.md` (initial conventions)
 
 **Approach:**
-- pnpm workspaces + Turborepo for JS apps; `apps/api` is Python (uv or Poetry) outside the JS workspace.
-- `packages/shared` exports Zod schemas generated from Pydantic models via `datamodel-code-generator`.
-- CI runs: lint/typecheck/test for each app; `apps/api` runs ruff + mypy + pytest.
+- pnpm workspaces + Turborepo. Two apps (`web`, `mobile`) and one shared package (`shared`). The API is not a separate workspace — it lives inside `apps/web` as Next.js Route Handlers.
+- `packages/shared` exports hand-authored TS types and Zod schemas. No codegen step.
+- CI runs: lint, typecheck, and (where applicable) Vitest for each JS workspace. There is no Python runtime in CI.
 
-**Patterns to follow:** Standard 2026 Turborepo monorepo (one Python service alongside JS).
+**Patterns to follow:** Standard Turborepo + pnpm monorepo, single TS toolchain.
 
 **Test scenarios:**
-- Happy path: `pnpm turbo run build` builds web; `cd apps/api && uv run pytest` runs (empty) test suite.
-- Integration: editing a Pydantic model and running `generate_shared_schemas.py` updates `packages/shared/types.ts` and is picked up by mobile + web typecheck.
+- Happy path: `pnpm turbo run build` builds web; `pnpm --filter @da2/web typecheck` is clean.
+- Integration: importing a Zod schema from `@da2/shared` in both `apps/web` and `apps/mobile` typechecks against the same source.
 
 **Verification:** All three apps boot locally with empty pages; CI runs green on the empty PR.
 
@@ -247,22 +251,23 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 - [ ] **Unit 1.2: Supabase + auth + base data model**
 
-**Goal:** Provision Supabase, configure email + Apple + Google sign-in, define core tables, and gate FastAPI on Supabase JWT.
+**Goal:** Provision Supabase, configure email + Apple + Google sign-in, define core tables, and wire Next.js Route Handlers to Supabase auth so RLS enforces row scoping per request.
 
 **Requirements:** R1, R31
 
 **Dependencies:** 1.1.
 
 **Files:**
-- Create: `apps/api/src/auth.py` (Supabase JWT verifier, FastAPI dependency)
+- Create: `apps/web/src/auth/server.ts`, `apps/web/src/auth/supabase.ts` (Supabase clients via `@supabase/ssr`)
+- Create: `apps/web/app/api/me/route.ts` (canonical signed-in-user check; thin wrapper that returns the current user + roles)
 - Create: `supabase/migrations/0001_init.sql`
-- Create: `apps/api/src/models/user.py`, `models/athlete_profile.py`, `models/coach.py`
-- Create: `apps/mobile/src/auth/`, `apps/web/src/auth/` (Supabase client wrappers)
+- Create: `packages/shared/src/users.ts`, `packages/shared/src/athlete-profile.ts`, `packages/shared/src/coach.ts` (TS types + Zod schemas)
+- Create: `apps/mobile/src/auth/` (Supabase client for Expo)
 - Modify: env files for `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 
 **Approach:**
 - Tables (initial): `users` (mirrors Supabase auth.users), `athlete_profiles`, `coaches`, `entitlements`. Row-Level Security on all tables; service-role key used only server-side.
-- FastAPI verifies the Supabase JWT on every request; `current_user` dependency.
+- Route handlers create a Supabase client via `@supabase/ssr` that forwards the user JWT; RLS enforces row scoping. A small `getUser()` helper wraps the unauthenticated case (returns 401).
 - Apple sign-in is required by App Store guidelines whenever Google is offered.
 
 **Patterns to follow:** Supabase Auth + JWT-verifying API gateway (standard pattern).
@@ -270,10 +275,10 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Test scenarios:**
 - Happy path: signup with email → user row exists in `users` and `auth.users`.
 - Edge case: signup with Apple Hide-My-Email → email stored is the relay address.
-- Error path: FastAPI request without bearer token returns 401.
-- Integration: signing in on mobile produces a JWT that authenticates an `apps/api` request end-to-end.
+- Error path: API route without a Supabase session returns 401.
+- Integration: signing in on mobile produces a Supabase session that authenticates a Next.js API request end-to-end.
 
-**Verification:** A test user can sign up, get an `access_token`, and call `GET /me` successfully on FastAPI.
+**Verification:** A test user can sign up, get an `access_token`, and call `GET /api/me` successfully.
 
 ---
 
@@ -335,31 +340,32 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 - [ ] **Unit 1.5: Hosting, observability, secrets**
 
-**Goal:** Deploy infra so subsequent units have a target. Container PaaS (TBD — Railway or Render) for FastAPI + Arq workers, Vercel for Next.js, Supabase project, Sentry, Langfuse. **Fly.io is out of scope.**
+**Goal:** Deploy infra so subsequent units have a target. Vercel hosts the Next.js app and its serverless API route handlers, Supabase hosts Postgres + Auth + Realtime, the queue provider (TBD) handles long-running background work, Sentry captures errors, Langfuse traces LLM calls. **No container PaaS, no Python service, no Fly.io.**
 
 **Requirements:** R31
 
 **Dependencies:** 1.1.
 
-**Pre-work (decision):** Pick the container PaaS. Default candidates are **Railway** (multi-process apps, simple env, built-in Redis add-on) and **Render** (separate web/worker services, managed Redis). Decide before writing the Dockerfiles so service shape and config format are settled.
+**Pre-work (decision):** Pick the queue provider. Default: **Inngest** (durable steps, retries, cron, native Next.js integration). Alternatives: **Upstash QStash** (simpler, no orchestration), **Supabase Edge Functions + pg_cron** (no extra vendor, but lacks retry primitives and step orchestration). Decide before Wave 2 since Strava backfill is the first job that exceeds Vercel function timeouts.
 
 **Files:**
-- Create: `apps/api/Dockerfile`, `apps/api/Dockerfile.worker`
-- Create: provider config — Railway: `apps/api/railway.toml` and a worker service definition, **or** Render: `render.yaml` at repo root with web + worker services
-- Create: `apps/web/vercel.json` (if needed)
-- Create: `infra/README.md` documenting environments (dev/staging/prod) and the chosen PaaS
-- Modify: `.github/workflows/deploy-api.yml`, `.github/workflows/deploy-web.yml`
+- Create: `apps/web/vercel.json` (function timeouts, cron entries placeholder for Wave 3+)
+- Create: `apps/web/app/api/health/route.ts` (no-op health endpoint returning 200)
+- Create: `apps/web/app/api/inngest/route.ts` (or queue equivalent — registers job functions; no functions yet)
+- Create: `infra/README.md` documenting environments (dev/staging/prod) and the chosen queue provider
+- Modify: `.github/workflows/ci.yml` (already builds + typechecks; deploys are handled by Vercel's native Git integration, no separate deploy workflow needed)
 
 **Approach:**
-- Two backend processes on the chosen PaaS: `web` (FastAPI/uvicorn) and `worker` (Arq). Both built from the same repo, separate Dockerfiles or start commands.
-- Redis via **Upstash** (provider-agnostic, works regardless of which PaaS we pick) for the Arq queue.
-- Sentry on both API and clients; Langfuse SDK initialized in `apps/api/src/llm/`.
-- Secrets via the chosen PaaS's secret store + Vercel env + GitHub Actions.
+- Vercel deploy on `git push` via the Vercel + GitHub integration. Preview deployments per PR; production deploy on merge to `main`. Enable **Fluid Compute** so functions can run up to 300s for AI plan generation that fits in a single request.
+- Background work that exceeds the function-time budget (Strava backfill, weekly review) is enqueued to the queue provider. Inngest registers itself via a single Next.js Route Handler at `/api/inngest`; functions are discovered there. No separate worker service.
+- Sentry SDK in both `apps/web` (Next.js integration) and `apps/mobile` (Expo). Source maps uploaded so prod stack traces are readable.
+- Langfuse SDK initialized in `apps/web/src/llm/` (provider-agnostic wrapper around Anthropic + OpenAI Node SDKs); every LLM call gets traced.
+- Secrets: Vercel env (production + preview + development scopes), Expo EAS secrets for mobile builds, GitHub Actions secrets for CI. Nothing in the repo.
 
 **Test scenarios:** none — pure config/scaffolding.
 - Test expectation: none — infrastructure scaffolding; verified by deployment success.
 
-**Verification:** A no-op `/health` endpoint returns 200 from prod URL; Sentry captures a synthetic error.
+**Verification:** A no-op `GET /api/health` endpoint returns 200 from the Vercel production URL; a synthetic Sentry error from the same handler appears in the Sentry inbox; pushing to `main` produces a clean Vercel deploy without manual steps.
 
 ---
 
@@ -374,15 +380,15 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 1.2, 1.3, 1.5.
 
 **Files:**
-- Create: `apps/api/src/strava/oauth.py`, `apps/api/src/strava/client.py`
+- Create: `apps/web/app/api/integrations/strava/connect/route.ts`, `apps/web/src/strava/client.ts`
 - Create: `supabase/migrations/0002_strava_tokens.sql`
-- Create: `apps/api/src/models/strava_token.py`
+- Create: `apps/web/src/db/strava-tokens.ts`
 - Create: `apps/mobile/src/integrations/strava.tsx`
-- Create: `apps/api/tests/test_strava_oauth.py`
+- Create: `apps/web/src/api/integrations/strava/__tests__/connect.test.ts`
 
 **Approach:**
 - OAuth on mobile via `expo-auth-session` with PKCE; deep-link to Strava app when installed (`strava://oauth/...`), else in-app browser.
-- Code-for-token exchange happens on FastAPI (`POST /integrations/strava/connect`); refresh token stored in `strava_tokens` row encrypted at rest.
+- Code-for-token exchange happens in a Next.js Route Handler at `POST /api/integrations/strava/connect`; refresh token stored in `strava_tokens` row encrypted at rest.
 - `StravaClient` wraps refresh-on-401 transparently and respects rate-limit headers (15-min + daily, read + overall).
 
 **Patterns to follow:** Standard PKCE OAuth-on-mobile pattern.
@@ -407,14 +413,14 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 2.1.
 
 **Files:**
-- Create: `apps/api/src/strava/backfill.py`
-- Create: `apps/api/src/jobs/backfill_strava.py` (Arq task)
+- Create: `apps/web/src/strava/backfill.ts`
+- Create: `apps/web/src/jobs/backfill-strava.ts` (Inngest function)
 - Create: `supabase/migrations/0003_completed_workouts.sql`
-- Create: `apps/api/src/models/completed_workout.py`
-- Create: `apps/api/tests/test_strava_backfill.py`
+- Create: `apps/web/src/db/completed-workouts.ts`
+- Create: `apps/web/src/strava/__tests__/backfill.test.ts`
 
 **Approach:**
-- Backfill runs as an Arq job triggered by Unit 2.1.
+- Backfill runs as a queue function (Inngest, default per Unit 1.5) triggered by Unit 2.1.
 - Paginate `GET /athlete/activities` (200/page), respecting rate limits — chunk and back off when a 429 is returned.
 - Normalize sport codes into our taxonomy (swim / bike / run / strength / mobility / other).
 - Store summary fields only; do NOT persist raw streams (Strava ToS). For HR/power, store summary stats (avg/max/zones) returned by `/activities/{id}/zones` if present.
@@ -440,17 +446,17 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 2.2.
 
 **Files:**
-- Create: `apps/api/src/profile/derive.py`
-- Create: `apps/api/src/jobs/profile_recompute.py`
+- Create: `apps/web/src/profile/derive.ts`
+- Create: `apps/web/src/jobs/profile-recompute.ts`
 - Create: `apps/mobile/app/(tabs)/profile.tsx`
-- Create: `apps/api/tests/test_profile_derive.py`
+- Create: `apps/web/src/profile/__tests__/derive.test.ts`
 
 **Approach:**
 - Derive: weekly volume (per sport) over trailing 12 weeks, dominant sport, pace baselines (Z2 pace per sport from EWMA of easy efforts), HR threshold estimate (Friel-style), power baseline if cycling power present (eFTP from best 20-min normalized power).
-- Recompute on each completed-workout insert via a debounced Arq job per athlete (max once per 10 minutes).
+- Recompute on each completed-workout insert via a debounced queue function per athlete (max once per 10 minutes; Inngest debounce primitive).
 - Manual profile edits (R4): age, weight, target event, weekly hours — stored on `athlete_profiles`, shown in profile tab. Backfilled fields do not overwrite manual edits.
 
-**Patterns to follow:** Pydantic v2 models for profile shape; pure-Python derivation functions are unit-testable.
+**Patterns to follow:** Zod schemas (in `packages/shared`) for profile shape; pure-TS derivation functions are unit-testable.
 
 **Test scenarios:**
 - Happy path: with 12 weeks of backfilled run activity, profile shows correct dominant sport + Z2 pace.
@@ -472,15 +478,15 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 2.2.
 
 **Files:**
-- Create: `apps/api/src/webhooks/strava.py` (verification + ingest)
-- Create: `apps/api/src/jobs/strava_hydrate.py`
-- Create: `apps/api/src/services/match_workout.py`
+- Create: `apps/web/app/api/webhooks/strava/route.ts` (verification + ingest)
+- Create: `apps/web/src/jobs/strava-hydrate.ts`
+- Create: `apps/web/src/services/match-workout.ts`
 - Create: `supabase/migrations/0004_planned_workouts.sql` (planned_workouts + workout_matches tables)
 - Create: `apps/mobile/app/(modals)/log-workout.tsx` (manual completion)
-- Create: `apps/api/tests/test_strava_webhook.py`, `tests/test_match_workout.py`
+- Create: `apps/web/app/api/webhooks/strava/__tests__/route.test.ts`, `apps/web/src/services/__tests__/match-workout.test.ts`
 
 **Approach:**
-- Webhook endpoint: GET (verification) + POST (event). Respond `<2s` with 200; enqueue hydration to Arq.
+- Webhook route at `apps/web/app/api/webhooks/strava/route.ts` exports both GET (verification) and POST (event). Respond `<2s` with 200; enqueue hydration to the queue provider.
 - Hydration: GET `/activities/{id}`, upsert `completed_workouts` with UNIQUE `(athlete_id, strava_activity_id)`. Idempotent.
 - Matcher: candidate planned workouts = same athlete + scheduled_date within ±1 day + same sport + duration within ±50%; rank by closeness; record in `workout_matches` with `match_method = auto`. Store match confidence.
 - Manual completion (R13) writes `completed_workouts` with `source = manual, strava_activity_id = NULL`. If a Strava event later arrives for the same effort (matcher detects ≤30-min start-time window), prefer Strava and merge actuals; mark manual record as superseded.
@@ -493,7 +499,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 - Edge case: webhook delivered twice (Strava at-least-once) → idempotent upsert, no duplicate row.
 - Edge case: athlete moves a planned workout (R17) while a Strava activity arrives — matcher uses the new scheduled_date.
 - Error path: webhook arrives but Strava token revoked → store raw payload, mark for reauth.
-- Error path: hydration GET 5xx → Arq retries with exponential backoff up to 6 attempts.
+- Error path: hydration GET 5xx → queue retries with exponential backoff up to 6 attempts (Inngest step retry).
 - Integration: Realtime event fires; mobile calendar updates the workout cell within 2 seconds.
 
 **Verification:** From a planted Strava activity in a sandbox account, the planned workout transitions to "completed" on the athlete's calendar in under 5 seconds end-to-end.
@@ -511,8 +517,8 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/mobile/src/calendar/` (week view, day cell, drag handler)
 - Create: `apps/mobile/app/(tabs)/calendar.tsx`
-- Create: `apps/api/src/api/workouts.py` (GET range + PATCH planned workout date)
-- Create: `apps/api/tests/test_workouts_api.py`
+- Create: `apps/web/app/api/workouts/route.ts` (GET range + PATCH planned workout date)
+- Create: `apps/web/app/api/workouts/__tests__/route.test.ts`
 
 **Approach:**
 - Week-based grid (7 cells per row). Sport color from design tokens (Unit 1.3). Completed = filled cell + check; planned = outline cell.
@@ -543,20 +549,20 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Execution note:** Test-first — the harness IS the test surface for plan generation.
 
 **Files:**
-- Create: `apps/api/evals/promptfooconfig.yaml`
-- Create: `apps/api/evals/fixtures/athletes/` (athlete profile JSONs)
-- Create: `apps/api/evals/fixtures/reference_plans/` (coach-approved plan JSONs)
-- Create: `apps/api/evals/assertions/deterministic.py` (volume ramp, taper presence, brick placement, recovery spacing, zone math)
-- Create: `apps/api/evals/assertions/judge.py` (LLM-as-judge prompt)
+- Create: `apps/web/evals/promptfooconfig.yaml`
+- Create: `apps/web/evals/fixtures/athletes/` (athlete profile JSONs)
+- Create: `apps/web/evals/fixtures/reference_plans/` (coach-approved plan JSONs)
+- Create: `apps/web/evals/assertions/deterministic.ts` (volume ramp, taper presence, brick placement, recovery spacing, zone math)
+- Create: `apps/web/evals/assertions/judge.ts` (LLM-as-judge prompt)
 - Create: `.github/workflows/evals.yml`
 
 **Approach:**
-- Half the rubric is deterministic Python checks: weekly volume ramp <10%, long run <30% of weekly volume, taper present in last 2 weeks, brick spacing within tri block, recovery week every 4th week.
+- Half the rubric is deterministic TypeScript checks: weekly volume ramp <10%, long run <30% of weekly volume, taper present in last 2 weeks, brick spacing within tri block, recovery week every 4th week.
 - Half is LLM-as-judge against the reference plan: structural alignment, athlete-appropriateness, narrative coherence.
 - Pass bar: ≥80% of generated plans pass on every commit; failures block deploy.
 - Reference plans built with 3–5 alpha coaches over weeks 1–4 (parallel with Phase 1–2).
 
-**Patterns to follow:** Promptfoo config + Python assertion plugins.
+**Patterns to follow:** Promptfoo config + JS/TS assertion plugins.
 
 **Test scenarios:**
 - Happy path: a hand-crafted "good" plan scores ≥0.9; a hand-crafted "bad" plan scores ≤0.4.
@@ -578,14 +584,14 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Execution note:** Iterate against the eval harness; do not promote a prompt change to prod without the harness passing.
 
 **Files:**
-- Create: `apps/api/src/ai/plan_pipeline.py`
-- Create: `apps/api/src/ai/prompts/periodization.py`, `prompts/week_expansion.py`, `prompts/workout_detail.py`
-- Create: `apps/api/src/ai/schemas/plan.py` (Pydantic models)
-- Create: `apps/api/src/jobs/generate_plan.py` (Arq task)
-- Create: `apps/api/src/api/plans.py` (POST /plans, GET /plans/{id})
+- Create: `apps/web/src/ai/plan-pipeline.ts`
+- Create: `apps/web/src/ai/prompts/periodization.ts`, `prompts/week-expansion.ts`, `prompts/workout-detail.ts`
+- Create: `packages/shared/src/plan.ts` (Zod schemas)
+- Create: `apps/web/src/jobs/generate-plan.ts` (Inngest function)
+- Create: `apps/web/app/api/plans/route.ts` (POST /plans, GET /plans/{id})
 - Create: `supabase/migrations/0005_plans.sql`
 - Create: `apps/mobile/app/(modals)/new-plan.tsx`
-- Create: `apps/api/tests/test_plan_pipeline.py`
+- Create: `apps/web/src/ai/__tests__/plan-pipeline.test.ts`
 
 **Approach:**
 - Three steps as in High-Level Technical Design.
@@ -620,7 +626,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/mobile/app/workout/[id].tsx`
 - Modify: `apps/mobile/src/calendar/`
-- Create: `apps/api/src/api/workouts.py` (GET workout detail with rationale)
+- Create: `apps/web/app/api/workouts/route.ts` (GET workout detail with rationale)
 
 **Approach:**
 - Workout detail screen renders structure (warm-up / main set / cool-down with intervals + targets).
@@ -645,15 +651,15 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 3.2, 2.4.
 
 **Files:**
-- Create: `apps/api/src/ai/weekly_review.py`
-- Create: `apps/api/src/jobs/weekly_review.py` (Arq scheduled job)
+- Create: `apps/web/src/ai/weekly-review.ts`
+- Create: `apps/web/src/jobs/weekly-review.ts` (Inngest scheduled function)
 - Create: `supabase/migrations/0006_weekly_reviews.sql`
 - Create: `apps/mobile/app/(modals)/weekly-review.tsx`
-- Create: `apps/api/src/api/weekly_review.py` (POST accept / reject / modify)
-- Create: `apps/api/tests/test_weekly_review.py`
+- Create: `apps/web/app/api/weekly-review/route.ts` (POST accept / reject / modify)
+- Create: `apps/web/src/ai/__tests__/weekly-review.test.ts`
 
 **Approach:**
-- Scheduled Arq job runs Sundays 6 PM athlete-local; computes "actual vs planned" for the prior week + load trend; calls LLM with the next 1–3 weeks of plan + diff.
+- Scheduled queue function (Inngest cron) runs Sundays 6 PM athlete-local; computes "actual vs planned" for the prior week + load trend; calls LLM with the next 1–3 weeks of plan + diff.
 - Output is a `WeeklyReviewProposal` with concrete edits (`{workout_id, change}`) plus a narrative rationale.
 - Athlete sees a banner Monday morning; modal shows proposed edits diff-style.
 - Accept = apply edits to `planned_workouts`; reject = no-op; modify = athlete cherry-picks edits.
@@ -682,11 +688,11 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 1.4, 2.5.
 
 **Files:**
-- Create: `apps/api/src/api/coach_invites.py`
+- Create: `apps/web/app/api/coach/invites/route.ts`
 - Create: `supabase/migrations/0007_coach_athlete.sql` (coach_athlete_links + coach_invites)
 - Create: `apps/web/app/(coach)/roster/page.tsx` (real version)
 - Create: `apps/mobile/app/(modals)/invite-coach.tsx`
-- Create: `apps/api/tests/test_coach_invite.py`
+- Create: `apps/web/app/api/coach/invites/__tests__/route.test.ts`
 
 **Approach:**
 - Athlete-side: invite by email → tokenized invite link sent via Resend (or Supabase Auth email).
@@ -717,9 +723,9 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Files:**
 - Create: `apps/web/app/(coach)/athletes/[id]/calendar/page.tsx`
 - Create: `apps/web/app/(coach)/athletes/[id]/workouts/[wid]/page.tsx` (editor)
-- Create: `apps/api/src/api/coach_edits.py`
+- Create: `apps/web/app/api/coach/edits/route.ts`
 - Create: `supabase/migrations/0008_workout_comments.sql`
-- Create: `apps/api/src/models/workout_comment.py`
+- Create: `packages/shared/src/workout-comment.ts`
 
 **Approach:**
 - Coach calendar mirrors athlete calendar (same component, server-RLS limits to linked athletes).
@@ -778,8 +784,8 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 2.4, 2.3.
 
 **Files:**
-- Create: `apps/api/src/ai/insights.py`
-- Create: `apps/api/src/jobs/insight_for.py` (Arq task)
+- Create: `apps/web/src/ai/insights.ts`
+- Create: `apps/web/src/jobs/insight-for.ts` (Inngest function)
 - Create: `supabase/migrations/0009_insights.sql`
 - Modify: `apps/mobile/app/workout/[id].tsx`, `apps/mobile/app/(tabs)/index.tsx` (Today)
 
@@ -809,11 +815,11 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 2.3, 5.1.
 
 **Files:**
-- Create: `apps/api/src/reports/rollup.py` (free)
-- Create: `apps/api/src/reports/trends.py` (paid)
-- Create: `apps/api/src/ai/report_narrative.py`
+- Create: `apps/web/src/reports/rollup.ts` (free)
+- Create: `apps/web/src/reports/trends.ts` (paid)
+- Create: `apps/web/src/ai/report-narrative.ts`
 - Create: `apps/mobile/app/(tabs)/reports.tsx`
-- Create: `apps/api/src/api/reports.py`
+- Create: `apps/web/app/api/reports/route.ts`
 
 **Approach:**
 - Free rollups computed on demand (or cached daily): time, distance, volume per sport; PRs detected from completed workouts.
@@ -839,9 +845,9 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 **Dependencies:** 1.2.
 
 **Files:**
-- Create: `apps/api/src/webhooks/revenuecat.py`
+- Create: `apps/web/app/api/webhooks/revenuecat/route.ts`
 - Create: `supabase/migrations/0010_entitlements.sql`
-- Create: `apps/api/src/auth/entitlements.py` (decorator)
+- Create: `apps/web/src/auth/entitlements.ts` (helper used by route handlers)
 - Create: `apps/mobile/src/billing/revenuecat.tsx`
 - Create: `apps/web/src/billing/stripe-redirect.ts` (RevenueCat-managed Stripe)
 
@@ -919,7 +925,7 @@ Units are grouped into 5 phases. Phase boundaries are checkpoints; units within 
 
 ## System-Wide Impact
 
-- **Interaction graph:** Mobile ↔ FastAPI ↔ Postgres; mobile ⇄ Supabase Realtime; web ↔ FastAPI ↔ Postgres; web ⇄ Realtime; FastAPI → Arq workers → LLM providers; FastAPI ↔ Strava API; FastAPI ← Strava webhook; FastAPI ← RevenueCat webhook. Plan + workout edit paths must consistently emit Realtime events for all subscribers.
+- **Interaction graph:** Mobile ↔ Next.js API (apps/web/app/api) ↔ Postgres; mobile ⇄ Supabase Realtime; web UI ↔ same Next.js API ↔ Postgres; web ⇄ Realtime; Next.js routes enqueue → queue provider → LLM providers; Next.js ↔ Strava API; Next.js ← Strava webhook; Next.js ← RevenueCat webhook. Plan + workout edit paths must consistently emit Realtime events for all subscribers.
 - **Error propagation:** LLM/Strava/RevenueCat failures surface as user-facing soft errors with retry; never crash the app. Backend errors logged to Sentry; LLM errors additionally traced in Langfuse.
 - **State lifecycle risks:** Strava webhook arriving for an athlete who later disconnected; refund-after-feature-use; coach revocation while a coach edit is in flight; concurrent coach + athlete edit on the same workout.
 - **API surface parity:** Every gated feature on web has a parallel paywall + entitlement check on mobile.

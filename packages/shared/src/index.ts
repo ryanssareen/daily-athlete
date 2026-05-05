@@ -1,9 +1,8 @@
-// Cross-app type contracts. Schemas are generated from Pydantic models in
-// apps/api/src/schemas/ via apps/api/scripts/generate_shared_schemas.py once that
-// pipeline lands (Wave 2+). Until then, this package exists only to reserve the
-// import path — apps should import directly from their local clients.
+// Cross-app type contracts. Hand-authored TypeScript types and Zod schemas
+// shared between apps/web (UI + API route handlers) and apps/mobile.
+// One file per logical table family; this barrel re-exports them.
 //
-// Resist hand-writing schemas here: any drift between hand-written types and
-// the generated output will be silent and hard to debug.
+// There is no codegen step. Types are written by hand and reviewed against
+// supabase/migrations/*.sql; the schema is the source of truth.
 
 export {};

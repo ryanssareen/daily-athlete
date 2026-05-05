@@ -12,52 +12,57 @@ See:
 
 ```
 apps/
-  api/      FastAPI + SQLAlchemy 2.x + Pydantic v2 (Python 3.13)
   mobile/   Expo (React Native) — athlete app
-  web/      Next.js 15 — coach app
+  web/      Next.js 15 — coach + athlete app, also hosts the API (App Router route handlers)
 packages/
-  shared/   Cross-app TS types (Pydantic-generated Zod schemas land here)
+  shared/   Cross-app TS types + Zod schemas
 supabase/
   migrations/  Plain SQL migrations applied via Supabase CLI
 docs/
   brainstorms/, plans/, solutions/
-infra/      Deployment runbook (Fly.io, Vercel, Supabase wiring)
+infra/      Deployment runbook (Vercel, Supabase, queue provider)
 ```
+
+The backend lives inside `apps/web` as Next.js Route Handlers under `app/api/*` and runs as Vercel serverless functions. There is no separate Python service.
 
 ## Prerequisites
 
-- Node 20.11+ and pnpm 9 (`brew install pnpm` / `corepack enable`)
-- Python 3.13 and [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` on macOS/Linux; `irm https://astral.sh/uv/install.ps1 | iex` on Windows)
-- Docker (for local Postgres + Redis)
+- Node 20.11+ and pnpm 9 (`npm i -g pnpm` or `corepack enable`)
+- Docker (only needed if you want a local Postgres without the Supabase CLI stack)
 - Supabase CLI — macOS: `brew install supabase/tap/supabase`; Linux: see [supabase/cli releases](https://github.com/supabase/cli/releases); Windows: `scoop install supabase`
 
 ## First-time setup
 
 ```bash
-# Install root + workspace deps
+# Install workspace deps
 pnpm install
 
-# Copy env files
+# Copy env files (use the equivalent on Windows: `copy` in cmd, `Copy-Item` in PowerShell)
 cp .env.example .env
-cp apps/api/.env.example apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example apps/web/.env
 
-# Generate a Strava token encryption key (32 bytes hex)
-python -c "import secrets; print(secrets.token_hex(32))"
-# paste into STRAVA_TOKEN_KEY in apps/api/.env
+# Generate a Strava token encryption key (32 bytes hex) — written directly to a
+# mode-0600 file by node, then merged into apps/web/.env, then the temp file is
+# shredded. Per AGENTS.md "Secrets", the key never appears on stdout or in shell
+# history.
+#
+# macOS / Linux:
+node -e "require('fs').writeFileSync('.da2-strava-key','STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex')+'\n',{mode:0o600})"
+cat .da2-strava-key >> apps/web/.env
+shred -u .da2-strava-key 2>/dev/null || rm -P .da2-strava-key 2>/dev/null || rm -f .da2-strava-key
+#
+# Windows (PowerShell), equivalent:
+#   node -e "require('fs').writeFileSync('.da2-strava-key','STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex')+\"`n\",{mode:0o600})"
+#   Get-Content .da2-strava-key | Add-Content apps/web/.env
+#   Remove-Item .da2-strava-key -Force
 
-# Bring up local Postgres + Redis
+# Bring up local Postgres
 docker compose up -d
+# (or: `supabase start` for the full Supabase local stack)
 
 # Apply migrations
 supabase db reset --local --db-url "postgresql://da2:da2_dev@localhost:54322/da2"
-# (or run psql against each migration file in order)
-
-# Set up the API
-cd apps/api
-uv sync
-uv run pytest
 ```
 
 ## Running locally
@@ -66,19 +71,16 @@ uv run pytest
 # Terminal 1: services
 docker compose up
 
-# Terminal 2: API
-cd apps/api && uv run uvicorn src.main:app --reload --port 8000
-
-# Terminal 3: web
+# Terminal 2: web (also serves /api/*)
 pnpm --filter @da2/web dev
 
-# Terminal 4: mobile
+# Terminal 3: mobile
 pnpm --filter @da2/mobile start
 ```
 
 ## Deploying
 
-See [infra/README.md](infra/README.md) for the third-party provisioning runbook (Supabase project, Fly.io app, Vercel project, Sentry, Langfuse).
+See [infra/README.md](infra/README.md) for the third-party provisioning runbook (Supabase project, Vercel project, queue provider, Sentry, Langfuse).
 
 ## Conventions
 
