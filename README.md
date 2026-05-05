@@ -42,14 +42,20 @@ cp .env.example .env
 cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example apps/web/.env
 
-# Generate a Strava token encryption key (32 bytes hex). Per AGENTS.md, never
-# inline a generated secret in shell history — write it to a 0600 file, set it
-# from the file, then shred. Example for macOS/Linux:
-umask 077 && node -e "console.log('STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex'))" > /tmp/da2-strava-key
-# Inspect, append (or merge) into apps/web/.env, then:
-shred -u /tmp/da2-strava-key 2>/dev/null || rm -P /tmp/da2-strava-key
-# Windows (PowerShell): use `New-Item -ItemType File` with appropriate ACL, then
-# Remove-Item after pasting; do not echo the key to the terminal.
+# Generate a Strava token encryption key (32 bytes hex) — written directly to a
+# mode-0600 file by node, then merged into apps/web/.env, then the temp file is
+# shredded. Per AGENTS.md "Secrets", the key never appears on stdout or in shell
+# history.
+#
+# macOS / Linux:
+node -e "require('fs').writeFileSync('.da2-strava-key','STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex')+'\n',{mode:0o600})"
+cat .da2-strava-key >> apps/web/.env
+shred -u .da2-strava-key 2>/dev/null || rm -P .da2-strava-key 2>/dev/null || rm -f .da2-strava-key
+#
+# Windows (PowerShell), equivalent:
+#   node -e "require('fs').writeFileSync('.da2-strava-key','STRAVA_TOKEN_KEYS=v1:'+require('crypto').randomBytes(32).toString('hex')+\"`n\",{mode:0o600})"
+#   Get-Content .da2-strava-key | Add-Content apps/web/.env
+#   Remove-Item .da2-strava-key -Force
 
 # Bring up local Postgres
 docker compose up -d
