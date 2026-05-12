@@ -45,8 +45,40 @@ function requireEnv(name: string): string {
   return v;
 }
 
+// Hostnames the test harness is willing to talk to. Anything else throws.
+// Production DBs reach this list ONLY if someone deliberately adds them, so a
+// stray `export NEXT_PUBLIC_SUPABASE_URL=https://<prod>.supabase.co` in a
+// developer's shell cannot cause `pnpm test` to issue admin.deleteUser
+// against real users.
+const ALLOWED_TEST_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "host.docker.internal", // for tests run inside Docker against the host's Supabase
+]);
+
 function supabaseUrl(): string {
-  return requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(
+      `NEXT_PUBLIC_SUPABASE_URL is not a valid URL: ${url}. ` +
+        `Tests only run against a local Supabase stack -- did you run \`supabase start\`?`,
+    );
+  }
+  if (!ALLOWED_TEST_HOSTS.has(host)) {
+    throw new Error(
+      `Refusing to run tests against non-local Supabase host: ${host}. ` +
+        `The DB-backed test harness uses the service-role admin API to create and DELETE auth.users; ` +
+        `running it against a non-local DB would mutate real data. ` +
+        `Allowed hosts: ${Array.from(ALLOWED_TEST_HOSTS).join(", ")}. ` +
+        `If you intentionally need to test against a remote host, edit ALLOWED_TEST_HOSTS in ` +
+        `apps/web/src/db/__tests__/setup.ts -- but consider whether a separate sandbox project is safer.`,
+    );
+  }
+  return url;
 }
 
 function anonKey(): string {
