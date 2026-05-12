@@ -11,11 +11,22 @@
 // Future tests under apps/web/src/db/__tests__/ should follow the same
 // pattern: createTestUser() per actor, assert via the JWT-bound client.
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { createTestUser, serviceClient } from "./setup";
 
 describe("vitest + Supabase harness smoke", () => {
+  beforeAll(async () => {
+    const admin = serviceClient();
+    const { data: stale } = await admin.auth.admin.listUsers();
+    const ids = (stale?.users ?? [])
+      .filter((u) => u.email?.startsWith("vitest-") && u.email?.endsWith("@da2.test"))
+      .map((u) => u.id);
+    if (ids.length > 0) {
+      await Promise.all(ids.map((id) => admin.auth.admin.deleteUser(id).catch(() => undefined)));
+    }
+  });
+
   it("can query the local DB via the service-role client", async () => {
     const admin = serviceClient();
     // `auth.users` count is a cheap sanity check: the call requires both a
@@ -53,6 +64,17 @@ describe("vitest + Supabase harness smoke", () => {
     expect(error).toBeNull();
     expect(data).toHaveLength(1);
     expect(data?.[0]?.id).toBe(user.id);
+  });
+
+  it("JWT is bound to the expected user id", async () => {
+    const user = await createTestUser();
+
+    // RLS restricts `SELECT * FROM users` to rows where auth.uid() = id.
+    // Getting back exactly our own row (and no others) proves the JWT is
+    // correctly bound: the client's token resolves to this user's uid.
+    const { data, error } = await user.client.from("users").select("id").single();
+    expect(error).toBeNull();
+    expect(data?.id).toBe(user.id);
   });
 
   it("hides another user's row from the JWT-bound client (RLS negative)", async () => {

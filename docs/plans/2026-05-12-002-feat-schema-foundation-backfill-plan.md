@@ -101,6 +101,7 @@ External research deliberately skipped — vitest setup with Supabase is well-tr
 
 ### Deferred to Implementation
 
+- **Per-test BEGIN/ROLLBACK transaction wrapping** — Unit 1 (this plan) substituted track-and-cleanup via the Supabase admin API. Reason: supabase-js routes every query through a separate PostgREST HTTP call, so no DB transaction can span multiple SDK calls. The substitute provides equivalent test isolation (auth.users → public.users → athlete-data cascade handles teardown) but failures surface via `console.warn` rather than implicit rollback. Documented in `apps/web/src/db/__tests__/setup.ts`.
 - **Exact trigger function name.** The trigger and its companion function will live in the migration; pick a clear name (`athlete_profiles_stamp_manual_edits` or similar) during implementation.
 - **Whether the trigger also handles full-row replacement** (`UPDATE ... SET manual_fields = $new_blob`). Default behavior: any top-level key whose value changes (or is added, or is removed) gets its timestamp updated (or removed). The migration test scenarios pin this; refine if real callers find an awkward edge.
 - **CI cache strategy** for `supabase start`. If Docker pull becomes the slowest CI step, add a step that caches the Supabase Docker image. Defer until measured.
@@ -157,7 +158,7 @@ flowchart LR
 
 ## Implementation Units
 
-- [ ] **Unit 1: Vitest + DB test bootstrap in `apps/web`**
+- [x] **Unit 1: Vitest + DB test bootstrap in `apps/web`**
 
 **Goal:** Stand up the test runner, the Postgres bootstrap helpers, the test-user / JWT-client factory, and the CI job that runs all of it. Prove it with one smoke test.
 

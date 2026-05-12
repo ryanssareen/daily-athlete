@@ -8,10 +8,14 @@
 //   Queries through that client exercise RLS exactly as production code does.
 // - We do NOT use per-test BEGIN ... ROLLBACK transaction wrapping because
 //   supabase-js issues each query as a separate HTTP call to PostgREST;
-//   transactions cannot span SDK calls. Instead, `createTestUser()` tracks
-//   each created user id, and the global afterEach hook hard-deletes them
-//   via the admin API. The auth.users -> public.users FK cascade plus
-//   on-delete cascades on every athlete-data table do the rest.
+//   transactions cannot span SDK calls. Transaction-rollback (per-test
+//   `BEGIN ... ROLLBACK`) was considered and rejected: supabase-js routes
+//   every query through a separate PostgREST HTTP call, so no single DB
+//   transaction can span multiple SDK calls. Track-and-cleanup is the working
+//   substitute. `createTestUser()` tracks each created user id, and the
+//   global afterEach hook hard-deletes them via the admin API. The
+//   auth.users -> public.users FK cascade plus on-delete cascades on every
+//   athlete-data table do the rest.
 //
 // Environment:
 // - `supabase start` must be running locally for these tests to work.
@@ -41,15 +45,15 @@ function requireEnv(name: string): string {
   return v;
 }
 
-export function supabaseUrl(): string {
+function supabaseUrl(): string {
   return requireEnv("NEXT_PUBLIC_SUPABASE_URL");
 }
 
-export function anonKey(): string {
+function anonKey(): string {
   return requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }
 
-export function serviceRoleKey(): string {
+function serviceRoleKey(): string {
   return requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 }
 
@@ -66,13 +70,16 @@ export function serviceClient(): SupabaseClient {
 export type TestUser = {
   id: string;
   email: string;
-  accessToken: string;
   /** A supabase-js client bound to this user's JWT. Use for RLS assertions. */
   client: SupabaseClient;
 };
 
-// Module-level registry of user ids created during the current test.
-// The afterEach hook below hard-deletes them.
+// Module-level state. Safe ONLY because vitest.config.ts pins pool:forks +
+// fileParallelism:false -- each test file runs in its own process with its
+// own module instance. Switching to pool:threads would make this Set shared
+// across concurrent files, causing afterEach in file A to delete users
+// file B's live test is still using. Don't change the pool without
+// re-architecting this.
 const trackedUserIds = new Set<string>();
 
 /**
@@ -99,6 +106,11 @@ export async function createTestUser(opts?: {
     throw new Error(`createTestUser: admin.createUser failed: ${createErr?.message ?? "no user returned"}`);
   }
 
+  // Track immediately after createUser succeeds, before sign-in. This ensures
+  // afterEach can retry the delete even if sign-in fails AND the inline
+  // rollback delete below also fails.
+  trackedUserIds.add(created.user.id);
+
   const userClient = createClient(supabaseUrl(), anonKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -108,16 +120,15 @@ export async function createTestUser(opts?: {
   });
   if (signInErr || !signIn.session) {
     // Roll back the auth.users row if sign-in failed.
-    await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+    await admin.auth.admin.deleteUser(created.user.id).catch((err) =>
+      console.warn('[test-cleanup] rollback deleteUser failed:', err?.message ?? err),
+    );
     throw new Error(`createTestUser: signIn failed: ${signInErr?.message ?? "no session"}`);
   }
-
-  trackedUserIds.add(created.user.id);
 
   return {
     id: created.user.id,
     email,
-    accessToken: signIn.session.access_token,
     client: userClient,
   };
 }
@@ -127,15 +138,20 @@ export async function createTestUser(opts?: {
  * test. The auth.users -> public.users FK cascade removes mirrored rows and
  * any athlete-data rows hanging off them.
  *
- * Errors during cleanup are swallowed -- a test failure plus a stale auth
- * row is still recoverable; a teardown error masking the real failure is not.
+ * Cleanup failures are logged via console.warn rather than swallowed silently
+ * -- a test failure plus a stale auth row is still recoverable, but silent
+ * failures make debugging harder.
  */
 afterEach(async () => {
   if (trackedUserIds.size === 0) return;
   const admin = serviceClient();
   const ids = Array.from(trackedUserIds);
-  trackedUserIds.clear();
   await Promise.all(
-    ids.map((id) => admin.auth.admin.deleteUser(id).catch(() => undefined)),
+    ids.map((id) =>
+      admin.auth.admin.deleteUser(id).catch((err) =>
+        console.warn('[test-cleanup] deleteUser failed for', id, err?.message ?? err),
+      ),
+    ),
   );
+  trackedUserIds.clear();
 });

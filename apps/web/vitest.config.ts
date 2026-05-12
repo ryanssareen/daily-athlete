@@ -16,7 +16,6 @@ export default defineConfig({
     environment: "node",
     pool: "forks",
     include: ["src/**/__tests__/**/*.test.ts"],
-    setupFiles: ["src/db/__tests__/setup.ts"],
     testTimeout: 15_000,
     hookTimeout: 15_000,
     // Run files serially -- DB-backed tests share the local Supabase
