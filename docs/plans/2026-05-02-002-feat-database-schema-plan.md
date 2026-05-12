@@ -363,7 +363,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 
 ### Phase B: Workout Core (Weeks 2–4)
 
-- [ ] **Unit 4: Athlete profile (`athlete_profiles`)**
+- [x] **Unit 4: Athlete profile (`athlete_profiles`)**
 
 **Goal:** Per-athlete derived baselines + manual fields with per-field edit timestamps so derivation never overwrites manual edits.
 
