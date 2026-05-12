@@ -73,17 +73,19 @@ jobs:
       - name: Start Supabase
         run: supabase start
 
-      # Map the CLI's deterministic local-dev keys onto the env var names
-      # supabase-js expects. See apps/web/src/db/__tests__/setup.ts.
-      - name: Export Supabase keys to job env
+      # Run the tests with the CLI's deterministic local-dev keys in scope.
+      # `supabase status -o env` emits shell-escaped `KEY="value"` lines,
+      # which $GITHUB_ENV would import literally (with embedded quotes) --
+      # breaking URL parsing in supabase-js. `eval` does the unquoting
+      # correctly, so we keep the resulting vars scoped to this one step.
+      - name: Run tests against local Supabase
         run: |
-          supabase status -o env \
+          eval "$(supabase status -o env \
             --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
             --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
-            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
-            >> "$GITHUB_ENV"
-
-      - run: pnpm --filter @da2/web test
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY)"
+          export NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
+          pnpm --filter @da2/web test
 
       # Dump the Supabase containers' logs if tests fail -- supabase CLI has
       # no `logs` subcommand, so go through Docker directly. Helps diagnose
