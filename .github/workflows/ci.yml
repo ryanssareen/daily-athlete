@@ -17,9 +17,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here -- pnpm/action-setup reads the version from
+      # `packageManager` in package.json (currently pnpm@9.12.0).
+      # Specifying both produces ERR_PNPM_BAD_PM_VERSION.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -35,9 +36,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here -- pnpm/action-setup reads the version from
+      # `packageManager` in package.json (currently pnpm@9.12.0).
+      # Specifying both produces ERR_PNPM_BAD_PM_VERSION.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -45,3 +47,54 @@ jobs:
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @da2/mobile typecheck
+
+  test:
+    name: Test (apps/web)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      # No `version:` here -- pnpm/action-setup reads the version from
+      # `packageManager` in package.json (currently pnpm@9.12.0).
+      # Specifying both produces ERR_PNPM_BAD_PM_VERSION.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: supabase/setup-cli@v1.6.0
+        with:
+          version: 2.95.4
+
+      - run: pnpm install --frozen-lockfile=false
+
+      # Start the local Supabase stack (Postgres + GoTrue + PostgREST + ...).
+      # Migrations under supabase/migrations/ are applied automatically.
+      - name: Start Supabase
+        run: supabase start
+
+      # Run the tests with the CLI's deterministic local-dev keys in scope.
+      # `supabase status -o env` emits shell-escaped `KEY="value"` lines,
+      # which $GITHUB_ENV would import literally (with embedded quotes) --
+      # breaking URL parsing in supabase-js. `eval` does the unquoting
+      # correctly, so we keep the resulting vars scoped to this one step.
+      - name: Run tests against local Supabase
+        run: |
+          eval "$(supabase status -o env \
+            --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
+            --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY)"
+          export NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY
+          pnpm --filter @da2/web test
+
+      # Dump the Supabase containers' logs if tests fail -- supabase CLI has
+      # no `logs` subcommand, so go through Docker directly. Helps diagnose
+      # migration apply errors or RLS denials from a CI-only repro.
+      - name: Supabase container logs on failure
+        if: failure()
+        run: |
+          docker ps --format '{{.Names}}' | grep '^supabase_' | while read name; do
+            echo "::group::$name"
+            docker logs --tail 200 "$name" || true
+            echo "::endgroup::"
+          done
