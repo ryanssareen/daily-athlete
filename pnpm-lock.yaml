@@ -78,6 +78,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@da2/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@supabase/ssr':
         specifier: ^0.5.0
         version: 0.5.2(@supabase/supabase-js@2.105.1)
