@@ -113,6 +113,11 @@ CREATE TABLE public.planned_workouts (
     -- not fire this since the row still exists.
     plan_id UUID REFERENCES public.plans(id) ON DELETE SET NULL,
     scheduled_date DATE NOT NULL,
+    -- Sport vocabulary is intentionally identical to completed_workouts.sport
+    -- (migration 0008). Any expansion of this enum MUST update both CHECK
+    -- constraints in the SAME migration; otherwise the app-layer Zod
+    -- SportSchema would accept a new value that one table rejects with
+    -- 23514 at runtime.
     sport TEXT NOT NULL CHECK (sport IN ('swim', 'bike', 'run', 'strength', 'mobility', 'other')),
     -- Permissive JSONB; tighten in product plan Unit 3.2 once AI prompt converges.
     structure JSONB NOT NULL DEFAULT '{}'::jsonb,
