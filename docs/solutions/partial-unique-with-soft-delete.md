@@ -73,17 +73,33 @@ WHERE p.athlete_id = $1
   AND pw.deleted_at IS NULL;
 ```
 
-## Future Reuse Sites
+## Reuse Sites in Repo
 
-The parent schema plan ([docs/plans/2026-05-02-002-feat-database-schema-plan.md](../plans/2026-05-02-002-feat-database-schema-plan.md)) calls out two additional uses of this pattern:
+### `completed_workouts_strava_idempotency` (migration 0008)
 
-- **Parent Unit 6 — `completed_workouts`:** idempotent Strava ingest.
-  ```sql
-  CREATE UNIQUE INDEX completed_workouts_strava_dedup
-      ON public.completed_workouts (athlete_id, strava_activity_id)
-      WHERE strava_activity_id IS NOT NULL;
-  ```
-  (Predicate is `IS NOT NULL` rather than a status check — same structural idea: exclude the rows that should not participate in uniqueness.)
+NULL-aware variant: predicate filters on `strava_activity_id IS NOT NULL` so manual rows (which have `strava_activity_id = NULL`) are excluded from the uniqueness check entirely. Idempotent Strava webhook upserts target this index via `ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE`.
+
+```sql
+CREATE UNIQUE INDEX completed_workouts_strava_idempotency
+    ON public.completed_workouts (athlete_id, strava_activity_id)
+    WHERE strava_activity_id IS NOT NULL;
+```
+
+### `workout_matches_one_per_planned` and `workout_matches_one_per_completed` (migration 0008)
+
+Twin partial uniques enforcing 1:1 link cardinality with soft-delete-driven re-linking. Soft-deleting the existing match row (`UPDATE deleted_at = now()`) drops it from both partial predicates and allows a fresh INSERT for either side.
+
+```sql
+CREATE UNIQUE INDEX workout_matches_one_per_planned
+    ON public.workout_matches (planned_workout_id)
+    WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX workout_matches_one_per_completed
+    ON public.workout_matches (completed_workout_id)
+    WHERE deleted_at IS NULL;
+```
+
+## Anticipated Next Reuse
 
 - **Parent Unit 8 — `coach_athlete_links`:** at most one active coach per athlete.
   ```sql

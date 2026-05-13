@@ -35,8 +35,14 @@
 --   same way for INSERTs (WITH CHECK on EXISTS).
 -- - Cross-row consistency between workout_matches.planned_workout_id and
 --   workout_matches.completed_workout_id (they should belong to the same
---   athlete) is intentionally NOT enforced by SQL. App-layer matcher is
---   the only guard. Tests document the surprise.
+--   athlete) is NOT enforced by a FK or trigger -- but for AUTHENTICATED
+--   callers, the INSERT WITH CHECK policy requires the caller to own both
+--   sides (two EXISTS subqueries, each gated on auth.uid()). The UPDATE
+--   policy mirrors this via its own WITH CHECK. Cross-athlete matches
+--   can therefore only be created from the SERVICE-ROLE path (matcher
+--   worker, account-deletion paths) where RLS is bypassed. The future
+--   matcher in product plan Unit 2.4 MUST validate athlete identity
+--   explicitly before insert.
 -- - Both tables added to supabase_realtime publication. REALTIME_ALLOWLIST
 --   in packages/shared/src/realtime-allowlist.ts must be updated to
 --   include both in alphabetical order (with the existing plans /
@@ -58,6 +64,11 @@ CREATE TABLE public.completed_workouts (
     -- workouts per day).
     strava_activity_id BIGINT,
     started_at TIMESTAMPTZ NOT NULL,
+    -- Sport vocabulary is intentionally identical to planned_workouts.sport
+    -- (migration 0007). Any expansion of this enum MUST update both CHECK
+    -- constraints in the SAME migration; otherwise the app-layer Zod
+    -- SportSchema would accept a new value that one table rejects with
+    -- 23514 at runtime.
     sport TEXT NOT NULL CHECK (sport IN ('swim', 'bike', 'run', 'strength', 'mobility', 'other')),
     -- First-class columns Strava always provides; nullable to support
     -- sparse manual entries.
@@ -70,9 +81,30 @@ CREATE TABLE public.completed_workouts (
     -- the canonical (Strava) row. ON DELETE SET NULL preserves the
     -- supersession trail if the canonical row is ever hard-deleted (only
     -- via the account-deletion cascade).
+    -- Hard-delete semantics caveat: if the canonical (Strava) row S is
+    -- hard-deleted (only legal path is the account-deletion cascade), ON
+    -- DELETE SET NULL clears the manual row M's superseded_by_id. M
+    -- then reappears in canonical reads (WHERE superseded_by_id IS NULL).
+    -- In practice this is harmless because the account-deletion cascade
+    -- also CASCADEs through athlete_id and removes M. A targeted hard-
+    -- delete of a single Strava row outside the account cascade is NOT
+    -- a supported path; service-role callers must not do it.
     superseded_by_id UUID REFERENCES public.completed_workouts(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    -- A Strava-sourced row MUST carry a strava_activity_id. Without this
+    -- check, a buggy webhook payload (source='strava', strava_activity_id=
+    -- NULL) would bypass the partial unique idempotency index and silently
+    -- insert a duplicate row -- defeating R15.
+    CONSTRAINT completed_workouts_strava_activity_id_required CHECK (
+        source != 'strava' OR strava_activity_id IS NOT NULL
+    ),
+    -- Reject the trivial self-loop (a row pointing at itself). Longer
+    -- cycles (M -> S -> M) are still permitted by SQL; preventing those
+    -- requires a trigger and is tracked in the follow-up issue.
+    CONSTRAINT completed_workouts_no_self_supersede CHECK (
+        superseded_by_id IS NULL OR superseded_by_id != id
+    )
 );
 
 -- R15: idempotent Strava upsert. Webhook delivery is at-least-once;
@@ -83,6 +115,13 @@ CREATE TABLE public.completed_workouts (
 --   ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE SET
 --     summary_stats = EXCLUDED.summary_stats, ...
 -- to make webhook handlers replay-safe.
+-- NOTE: For Postgres to match this ON CONFLICT clause to the partial
+-- unique index, the inserted row MUST satisfy the index predicate
+-- (strava_activity_id IS NOT NULL). With the
+-- completed_workouts_strava_activity_id_required CHECK in place, any
+-- source='strava' row carries a non-null strava_activity_id by
+-- construction; manual rows always have NULL strava_activity_id and
+-- bypass the idempotency check (which is the intended semantics).
 CREATE UNIQUE INDEX completed_workouts_strava_idempotency
     ON public.completed_workouts (athlete_id, strava_activity_id)
     WHERE strava_activity_id IS NOT NULL;
@@ -140,6 +179,12 @@ CREATE POLICY completed_workouts_self_update ON public.completed_workouts
 -- No DELETE policy: soft-delete via UPDATE deleted_at. Hard-delete reserved
 -- for the future account-deletion cascade.
 
+-- Note: The EXISTS subqueries below do NOT filter pw.deleted_at IS NULL
+-- or cw.deleted_at IS NULL. Athletes retain access to matches for
+-- soft-deleted plans / completions (forensic trace). If a use case
+-- requires hiding matches once their plan or completion is soft-deleted,
+-- add the filter to the EXISTS clauses here.
+--
 -- Workout matches: athlete-self via EXISTS subquery against
 -- planned_workouts (the subquery is itself RLS-aware, so this transitively
 -- enforces ownership). INSERT WITH CHECK validates both sides belong to
@@ -168,12 +213,27 @@ CREATE POLICY workout_matches_self_insert ON public.workout_matches
         )
     );
 
+-- WITH CHECK mirrors the INSERT policy: an UPDATE cannot re-point the row
+-- to another user's planned or completed workout. Closes a metadata-leak
+-- gap that would otherwise materialise once Unit 8 coach JOINs land.
 CREATE POLICY workout_matches_self_update ON public.workout_matches
     FOR UPDATE USING (
         EXISTS (
             SELECT 1 FROM public.planned_workouts pw
             WHERE pw.id = workout_matches.planned_workout_id
               AND pw.athlete_id = auth.uid()
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.planned_workouts pw
+            WHERE pw.id = workout_matches.planned_workout_id
+              AND pw.athlete_id = auth.uid()
+        )
+        AND EXISTS (
+            SELECT 1 FROM public.completed_workouts cw
+            WHERE cw.id = workout_matches.completed_workout_id
+              AND cw.athlete_id = auth.uid()
         )
     );
 

@@ -208,7 +208,7 @@ REALTIME_ALLOWLIST becomes `["completed_workouts", "planned_workouts", "plans", 
 
 ## Implementation Units
 
-- [ ] **Unit 1: Migration `0008_completed_workouts_and_matches.sql` + realtime publication membership**
+- [x] **Unit 1: Migration `0008_completed_workouts_and_matches.sql` + realtime publication membership**
 
 **Goal:** Create both tables with all columns, constraints, indexes, RLS, and add to `supabase_realtime`. Update `REALTIME_ALLOWLIST` so the CI guard passes.
 
@@ -345,6 +345,7 @@ Sport vocabulary on `completed_workouts.sport` is the same as `planned_workouts.
 - *Happy path:* INSERT manual completion (strava_activity_id NULL); second manual INSERT for same athlete also succeeds (no false-uniqueness collision).
 - *R15:* INSERT same `(athlete_id, strava_activity_id)` twice without `ON CONFLICT` → 23505 second time.
 - *R15:* INSERT with `ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE` is idempotent — second invocation updates summary_stats without creating a duplicate row.
+- *Edge case (R15 partial unique boundary):* INSERT Strava row S. Soft-delete S (`UPDATE deleted_at = now()`). Then bare `INSERT` (no ON CONFLICT) of the same `(athlete_id, strava_activity_id)` -> 23505. The idempotency index has no `deleted_at` filter, so the soft-deleted row still occupies the predicate space. Webhook handlers MUST use `ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE SET deleted_at = NULL, ...` (or similar) to re-ingest after a Strava-delete + re-create cycle.
 - *R17 (storage half):* UPDATE `completed_workouts SET deleted_at = now()` succeeds (no DELETE policy needed); subsequent SELECT with `deleted_at IS NULL` filter excludes the row.
 - *R21:* INSERT manual row M, INSERT Strava row S, UPDATE M SET superseded_by_id = S.id → succeeds. Canonical read (`WHERE superseded_by_id IS NULL`) returns only S.
 - *Edge case:* superseded_by_id pointing at a non-existent UUID → 23503 FK violation.
@@ -365,9 +366,11 @@ Sport vocabulary on `completed_workouts.sport` is the same as `planned_workouts.
 - *Edge case (method):* unknown method rejected by CHECK.
 - *Edge case (FK):* INSERT with `planned_workout_id` pointing at non-existent planned → 23503.
 - *Edge case (FK):* INSERT with `completed_workout_id` pointing at non-existent completed → 23503.
-- *Documented surprise:* INSERT a match where planned and completed belong to DIFFERENT athletes — SQL accepts. Pins the cross-athlete-mismatch SQL behaviour for future contributors. App-layer guard only.
+- *RLS WITH CHECK on JWT path:* athlete A creates a match where planned_workout_id is theirs but completed_workout_id belongs to athlete B (or vice versa) -> 42501. RLS WITH CHECK rejects via the EXISTS subqueries.
+- *Service-role bypass (documented surprise):* service-role INSERT of a cross-athlete match succeeds at the DB level. App-layer matcher (product plan Unit 2.4) is the only guard for this path. Pins the boundary so future contributors understand what RLS does and doesn't catch.
 - *Integration (RLS positive):* athlete's matches visible via JWT (joins to planned_workouts.athlete_id transitively? Actually RLS on workout_matches doesn't have an athlete_id column — needs explicit policy expression using EXISTS).
 - *Integration (RLS negative):* cross-user can't see other's matches.
+- *Service-role path (matcher worker simulation):* `serviceClient()` inserts a match linking the planned and completed of two different athletes (cross-athlete) -> succeeds. RLS is bypassed for service-role. Pins the path that product plan Unit 2.4's matcher will use; the test documents that the matcher must validate athlete identity in app code.
 - *Integration (FK cascade — planned):* deleting a planned_workout (via account cascade simulation) cascades to its workout_matches rows.
 - *Integration (FK cascade — completed):* deleting a completed_workout cascades to its workout_matches rows.
 - *Integration (Zod-roundtrip):* `WorkoutMatchRowSchema` parses a real row.
