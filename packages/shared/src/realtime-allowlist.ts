@@ -16,7 +16,13 @@
 // See AGENTS.md "RLS posture" for the broader rule.
 
 // `readonly string[]` rather than `as const satisfies` so consumers get
-// a working string-typed array even when the list is empty. Narrowing to
+// a working string-typed array even when the list grows. Narrowing to
 // literal table names is a future enhancement; the CI guard's diff-driven
 // failure message is the primary contract here.
-export const REALTIME_ALLOWLIST: readonly string[] = [];
+//
+// Members must stay alphabetised so diffs are minimal when entries are
+// added or removed.
+export const REALTIME_ALLOWLIST: readonly string[] = [
+  "planned_workouts", // added: 0007
+  "plans", // added: 0007
+];
