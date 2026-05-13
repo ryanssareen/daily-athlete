@@ -94,7 +94,7 @@ describe("completed_workouts table", () => {
     expect(err2?.code).toBe("23505");
   });
 
-  it("R15: ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE is idempotent", async () => {
+  it("R15: supabase-js .upsert() with partial-index conflict target raises 42P10 (documented limitation)", async () => {
     const user = await createTestUser();
     const admin = serviceClient();
 
@@ -104,31 +104,68 @@ describe("completed_workouts table", () => {
       strava_activity_id: 7777777777,
       started_at: "2026-05-13T07:00:00+00:00",
       sport: "bike" as const,
+    };
+
+    // supabase-js's .upsert() with onConflict generates
+    // `INSERT ... ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE`
+    // WITHOUT the WHERE strava_activity_id IS NOT NULL predicate. Postgres
+    // can't infer the partial unique index without the predicate and
+    // returns 42P10 ("no unique or exclusion constraint matches").
+    // Webhook handlers therefore CANNOT use supabase-js .upsert() for R15
+    // idempotency -- they must use the INSERT + catch-23505 + UPDATE
+    // fallback (see next test) or a Postgres function via .rpc().
+    const { error } = await admin
+      .from("completed_workouts")
+      .upsert(baseRow, { onConflict: "athlete_id,strava_activity_id" });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42P10");
+  });
+
+  it("R15: INSERT + catch 23505 + UPDATE fallback is the supported idempotency pattern", async () => {
+    const user = await createTestUser();
+    const admin = serviceClient();
+
+    const baseRow = {
+      athlete_id: user.id,
+      source: "strava" as const,
+      strava_activity_id: 7777777778,
+      started_at: "2026-05-13T07:00:00+00:00",
+      sport: "bike" as const,
       distance_m: 30000,
       duration_s: 3600,
       summary_stats: { avg_power_w: 200 },
     };
 
-    // First upsert
+    // First webhook delivery: insert succeeds
     const { error: err1 } = await admin
       .from("completed_workouts")
-      .upsert(baseRow, { onConflict: "athlete_id,strava_activity_id" });
+      .insert(baseRow);
     expect(err1).toBeNull();
 
-    // Second upsert with updated stats
-    const { error: err2 } = await admin.from("completed_workouts").upsert(
-      { ...baseRow, summary_stats: { avg_power_w: 210, max_power_w: 380 } },
-      { onConflict: "athlete_id,strava_activity_id" },
-    );
-    expect(err2).toBeNull();
+    // Second delivery: insert collides; webhook handler catches 23505 and
+    // falls back to UPDATE
+    const updatedStats = { avg_power_w: 210, max_power_w: 380 };
+    const { error: err2 } = await admin
+      .from("completed_workouts")
+      .insert({ ...baseRow, summary_stats: updatedStats });
+    expect(err2?.code).toBe("23505");
 
-    // Exactly one row exists; summary_stats reflects the latest write
+    const { error: updateErr } = await admin
+      .from("completed_workouts")
+      .update({ summary_stats: updatedStats })
+      .eq("athlete_id", user.id)
+      .eq("strava_activity_id", baseRow.strava_activity_id);
+    expect(updateErr).toBeNull();
+
+    // Exactly one row; latest write wins
     const { data } = await admin
       .from("completed_workouts")
       .select("summary_stats")
       .eq("athlete_id", user.id);
     expect(data).toHaveLength(1);
-    expect((data?.[0]?.summary_stats as Record<string, unknown>)?.avg_power_w).toBe(210);
+    expect(
+      (data?.[0]?.summary_stats as Record<string, unknown>)?.avg_power_w,
+    ).toBe(210);
   });
 
   it("CHECK rejects source='strava' with NULL strava_activity_id (closes the R15 bypass)", async () => {
