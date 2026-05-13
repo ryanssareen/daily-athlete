@@ -44,7 +44,7 @@ Service-role usage is restricted to:
 
 In every service-role path, queries MUST explicitly filter by user — RLS is not running there. Add a `// service-role: explicit user filter required` comment so reviewers can scan for it.
 
-Every athlete-data table needs a positive RLS test (own row visible) and a negative one (other user's row hidden) before its defining migration ships.
+Every athlete-data table needs a positive RLS test (own row visible) and a negative one (other user's row hidden). The default is to ship them in the same PR as the defining migration. Plan-driven deferral to a follow-up PR is acceptable when (1) the plan explicitly scopes the RLS tests to a separate unit, (2) the follow-up PR or tracking issue is opened or referenced at merge time, AND (3) the migration PR description calls out the deferral. The tests must land within the same Phase as the defining migration -- never leave an athlete-data table without RLS coverage across a Phase boundary.
 
 ## Database & migrations
 

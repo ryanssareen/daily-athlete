@@ -404,13 +404,13 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** Unit 4.
 
 **Files:**
-- Create: `supabase/migrations/0004_plans_and_planned_workouts.sql`
+- Create: `supabase/migrations/0007_plans_and_planned_workouts.sql`
 - Create: `packages/shared/src/plan.ts`, `packages/shared/src/planned-workout.ts`
 
 - Create: `apps/web/src/db/__tests__/plans.test.ts`, `apps/web/src/db/__tests__/planned-workouts.test.ts`
 
 **Approach:**
-- `plans`: `id`, `athlete_id FK users`, `status TEXT CHECK (status IN ('active','archived'))`, `event_type TEXT`, `event_date DATE`, `source TEXT CHECK (source IN ('ai_generated','coach_assigned','imported'))`, `created_from_review_id UUID NULL` (FK to `weekly_reviews` — added once that table exists in Unit 7; for now, declare as plain UUID and add FK in 0006), `created_at`, `archived_at`, `deleted_at`.
+- `plans`: `id`, `athlete_id FK users`, `status TEXT CHECK (status IN ('active','archived'))`, `event_type TEXT`, `event_date DATE`, `source TEXT CHECK (source IN ('ai_generated','coach_assigned','imported'))`, `created_from_review_id UUID NULL` (FK to `weekly_reviews` — added once that table exists in Unit 7; for now, declare as plain UUID and add FK in 0011), `created_at`, `archived_at`, `deleted_at`.
 - Partial unique index: `CREATE UNIQUE INDEX plans_one_active_per_athlete ON plans(athlete_id) WHERE status = 'active' AND deleted_at IS NULL;`.
 - `planned_workouts`: `id`, `athlete_id FK users`, `plan_id UUID NULL FK plans`, `scheduled_date DATE NOT NULL`, `sport TEXT CHECK (sport IN ('swim','bike','run','strength','mobility','other'))`, `structure JSONB`, `planned_load NUMERIC NULL`, `status TEXT CHECK (status IN ('planned','completed','skipped','moved'))`, `rationale TEXT`, `edited_by_kind TEXT NULL`, `edited_by_user_id UUID NULL FK users`, `edited_at TIMESTAMPTZ NULL`, `created_at`, `deleted_at`.
 - Index: `(athlete_id, scheduled_date) WHERE deleted_at IS NULL`. Defer `INCLUDE` clause decision to measurement (see Open Questions).
@@ -441,7 +441,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** Unit 5.
 
 **Files:**
-- Create: `supabase/migrations/0005_completed_workouts_and_matches.sql`
+- Create: `supabase/migrations/0008_completed_workouts_and_matches.sql`
 - Create: `packages/shared/src/completed-workout.ts`, `packages/shared/src/workout-match.ts`
 
 - Create: `apps/web/src/db/__tests__/completed-workouts.test.ts`, `apps/web/src/db/__tests__/workout-matches.test.ts`
@@ -482,7 +482,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** Unit 5, Unit 6.
 
 **Files:**
-- Create: `supabase/migrations/0006_weekly_reviews.sql`, `supabase/migrations/0007_workout_edits.sql`, `supabase/migrations/0008_plans_review_fk.sql` (adds the FK from Unit 5's deferred `created_from_review_id`)
+- Create: `supabase/migrations/0009_weekly_reviews.sql`, `supabase/migrations/0010_workout_edits.sql`, `supabase/migrations/0011_plans_review_fk.sql` (adds the FK from Unit 5's deferred `created_from_review_id`)
 - Create: `packages/shared/src/weekly-review.ts`, `packages/shared/src/workout-edit.ts`
 
 - Create: `apps/web/src/db/__tests__/weekly-reviews.test.ts`, `apps/web/src/db/__tests__/workout-edits.test.ts`
@@ -491,7 +491,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 - `weekly_reviews`: `id`, `athlete_id FK users`, `plan_id FK plans`, `week_of DATE`, `proposed_changes JSONB` (list of patch objects keyed by `planned_workout_id`), `narrative TEXT`, `status TEXT CHECK (status IN ('proposed','accepted','rejected','partially_accepted','expired'))`, `generated_at`, `decided_at`, `deleted_at`.
 - `workout_edits` (append-only, no `deleted_at`, no `updated_at`): `id`, `planned_workout_id FK planned_workouts`, `actor_user_id UUID NULL FK users` (NULL when actor_role = 'ai_review'), `actor_role TEXT CHECK (actor_role IN ('athlete','coach','ai_review'))`, `source TEXT CHECK (source IN ('manual','coach_edit','weekly_review_accept'))`, `weekly_review_id UUID NULL FK weekly_reviews`, `field_diff JSONB` (`{field_name: {old, new}}`), `edited_at TIMESTAMPTZ DEFAULT now()`.
 - Index on `(planned_workout_id, edited_at DESC)` for the "most recent edit attribution" query (R13).
-- Migration 0008 retroactively adds the FK from `plans.created_from_review_id` to `weekly_reviews.id` (deferred from Unit 5 because of forward-reference).
+- Migration 0011 retroactively adds the FK from `plans.created_from_review_id` to `weekly_reviews.id` (deferred from Unit 5 because of forward-reference).
 - Realtime publication: add `weekly_reviews` and `workout_edits` (the latter so coach attribution updates show live).
 - RLS: athlete sees own; coach sees linked.
 - Application-layer constraint: `workout_edits` rows are written by Next.js Route Handlers ONLY; no UPDATE or DELETE statements anywhere in the codebase. Lint rule + unit-test asserts no `UPDATE workout_edits` or `DELETE FROM workout_edits` appears in `apps/web/`.
@@ -520,7 +520,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** Unit 2 (users), Unit 5 (plans), Unit 6 (workouts), Unit 7 (reviews/edits).
 
 **Files:**
-- Create: `supabase/migrations/0009_coach_athlete_links.sql`, `supabase/migrations/0010_coach_rls_policies.sql`
+- Create: `supabase/migrations/0012_coach_athlete_links.sql`, `supabase/migrations/0013_coach_rls_policies.sql`
 - Create: `packages/shared/src/coach-athlete-link.ts`
 
 - Create: `apps/web/src/db/__tests__/coach-links.test.ts`, `apps/web/src/db/__tests__/coach-rls.test.ts`
@@ -560,7 +560,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** Unit 6 (completed_workouts), Unit 5 (planned_workouts and plans for week-level comments).
 
 **Files:**
-- Create: `supabase/migrations/0011_insights.sql`, `supabase/migrations/0012_workout_comments.sql`
+- Create: `supabase/migrations/0014_insights.sql`, `supabase/migrations/0015_workout_comments.sql`
 - Create: `packages/shared/src/insight.ts`, `packages/shared/src/workout-comment.ts`
 
 - Create: `apps/web/src/db/__tests__/insights.test.ts`, `apps/web/src/db/__tests__/workout-comments.test.ts`
@@ -599,7 +599,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 **Dependencies:** All prior units (function references all athlete-owned tables).
 
 **Files:**
-- Create: `supabase/migrations/0013_account_deletion_function.sql`
+- Create: `supabase/migrations/0016_account_deletion_function.sql`
 - Create: `apps/web/src/services/account-deletion.ts`
 - Create: `apps/web/src/jobs/strava-data-deletion.ts` (Inngest function)
 - Create: `apps/web/app/api/me/route.ts` (DELETE /api/me endpoint)
@@ -646,7 +646,7 @@ Units split into three phases. A unit lands as one (or two) atomic migrations + 
 | Account-deletion function omits a table added in a later migration | Med | High | CI step verifies every table referencing `user_id` (or `athlete_id`) is named in `delete_user_cascade`; alert on drift. |
 | Encryption key for Strava tokens lost / rotated incorrectly | Low | High | Document key in the secrets runbook; add key-rotation procedure to launch runbook. Reading without the key returns a clear error, never plaintext. |
 | Realtime publication includes a sensitive table by accident | Low | High | Migration explicitly lists the publication membership in code review checklist; don't use `FOR ALL TABLES`. |
-| `created_from_review_id` forward-reference between Unit 5 and Unit 7 introduces sequencing bug | Med | Low | Migration 0008 cleans up the FK after weekly_reviews exists; deliberate split. |
+| `created_from_review_id` forward-reference between Unit 5 and Unit 7 introduces sequencing bug | Med | Low | Migration 0011 cleans up the FK after weekly_reviews exists; deliberate split. |
 | JSONB structure drift between Zod schema and prompts | Med | Med | Schemas live in `packages/shared/src/`; eval harness (product plan Unit 3.1) validates against them. |
 | Migrations applied out of order in dev → broken local state | Low | Med | Supabase CLI enforces order; CI applies clean each PR; document `supabase db reset` in README. |
 | Soft-delete forgotten in a query → ghost rows in coach views | Med | Med | A query helper `withLiveRows()` defaults to `.is("deleted_at", null)` plus an ESLint rule banning bare `.from("<table>")` for soft-deleted tables; tests assert `deleted_at IS NULL` filter on every read path. |

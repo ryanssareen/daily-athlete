@@ -23,8 +23,6 @@
 // Members must stay alphabetised so diffs are minimal when entries are
 // added or removed.
 export const REALTIME_ALLOWLIST: readonly string[] = [
-  // Added in migration 0007_plans_and_planned_workouts.sql -- calendar UI
-  // subscribes to both tables for live updates.
-  "planned_workouts",
-  "plans",
+  "planned_workouts", // added: 0007
+  "plans", // added: 0007
 ];

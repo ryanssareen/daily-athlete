@@ -8,6 +8,14 @@
 --   exactly one active plan per athlete (enforced by partial unique index).
 -- - public.planned_workouts -- per-day workout. Optionally hangs off a plan
 --   (plan_id may be NULL for ad-hoc workouts). Calendar query path.
+-- - Two tables in one migration: plans and planned_workouts have a
+--   foreign-key relationship (planned_workouts.plan_id -> plans.id).
+--   Splitting them into separate migrations would force the FK
+--   declaration into a third migration or leave a gap between
+--   CREATE TABLE planned_workouts and the FK addition. Single-
+--   migration introduction of coupled tables matches the practice
+--   AGENTS.md's "one logical change per migration" rule allows for
+--   tightly-coupled co-introduction.
 --
 -- Scope notes:
 -- - Coach-side RLS is deferred to schema plan Unit 8 (consolidated coach RLS
@@ -46,18 +54,42 @@ CREATE TABLE public.plans (
     status TEXT NOT NULL CHECK (status IN ('active', 'archived')),
     event_type TEXT,
     event_date DATE,
+    -- No DEFAULT by design: callers must explicitly specify source
+    -- ('ai_generated' from the AI generation endpoint, 'coach_assigned'
+    -- from coach-created plans, 'imported' from migration paths).
     source TEXT NOT NULL CHECK (source IN ('ai_generated', 'coach_assigned', 'imported')),
-    -- FK to weekly_reviews(id) is deferred to schema plan Unit 7's migration.
-    -- Plain UUID for now; nullable because most plans are not generated from a review.
+    -- FK to weekly_reviews(id) is deferred to schema plan Unit 7's
+    -- migration. Plain UUID for now; nullable because most plans are
+    -- not generated from a review.
+    --
+    -- Strategy when Unit 7 lands: add the FK with NOT VALID first
+    -- (so existing rows are not validated synchronously), then run
+    -- VALIDATE CONSTRAINT in a separate migration after backfilling
+    -- any orphaned UUIDs to NULL. This avoids a 23503 if any stale
+    -- data exists in this column at the time the FK is introduced.
     created_from_review_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     archived_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    -- Enforces that an archived plan has archived_at set. Active plans
+    -- have archived_at NULL by convention but this is not asserted; if
+    -- a plan flips back to active, archived_at can remain set.
+    CONSTRAINT plans_archived_at_matches_status CHECK (
+        (status = 'archived' AND archived_at IS NOT NULL)
+        OR (status = 'active')
+    )
 );
 
--- R7: at most one active plan per athlete. The partial WHERE clause makes
--- archived and soft-deleted rows non-blocking, so the natural archive-then-
--- create transition works without a multi-statement dance.
+-- Callers performing the archive-then-create transition (archive the
+-- existing active plan, INSERT a new one) MUST do so in a single
+-- transaction. Without that, a concurrent request can INSERT a new
+-- active plan between the UPDATE and the new INSERT, producing two
+-- active plans (the partial unique index won't help: both INSERTs
+-- pass the predicate at write time before either commits).
+-- One active plan per athlete (status='active' AND deleted_at IS NULL).
+-- The partial WHERE makes archived and soft-deleted rows non-blocking,
+-- so the natural archive-then-create transition works without a
+-- multi-statement dance.
 CREATE UNIQUE INDEX plans_one_active_per_athlete
     ON public.plans (athlete_id)
     WHERE status = 'active' AND deleted_at IS NULL;
@@ -70,25 +102,26 @@ CREATE INDEX plans_athlete_lookup
 CREATE TABLE public.planned_workouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     athlete_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    -- Soft-delete of a plan does NOT null plan_id on planned_workouts
+    -- (ON DELETE SET NULL only fires on hard-delete, which is reserved
+    -- for the account-deletion cascade). Any read path that JOINs
+    -- planned_workouts to plans MUST filter plans.deleted_at IS NULL
+    -- to exclude logically-deleted plans -- otherwise workouts from
+    -- soft-deleted plans surface as ghosts.
     -- ON DELETE SET NULL: a hard-deleted plan (account cascade only) leaves
     -- the workout row intact with plan_id=NULL. Soft-delete on plans does
     -- not fire this since the row still exists.
     plan_id UUID REFERENCES public.plans(id) ON DELETE SET NULL,
     scheduled_date DATE NOT NULL,
     sport TEXT NOT NULL CHECK (sport IN ('swim', 'bike', 'run', 'strength', 'mobility', 'other')),
-    -- Permissive JSONB; inner shape converges with the AI prompt in product
-    -- plan Unit 3.2. Zod schema in packages/shared/src/planned-workout.ts
-    -- mirrors this permissiveness for now.
+    -- Permissive JSONB; tighten in product plan Unit 3.2 once AI prompt converges.
     structure JSONB NOT NULL DEFAULT '{}'::jsonb,
-    -- planned_load semantics (TSS-equivalent vs minutes vs custom) deferred
-    -- to product plan Unit 2.3. Stored as a generic NUMERIC; callers must
-    -- agree on the unit out-of-band until then.
+    -- Generic NUMERIC; units (TSS-equivalent / minutes / custom) deferred to product plan Unit 2.3.
     planned_load NUMERIC,
     status TEXT NOT NULL DEFAULT 'planned'
         CHECK (status IN ('planned', 'completed', 'skipped', 'moved')),
     rationale TEXT,
-    -- Edit attribution columns. App-set on edits; no trigger. The durable
-    -- audit log will live in workout_edits (schema plan Unit 7).
+    -- App-set on edits. Durable audit log is workout_edits (Unit 7).
     edited_by_kind TEXT,
     edited_by_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
     edited_at TIMESTAMPTZ,
@@ -98,7 +131,7 @@ CREATE TABLE public.planned_workouts (
 
 -- Calendar query: athlete + date-range, hot path. Partial index keeps it
 -- small (soft-deleted workouts not indexed).
-CREATE INDEX planned_workouts_calendar
+CREATE INDEX planned_workouts_athlete_date
     ON public.planned_workouts (athlete_id, scheduled_date)
     WHERE deleted_at IS NULL;
 

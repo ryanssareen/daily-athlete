@@ -156,7 +156,7 @@ planned_workouts
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   deleted_at TIMESTAMPTZ NULL
 
-INDEX planned_workouts_calendar (athlete_id, scheduled_date) WHERE deleted_at IS NULL
+INDEX planned_workouts_athlete_date (athlete_id, scheduled_date) WHERE deleted_at IS NULL
 ```
 
 ### ON DELETE behavior
@@ -193,7 +193,7 @@ stateDiagram-v2
 
 ## Implementation Units
 
-- [ ] **Unit 1: Migration `0007_plans_and_planned_workouts.sql` + realtime publication membership**
+- [x] **Unit 1: Migration `0007_plans_and_planned_workouts.sql` + realtime publication membership**
 
 **Goal:** Create both tables, indexes, CHECK constraints, RLS policies, and wire them into `supabase_realtime`. Update `REALTIME_ALLOWLIST` so the CI guard from foundation-backfill Unit 5 passes.
 
@@ -210,7 +210,7 @@ stateDiagram-v2
 - Indexes created in the same migration:
   - `plans_one_active_per_athlete` partial UNIQUE on `(athlete_id) WHERE status = 'active' AND deleted_at IS NULL`.
   - `plans_athlete_lookup` partial index on `(athlete_id) WHERE deleted_at IS NULL` for listing all of an athlete's plans.
-  - `planned_workouts_calendar` partial composite on `(athlete_id, scheduled_date) WHERE deleted_at IS NULL`.
+  - `planned_workouts_athlete_date` partial composite on `(athlete_id, scheduled_date) WHERE deleted_at IS NULL`.
 - `ALTER PUBLICATION supabase_realtime ADD TABLE public.plans;` and the same for `planned_workouts`.
 - `REALTIME_ALLOWLIST` becomes `["plans", "planned_workouts"]` (alphabetical or insertion order — pick one consistently). The export type signature stays `readonly string[]`.
 - `ENABLE ROW LEVEL SECURITY` on both tables.
@@ -377,7 +377,7 @@ Barrel update: `export * from "./plan"` and `export * from "./planned-workout"` 
 - `pnpm --filter @da2/web test plans` runs ≥12 scenarios green.
 - `pnpm --filter @da2/web test planned-workouts` runs ≥14 scenarios green.
 - CI test job green.
-- A spot-check `EXPLAIN ANALYZE` on a 28-day calendar query against seeded data (1000 workouts per athlete) shows `planned_workouts_calendar` partial index in the plan — this is a manual verification step before merge, not an automated assertion.
+- A spot-check `EXPLAIN ANALYZE` on a 28-day calendar query against seeded data (1000 workouts per athlete) shows `planned_workouts_athlete_date` partial index in the plan — this is a manual verification step before merge, not an automated assertion.
 
 ---
 
