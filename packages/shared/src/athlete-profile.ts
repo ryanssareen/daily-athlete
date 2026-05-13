@@ -101,7 +101,14 @@ export type ManualFields = z.infer<typeof ManualFieldsSchema>;
 // issue and must be decided before product plan Unit 2.3 starts derivation.
 // ---------------------------------------------------------------------------
 
-export const ManualFieldEditedAtSchema = z.record(z.string().datetime());
+// Timestamps use `.datetime({ offset: true })` because PostgREST returns
+// TIMESTAMPTZ values in offset notation (e.g. "2026-05-13T10:30:00+00:00").
+// The default `.datetime()` requires a strict Z suffix and would reject
+// real Supabase output. Convention locked across the per-table modules
+// in packages/shared.
+export const ManualFieldEditedAtSchema = z.record(
+  z.string().datetime({ offset: true }),
+);
 
 export type ManualFieldEditedAt = z.infer<typeof ManualFieldEditedAtSchema>;
 
@@ -115,9 +122,9 @@ export const AthleteProfileRowSchema = z.object({
   weekly_volume_ewma: WeeklyVolumeEwmaSchema,
   manual_fields: ManualFieldsSchema,
   manual_field_edited_at: ManualFieldEditedAtSchema,
-  derived_at: z.string().datetime().nullable(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
+  derived_at: z.string().datetime({ offset: true }).nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 });
 
 export type AthleteProfileRow = z.infer<typeof AthleteProfileRowSchema>;
