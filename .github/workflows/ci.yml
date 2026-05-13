@@ -29,6 +29,11 @@ jobs:
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @da2/web typecheck
       - run: pnpm --filter @da2/web lint
+      # Pure-Zod tests for shared row contracts. No DB needed -- runs here
+      # rather than in the Test (apps/web) job to avoid waiting on supabase
+      # start for tests that don't need it.
+      - run: pnpm --filter @da2/shared typecheck
+      - run: pnpm --filter @da2/shared test
 
   mobile:
     name: Mobile (Expo)
