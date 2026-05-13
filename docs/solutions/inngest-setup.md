@@ -72,12 +72,22 @@ functions during Phase A, then grows as Phase C and D register theirs.
 
 - `INNGEST_EVENT_KEY` — from https://app.inngest.com (used to dispatch
   events).
-- `INNGEST_SIGNING_KEY` — from the same dashboard (verifies inbound calls
-  from Inngest to the serve handler).
-- Both go in Vercel env vars. The `apps/web/src/config.ts` validator warns
-  (does not throw) when `INNGEST_EVENT_KEY` is missing in production — the
-  SDK itself surfaces a clearer error on first event dispatch, and forcing
-  boot failure for an unrelated subsystem isn't worth the blast radius.
+- `INNGEST_SIGNING_KEY` — from the same dashboard. The serve handler
+  (`apps/web/app/api/inngest/route.ts`) passes it to `serve()` and the
+  client wires it on the `Inngest` instance so both inbound verification
+  and outbound dispatch see the same value.
+- Both go in Vercel env vars. The `apps/web/src/config.ts` validator
+  **warns** (does not throw) when either is missing in production. We
+  warn instead of refusing to boot because the Inngest SDK surfaces a
+  clearer error on the first event dispatch (event key) or first inbound
+  invocation (signing key); a hard boot failure for an unrelated
+  subsystem has disproportionate blast radius. The warnings show up in
+  Vercel build logs immediately so misconfig is visible before a
+  customer-facing failure.
+
+  Without `INNGEST_SIGNING_KEY` the serve handler operates in dev mode
+  and accepts unsigned requests — fine locally, never fine in production.
+  Watch the boot-time warning to catch the misconfig.
 
 ## v1 testing posture
 

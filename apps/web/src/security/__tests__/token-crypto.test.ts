@@ -136,8 +136,13 @@ describe("token-crypto failure modes", () => {
     const { ciphertext } = writer.encrypt(new TextEncoder().encode("secret"));
 
     // Reload module with version 1 mapped to key B (operator misconfigured).
+    // The GCM tag verifies the (key, IV, ciphertext) triple, so swapping
+    // the key must produce a tag-mismatch error from node:crypto, NOT some
+    // unrelated boot/parse error.
     const reader = await importFresh({ STRAVA_TOKEN_KEYS: `1:${KEY_B_HEX}` });
-    expect(() => reader.decrypt(ciphertext, 1)).toThrow();
+    expect(() => reader.decrypt(ciphertext, 1)).toThrow(
+      /unsupported state|authenticate|auth/i
+    );
   });
 
   it("tampered auth tag fails decrypt", async () => {
@@ -147,10 +152,15 @@ describe("token-crypto failure modes", () => {
     const { ciphertext, keyVersion } = encrypt(
       new TextEncoder().encode("integrity")
     );
-    // Flip a bit inside the auth-tag region (bytes 12-27).
+    // Flip a bit inside the auth-tag region (bytes 12-27). The GCM
+    // authenticated-decrypt path must reject the tampered tag, surfacing
+    // the node:crypto auth-failure message rather than a length / parse
+    // error.
     const tampered = new Uint8Array(ciphertext);
     tampered[20] ^= 0x01;
-    expect(() => decrypt(tampered, keyVersion)).toThrow();
+    expect(() => decrypt(tampered, keyVersion)).toThrow(
+      /unsupported state|authenticate|auth/i
+    );
   });
 
   it("STRAVA_TOKEN_KEYS missing -> first use throws clearly", async () => {
@@ -219,8 +229,18 @@ describe("token-crypto failure modes", () => {
       STRAVA_TOKEN_KEYS: "1:hex",
       NODE_ENV: "development",
     });
-    expect(() => mod.currentKeyVersion()).toThrow();
-    expect(() => mod.currentKeyVersion()).not.toThrow(/placeholder/i);
+    // Capture the actual error message once and assert against it directly
+    // (rather than asserting via .not.toThrow(/placeholder/), which would
+    // pass vacuously if .currentKeyVersion() also threw a placeholder
+    // error for a different reason).
+    try {
+      mod.currentKeyVersion();
+      throw new Error("currentKeyVersion should have thrown");
+    } catch (err: unknown) {
+      const message = (err as Error).message;
+      expect(message).not.toMatch(/placeholder/i);
+      expect(message).toMatch(/non-hex|hex value/i);
+    }
   });
 
   it("all-zero key allowed outside production (boots; production-only gate)", async () => {

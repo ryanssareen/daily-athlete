@@ -7,14 +7,16 @@
 // AGENTS.md "Secrets" anchors this contract: every new sensitive setting
 // that joins the env surface must extend this validator.
 //
-// Convention: callers import { config } for the validated object. The
-// loadConfig() function is exported for tests; production code reads the
-// memoised `config` re-export below.
+// Two exports:
+// - `loadConfig()`: explicit, memoised; preferred when callers want a
+//   reference they can pass around.
+// - `config`: eager singleton evaluated at module import. Importing this
+//   from a route handler or worker fails fast at boot if env is invalid,
+//   which is what we want in production.
 
 import { z } from "zod";
 
 const PLACEHOLDERS = new Set(["", "xxx", "hex"]);
-const ZERO_HEX_64 = "0".repeat(64);
 
 function isPlaceholder(value: string): boolean {
   return PLACEHOLDERS.has(value.trim());
@@ -93,15 +95,16 @@ function validateStravaTokenKeysProd(v: Validator): void {
     v.errors.push("STRAVA_TOKEN_KEYS contains placeholder value");
     return;
   }
-  // Format is `version:hex,...`. We validate each entry without duplicating
-  // the full parser in security/token-crypto.ts -- this is a cheap surface
-  // check so production refuses to boot on obvious misconfig before any
-  // first-real-use error surfaces.
+  // Format is `version:hex,...`. The full parser lives in
+  // security/token-crypto.ts; this validator keeps the same shape rules so
+  // a config that boots also passes token-crypto's stricter check on first
+  // use (no divergent-validators surprise).
   const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
   if (entries.length === 0) {
     v.errors.push("STRAVA_TOKEN_KEYS parsed to zero entries");
     return;
   }
+  const seenVersions = new Set<number>();
   for (const entry of entries) {
     const colon = entry.indexOf(":");
     if (colon === -1) {
@@ -110,20 +113,36 @@ function validateStravaTokenKeysProd(v: Validator): void {
       );
       continue;
     }
+    const versionRaw = entry.slice(0, colon);
+    const version = Number(versionRaw);
+    if (!Number.isInteger(version) || version < 1) {
+      v.errors.push(
+        `STRAVA_TOKEN_KEYS version "${versionRaw}" must be a positive integer`
+      );
+      continue;
+    }
+    if (seenVersions.has(version)) {
+      v.errors.push(`STRAVA_TOKEN_KEYS contains duplicate version ${version}`);
+      continue;
+    }
+    seenVersions.add(version);
+
     const hex = entry.slice(colon + 1);
-    if (hex === ZERO_HEX_64 || isAllZeroHex(hex)) {
-      v.errors.push("STRAVA_TOKEN_KEYS contains an all-zero (placeholder) key");
+    if (isAllZeroHex(hex)) {
+      v.errors.push(
+        `STRAVA_TOKEN_KEYS version ${version} is all-zero (placeholder)`
+      );
       continue;
     }
     if (!/^[0-9a-fA-F]+$/.test(hex)) {
       v.errors.push(
-        `STRAVA_TOKEN_KEYS hex value for version "${entry.slice(0, colon)}" contains non-hex characters`
+        `STRAVA_TOKEN_KEYS hex value for version ${version} contains non-hex characters`
       );
       continue;
     }
     if (hex.length !== 64) {
       v.errors.push(
-        `STRAVA_TOKEN_KEYS hex value for version "${entry.slice(0, colon)}" must be 64 hex chars (32 bytes); got ${hex.length}`
+        `STRAVA_TOKEN_KEYS hex value for version ${version} must be 64 hex chars (32 bytes); got ${hex.length}`
       );
     }
   }
@@ -148,9 +167,14 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateStravaTokenKeysProd(v);
     // Inngest event/signing keys aren't fatal at boot -- if they're missing
     // in production, Inngest itself surfaces the misconfig on first event
-    // dispatch with a clearer, library-side message.
+    // dispatch (event key) or first inbound invocation (signing key) with
+    // a clearer, library-side message. We warn on both so log triage
+    // catches the misconfig before a customer-facing failure does.
     if (!raw.INNGEST_EVENT_KEY) {
       v.warnings.push("INNGEST_EVENT_KEY missing in production");
+    }
+    if (!raw.INNGEST_SIGNING_KEY) {
+      v.warnings.push("INNGEST_SIGNING_KEY missing in production");
     }
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
@@ -196,6 +220,7 @@ export function loadConfig(): AppConfig {
   return cached;
 }
 
-export function __resetConfigCacheForTests(): void {
-  cached = null;
-}
+// Eager singleton evaluated at module import so a misconfigured production
+// deploy fails fast at boot rather than at first request. Tests that need
+// to validate boot behavior use vi.resetModules() + dynamic import.
+export const config: AppConfig = loadConfig();

@@ -51,13 +51,29 @@ STRAVA_TOKEN_KEYS=1:<64-hex>,2:<64-hex>,3:<64-hex>
 - Duplicate versions, non-integer versions, non-hex characters, and
   wrong-length keys all throw at module load.
 
-Generate a fresh key:
+Generate a fresh key (AGENTS.md "Secrets" forbids inlining the value into
+a shell command, so we route the bytes through a 0600 file and shred it
+when done — never let the value land in shell history):
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+# macOS / Linux. On Windows, run from WSL or Git Bash for the same flow.
+umask 077
+node -e "require('node:fs').writeFileSync('/tmp/da2_key.hex', require('node:crypto').randomBytes(32).toString('hex'))"
+
+# Read the value into the deploy tool of your choice. For Vercel:
+vercel env add STRAVA_TOKEN_KEYS production < /tmp/da2_key.hex
+# (Prepend the version prefix `1:` before piping in if this is the first
+# key. For rotation, hand-edit the value to add a new `N:<hex>` entry.)
+
+# Wipe the temp file. Use `shred -u` on Linux (GNU coreutils) and `rm -P`
+# on macOS. Both overwrite before unlinking; pick the one your platform
+# ships.
+shred -u /tmp/da2_key.hex   # Linux
+rm -P /tmp/da2_key.hex      # macOS
 ```
 
-Macos/Linux/Windows-portable; no `brew install openssl` required.
+The same pattern applies to `STRAVA_CLIENT_SECRET` and
+`STRAVA_WEBHOOK_VERIFY_TOKEN` — never inline a secret in the shell.
 
 ## Key rotation procedure
 

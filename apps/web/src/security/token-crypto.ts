@@ -134,6 +134,8 @@ export interface EncryptResult {
 
 export function encrypt(plaintext: Uint8Array): EncryptResult {
   const { keys, current } = loadKeys();
+  // current is derived from keys.keys() inside loadKeys() and loadKeys()
+  // throws on an empty map, so this lookup is provably non-null.
   const key = keys.get(current)!;
 
   const iv = randomBytes(IV_LEN);
@@ -180,10 +182,3 @@ export function decrypt(
   return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
 }
 
-// Test-only: clears the module-scope key cache so a fresh env can be read.
-// Not exported in the package public surface; callers within the test file
-// use vi.resetModules() instead. Left here as an escape hatch for future
-// integration tests that mutate STRAVA_TOKEN_KEYS at runtime.
-export function __resetKeyCacheForTests(): void {
-  cached = null;
-}

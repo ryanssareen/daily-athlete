@@ -47,6 +47,18 @@ describe("normalizeSport -- fallback behaviour", () => {
     expect(normalizeSport("run")).toBe("other");
     expect(normalizeSport("RUN")).toBe("other");
   });
+
+  it("returns 'other' for inherited Object.prototype keys", () => {
+    // A plain object map would return Object.prototype / Function / etc. for
+    // these inputs via prototype-chain bracket lookup, and those values are
+    // truthy so `?? 'other'` would not fire. The null-prototype map blocks
+    // the lookup at its source.
+    expect(normalizeSport("__proto__")).toBe("other");
+    expect(normalizeSport("constructor")).toBe("other");
+    expect(normalizeSport("toString")).toBe("other");
+    expect(normalizeSport("valueOf")).toBe("other");
+    expect(normalizeSport("hasOwnProperty")).toBe("other");
+  });
 });
 
 describe("STRAVA_SPORT_MAP -- frozen contract", () => {

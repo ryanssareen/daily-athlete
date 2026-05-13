@@ -1,8 +1,10 @@
 // Tests for the apps/web boot-time config validator.
 //
-// Like token-crypto, the module reads process.env once at first call. Each
-// test mutates env and re-imports via vi.resetModules() to get a fresh
-// validator state.
+// The module evaluates loadConfig() eagerly at import time and exports the
+// result as `config`. To exercise different env states each test wipes env,
+// applies a fresh map, then re-imports via vi.resetModules() + dynamic
+// import. Failure-mode tests assert that the import itself rejects (the
+// eager singleton's throw surfaces through the await).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,8 +26,6 @@ const baseProdEnv: Record<string, string> = {
 
 async function importFresh(env: Record<string, string | undefined>) {
   vi.resetModules();
-  // Wipe every key we might set in any test so leftover state from a
-  // previous import does not bleed in.
   const wipe = [
     "NODE_ENV",
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -38,9 +38,11 @@ async function importFresh(env: Record<string, string | undefined>) {
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
   ];
-  for (const k of wipe) delete process.env[k];
+  for (const k of wipe)
+    delete (process.env as Record<string, string | undefined>)[k];
   for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) delete process.env[k];
+    if (v === undefined)
+      delete (process.env as Record<string, string | undefined>)[k];
     else process.env[k] = v;
   }
   return await import("../config");
@@ -59,72 +61,104 @@ afterEach(() => {
   Object.assign(process.env, originalEnv);
 });
 
-describe("config validator -- production", () => {
+describe("config validator -- production happy path", () => {
   it("returns a config object when all env vars are present and valid", async () => {
-    const { loadConfig } = await importFresh(baseProdEnv);
-    const cfg = loadConfig();
-    expect(cfg.nodeEnv).toBe("production");
-    expect(cfg.supabase.url).toBe("https://example.supabase.co");
-    expect(cfg.strava.clientId).toBe("12345");
-    expect(cfg.strava.tokenKeysRaw).toBe(`1:${VALID_KEY}`);
-    expect(cfg.strava.webhookVerifyToken).toBe("webhook-verify-token-stub");
-    expect(cfg.inngest.eventKey).toBe("inngest-event-key");
+    const mod = await importFresh(baseProdEnv);
+    expect(mod.config.nodeEnv).toBe("production");
+    expect(mod.config.supabase.url).toBe("https://example.supabase.co");
+    expect(mod.config.strava.clientId).toBe("12345");
+    expect(mod.config.strava.tokenKeysRaw).toBe(`1:${VALID_KEY}`);
+    expect(mod.config.strava.webhookVerifyToken).toBe(
+      "webhook-verify-token-stub"
+    );
+    expect(mod.config.inngest.eventKey).toBe("inngest-event-key");
+    expect(mod.config.inngest.signingKey).toBe("inngest-signing-key");
+  });
+});
+
+describe("config validator -- production failure modes", () => {
+  it("rejects when STRAVA_TOKEN_KEYS is missing entirely", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.STRAVA_TOKEN_KEYS;
+    await expect(importFresh(env)).rejects.toThrow(
+      /STRAVA_TOKEN_KEYS.*required in production/
+    );
   });
 
-  it("throws when STRAVA_TOKEN_KEYS is the literal placeholder 'hex'", async () => {
-    const { loadConfig } = await importFresh({
-      ...baseProdEnv,
-      STRAVA_TOKEN_KEYS: "1:hex",
-    });
-    expect(() => loadConfig()).toThrow(/STRAVA_TOKEN_KEYS|placeholder/i);
+  it("rejects when STRAVA_TOKEN_KEYS is the literal placeholder 'hex'", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, STRAVA_TOKEN_KEYS: "1:hex" })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS|placeholder|non-hex/i);
   });
 
-  it("throws when STRAVA_TOKEN_KEYS is all zeros", async () => {
-    const { loadConfig } = await importFresh({
-      ...baseProdEnv,
-      STRAVA_TOKEN_KEYS: `1:${"0".repeat(64)}`,
-    });
-    expect(() => loadConfig()).toThrow(/STRAVA_TOKEN_KEYS|zero/i);
+  it("rejects when STRAVA_TOKEN_KEYS is all zeros", async () => {
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_TOKEN_KEYS: `1:${"0".repeat(64)}`,
+      })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS|all-zero|zero/i);
   });
 
-  it("throws when STRAVA_TOKEN_KEYS key is too short", async () => {
-    const { loadConfig } = await importFresh({
-      ...baseProdEnv,
-      STRAVA_TOKEN_KEYS: "1:abc",
-    });
-    expect(() => loadConfig()).toThrow(/STRAVA_TOKEN_KEYS|length|hex|bytes/i);
+  it("rejects when STRAVA_TOKEN_KEYS key is too short", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, STRAVA_TOKEN_KEYS: "1:abc" })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS|length|hex|bytes/i);
   });
 
-  it("throws when STRAVA_CLIENT_ID is missing", async () => {
+  it("rejects when STRAVA_TOKEN_KEYS has version 0", async () => {
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_TOKEN_KEYS: `0:${VALID_KEY}`,
+      })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS.*version.*positive integer/i);
+  });
+
+  it("rejects when STRAVA_TOKEN_KEYS has a non-integer version", async () => {
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_TOKEN_KEYS: `abc:${VALID_KEY}`,
+      })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS.*version.*positive integer/i);
+  });
+
+  it("rejects when STRAVA_TOKEN_KEYS has duplicate version numbers", async () => {
+    const VALID_KEY_B =
+      "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_TOKEN_KEYS: `1:${VALID_KEY},1:${VALID_KEY_B}`,
+      })
+    ).rejects.toThrow(/STRAVA_TOKEN_KEYS.*duplicate version 1/i);
+  });
+
+  it("rejects when STRAVA_CLIENT_ID is missing", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.STRAVA_CLIENT_ID;
-    const { loadConfig } = await importFresh(env);
-    expect(() => loadConfig()).toThrow(/STRAVA_CLIENT_ID/);
+    await expect(importFresh(env)).rejects.toThrow(/STRAVA_CLIENT_ID/);
   });
 
-  it("throws when STRAVA_CLIENT_SECRET is the placeholder 'xxx'", async () => {
-    const { loadConfig } = await importFresh({
-      ...baseProdEnv,
-      STRAVA_CLIENT_SECRET: "xxx",
-    });
-    expect(() => loadConfig()).toThrow(/STRAVA_CLIENT_SECRET|placeholder/i);
+  it("rejects when STRAVA_CLIENT_SECRET is the placeholder 'xxx'", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, STRAVA_CLIENT_SECRET: "xxx" })
+    ).rejects.toThrow(/STRAVA_CLIENT_SECRET|placeholder/i);
   });
 
-  it("throws when STRAVA_WEBHOOK_VERIFY_TOKEN is empty", async () => {
-    const { loadConfig } = await importFresh({
-      ...baseProdEnv,
-      STRAVA_WEBHOOK_VERIFY_TOKEN: "",
-    });
-    expect(() => loadConfig()).toThrow(/STRAVA_WEBHOOK_VERIFY_TOKEN/);
+  it("rejects when STRAVA_WEBHOOK_VERIFY_TOKEN is empty", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, STRAVA_WEBHOOK_VERIFY_TOKEN: "" })
+    ).rejects.toThrow(/STRAVA_WEBHOOK_VERIFY_TOKEN/);
   });
 
   it("accumulates multiple errors into one message rather than failing on the first", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.STRAVA_CLIENT_ID;
     env.STRAVA_CLIENT_SECRET = "hex";
-    const { loadConfig } = await importFresh(env);
     try {
-      loadConfig();
+      await importFresh(env);
       throw new Error("should have thrown");
     } catch (err: unknown) {
       const message = (err as Error).message;
@@ -134,22 +168,51 @@ describe("config validator -- production", () => {
   });
 });
 
+describe("config validator -- production warnings (do not block boot)", () => {
+  it("warns when INNGEST_EVENT_KEY is missing in production", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.INNGEST_EVENT_KEY;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(importFresh(env)).resolves.toBeTruthy();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("INNGEST_EVENT_KEY missing in production")
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns when INNGEST_SIGNING_KEY is missing in production", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.INNGEST_SIGNING_KEY;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(importFresh(env)).resolves.toBeTruthy();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("INNGEST_SIGNING_KEY missing in production")
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
 describe("config validator -- non-production", () => {
-  it("does not throw when Strava env is missing in development", async () => {
-    const { loadConfig } = await importFresh({
+  it("does not reject when Strava env is missing in development", async () => {
+    const mod = await importFresh({
       NODE_ENV: "development",
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
       SUPABASE_SERVICE_ROLE_KEY: "service",
     });
-    const cfg = loadConfig();
-    expect(cfg.nodeEnv).toBe("development");
-    expect(cfg.strava.clientId).toBeUndefined();
-    expect(cfg.strava.tokenKeysRaw).toBeUndefined();
+    expect(mod.config.nodeEnv).toBe("development");
+    expect(mod.config.strava.clientId).toBeUndefined();
+    expect(mod.config.strava.tokenKeysRaw).toBeUndefined();
   });
 
-  it("does not throw when Strava env contains placeholders in test", async () => {
-    const { loadConfig } = await importFresh({
+  it("does not reject when Strava env contains placeholders in test", async () => {
+    const mod = await importFresh({
       NODE_ENV: "test",
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon",
@@ -157,29 +220,29 @@ describe("config validator -- non-production", () => {
       STRAVA_CLIENT_ID: "",
       STRAVA_TOKEN_KEYS: "1:hex",
     });
-    const cfg = loadConfig();
-    expect(cfg.nodeEnv).toBe("test");
-    // The shape is still constructed; downstream code that actually uses
-    // these values will error at use-time, which is the desired posture for
+    expect(mod.config.nodeEnv).toBe("test");
+    // Shape still constructed; downstream code that actually uses these
+    // values will error at use-time, which is the desired posture for
     // dev/test (don't block boot for unrelated reasons).
-    expect(cfg.strava.tokenKeysRaw).toBe("1:hex");
+    expect(mod.config.strava.tokenKeysRaw).toBe("1:hex");
   });
 
-  it("warns (does not throw) when supabase env is missing in development", async () => {
+  it("warns (does not reject) when supabase env is missing in development", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const { loadConfig } = await importFresh({ NODE_ENV: "development" });
-      expect(() => loadConfig()).not.toThrow();
+      await expect(importFresh({ NODE_ENV: "development" })).resolves
+        .toBeTruthy();
       expect(warn).toHaveBeenCalled();
     } finally {
       warn.mockRestore();
     }
   });
 
-  it("caches the parsed config so repeated calls return the same object", async () => {
-    const { loadConfig } = await importFresh(baseProdEnv);
-    const a = loadConfig();
-    const b = loadConfig();
+  it("caches the parsed config so repeated loadConfig() calls return the same object", async () => {
+    const mod = await importFresh(baseProdEnv);
+    const a = mod.loadConfig();
+    const b = mod.loadConfig();
     expect(a).toBe(b);
+    expect(a).toBe(mod.config);
   });
 });

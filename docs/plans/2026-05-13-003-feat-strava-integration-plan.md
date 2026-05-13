@@ -331,7 +331,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 - Modify: `.github/workflows/ci.yml` — no change for v1 (Inngest tests run locally against dev server; CI uses `@inngest/test` for unit-style function testing)
 
 **Approach:**
-- `apps/web/src/inngest/client.ts` instantiates `new Inngest({ id: 'da2' })`. Single source of truth for the app id and event/signing keys.
+- `apps/web/src/inngest/client.ts` instantiates `new Inngest({ id: 'da2-web', eventKey, signingKey })`. Single source of truth for the app id and event/signing keys (the `-web` suffix scopes the namespace to this app for when we add a separate worker app later).
 - `apps/web/app/api/inngest/route.ts` exports the standard Next.js handler from `inngest/next`: `export const { GET, POST, PUT } = serve({ client, functions })`.
 - `inngest/functions/index.ts` exports an empty array. Functions register against this array in Phase C/D.
 - `.env.example` documents the dev keys; production uses real keys from the Inngest dashboard.
