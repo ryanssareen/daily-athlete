@@ -109,19 +109,32 @@ CREATE TABLE public.completed_workouts (
 
 -- R15: idempotent Strava upsert. Webhook delivery is at-least-once;
 -- multiple deliveries of the same effort must produce exactly one row.
--- Callers should use:
+--
+-- Raw SQL (server-side function, or direct pg connection) can use:
 --   INSERT INTO completed_workouts (athlete_id, source, strava_activity_id, ...)
 --   VALUES (...)
---   ON CONFLICT (athlete_id, strava_activity_id) DO UPDATE SET
---     summary_stats = EXCLUDED.summary_stats, ...
--- to make webhook handlers replay-safe.
--- NOTE: For Postgres to match this ON CONFLICT clause to the partial
--- unique index, the inserted row MUST satisfy the index predicate
--- (strava_activity_id IS NOT NULL). With the
--- completed_workouts_strava_activity_id_required CHECK in place, any
--- source='strava' row carries a non-null strava_activity_id by
--- construction; manual rows always have NULL strava_activity_id and
--- bypass the idempotency check (which is the intended semantics).
+--   ON CONFLICT (athlete_id, strava_activity_id)
+--     WHERE strava_activity_id IS NOT NULL
+--     DO UPDATE SET summary_stats = EXCLUDED.summary_stats, ...
+-- The WHERE clause is REQUIRED for Postgres to match the partial unique
+-- index; without it, Postgres returns 42P10 ("no unique or exclusion
+-- constraint matches").
+--
+-- LIMITATION: supabase-js's .upsert({...}, { onConflict: "athlete_id,
+-- strava_activity_id" }) does NOT emit the WHERE clause and therefore
+-- CANNOT be used for this partial-index conflict target -- it raises
+-- 42P10 at runtime. Two supported supabase-js patterns:
+--   (a) INSERT + catch 23505 + UPDATE fallback (pure SDK, two round-trips)
+--   (b) RPC into a Postgres function that issues the raw INSERT ... ON
+--       CONFLICT WHERE ... DO UPDATE (one round-trip, function is the
+--       single source of truth for the upsert semantics)
+-- See apps/web/src/db/__tests__/completed-workouts.test.ts which pins
+-- both the 42P10 failure mode and the (a) fallback pattern.
+--
+-- With completed_workouts_strava_activity_id_required CHECK in place,
+-- any source='strava' row carries a non-null strava_activity_id by
+-- construction. Manual rows always have NULL strava_activity_id and
+-- bypass the idempotency index entirely (the intended semantics).
 CREATE UNIQUE INDEX completed_workouts_strava_idempotency
     ON public.completed_workouts (athlete_id, strava_activity_id)
     WHERE strava_activity_id IS NOT NULL;
