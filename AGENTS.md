@@ -55,7 +55,7 @@ Every athlete-data table needs a positive RLS test (own row visible) and a negat
 - **Soft-delete** (`deleted_at TIMESTAMPTZ`) applies to user-authored content the user can delete in normal flow: `completed_workouts`, `planned_workouts`, `plans`, `coach_athlete_links`, `workout_comments`. Subscription/token state changes are NOT soft-delete — use status enums and retention sweeps instead.
 - Hard-delete is reserved for the account-deletion cascade.
 - Every user-data table gets `ENABLE ROW LEVEL SECURITY` plus at least a SELECT policy. Writes for sensitive tables (`strava_tokens`, `entitlements`, `strava_raw_payloads`) are service-role only — no INSERT/UPDATE/DELETE policies.
-- Realtime publication membership is **opt-in per table**. Sensitive surfaces (`strava_tokens`, `entitlements`, `strava_raw_payloads`) must NEVER join `supabase_realtime`. Add a comment in any migration that touches a sensitive table noting the exclusion.
+- Realtime publication membership is **opt-in per table**. Sensitive surfaces (`strava_tokens`, `entitlements`, `strava_raw_payloads`, `athlete_profiles`) must NEVER join `supabase_realtime`. The allow-list of permitted tables lives at `packages/shared/src/realtime-allowlist.ts` and is enforced by a CI test (`apps/web/src/db/__tests__/realtime-publication.test.ts`). To add a table to realtime: (1) add `ALTER PUBLICATION supabase_realtime ADD TABLE public.<table>;` to a migration AND (2) add the table name to `REALTIME_ALLOWLIST` in the same PR. CI fails on drift in either direction.
 
 ## TypeScript (apps/web, apps/mobile, packages/shared)
 
