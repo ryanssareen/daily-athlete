@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
+    "dev:inngest": "inngest-cli@latest dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -15,6 +16,7 @@
     "@da2/shared": "workspace:*",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.46.0",
+    "inngest": "^3.27.0",
     "next": "15.0.3",
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
@@ -26,6 +28,7 @@
     "@types/react-dom": "^18.3.1",
     "eslint": "^9.14.0",
     "eslint-config-next": "15.0.3",
+    "inngest-cli": "^1.5.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.4"
   }

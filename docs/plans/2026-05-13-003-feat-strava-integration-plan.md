@@ -274,7 +274,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ### Phase A — Foundation prereqs (1 PR)
 
-- [ ] **Unit A1: Token encryption module**
+- [x] **Unit A1: Token encryption module**
 
 **Goal:** Node-side AES-256-GCM encryption/decryption for Strava tokens, with versioned key support.
 
@@ -314,7 +314,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A2: Inngest serve handler + dev config**
+- [x] **Unit A2: Inngest serve handler + dev config**
 
 **Goal:** Scaffolding for the Inngest queue layer. Next.js serve handler at `/api/inngest`, dev server config, no functions yet.
 
@@ -349,7 +349,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A3: Env var validation + secrets surface**
+- [x] **Unit A3: Env var validation + secrets surface**
 
 **Goal:** `apps/web/src/config.ts` validates required env vars at boot; refuses production startup with placeholder secrets.
 
@@ -383,7 +383,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A4: Sport normalization map**
+- [x] **Unit A4: Sport normalization map**
 
 **Goal:** Hand-authored Strava `sport_type` → our 6-value enum mapping.
 
