@@ -23,6 +23,8 @@
 // Members must stay alphabetised so diffs are minimal when entries are
 // added or removed.
 export const REALTIME_ALLOWLIST: readonly string[] = [
+  "completed_workouts", // added: 0008
   "planned_workouts", // added: 0007
   "plans", // added: 0007
+  "workout_matches", // added: 0008
 ];
