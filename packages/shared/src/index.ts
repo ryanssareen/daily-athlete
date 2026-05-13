@@ -5,4 +5,4 @@
 // There is no codegen step. Types are written by hand and reviewed against
 // supabase/migrations/*.sql; the schema is the source of truth.
 
-export {};
+export * from "./athlete-profile";
