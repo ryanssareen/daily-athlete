@@ -6,6 +6,7 @@
 // supabase/migrations/*.sql; the schema is the source of truth.
 
 export * from "./athlete-profile";
+export * from "./completed-workout";
 export * from "./entitlement";
 export * from "./plan";
 export * from "./planned-workout";
@@ -13,3 +14,4 @@ export * from "./realtime-allowlist";
 export * from "./strava-raw-payload";
 export * from "./strava-token";
 export * from "./users";
+export * from "./workout-match";
