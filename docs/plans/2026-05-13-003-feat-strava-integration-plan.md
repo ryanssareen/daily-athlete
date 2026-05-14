@@ -274,7 +274,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ### Phase A — Foundation prereqs (1 PR)
 
-- [ ] **Unit A1: Token encryption module**
+- [x] **Unit A1: Token encryption module**
 
 **Goal:** Node-side AES-256-GCM encryption/decryption for Strava tokens, with versioned key support.
 
@@ -314,7 +314,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A2: Inngest serve handler + dev config**
+- [x] **Unit A2: Inngest serve handler + dev config**
 
 **Goal:** Scaffolding for the Inngest queue layer. Next.js serve handler at `/api/inngest`, dev server config, no functions yet.
 
@@ -331,7 +331,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 - Modify: `.github/workflows/ci.yml` — no change for v1 (Inngest tests run locally against dev server; CI uses `@inngest/test` for unit-style function testing)
 
 **Approach:**
-- `apps/web/src/inngest/client.ts` instantiates `new Inngest({ id: 'da2' })`. Single source of truth for the app id and event/signing keys.
+- `apps/web/src/inngest/client.ts` instantiates `new Inngest({ id: 'da2-web', eventKey, signingKey })`. Single source of truth for the app id and event/signing keys (the `-web` suffix scopes the namespace to this app for when we add a separate worker app later).
 - `apps/web/app/api/inngest/route.ts` exports the standard Next.js handler from `inngest/next`: `export const { GET, POST, PUT } = serve({ client, functions })`.
 - `inngest/functions/index.ts` exports an empty array. Functions register against this array in Phase C/D.
 - `.env.example` documents the dev keys; production uses real keys from the Inngest dashboard.
@@ -349,7 +349,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A3: Env var validation + secrets surface**
+- [x] **Unit A3: Env var validation + secrets surface**
 
 **Goal:** `apps/web/src/config.ts` validates required env vars at boot; refuses production startup with placeholder secrets.
 
@@ -383,7 +383,7 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
 
 ---
 
-- [ ] **Unit A4: Sport normalization map**
+- [x] **Unit A4: Sport normalization map**
 
 **Goal:** Hand-authored Strava `sport_type` → our 6-value enum mapping.
 
