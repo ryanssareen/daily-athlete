@@ -29,6 +29,7 @@
     "eslint": "^9.14.0",
     "eslint-config-next": "15.0.3",
     "inngest-cli": "^1.5.0",
+    "msw": "^2.6.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.4"
   }

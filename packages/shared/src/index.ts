@@ -11,6 +11,7 @@ export * from "./entitlement";
 export * from "./plan";
 export * from "./planned-workout";
 export * from "./realtime-allowlist";
+export * from "./strava-connect";
 export * from "./strava-raw-payload";
 export * from "./strava-token";
 export * from "./users";
