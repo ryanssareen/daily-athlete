@@ -24,7 +24,8 @@
     "extra": {
       "supabaseUrl": "$SUPABASE_URL",
       "supabaseAnonKey": "$SUPABASE_ANON_KEY",
-      "apiUrl": "$API_URL"
+      "apiUrl": "$API_URL",
+      "stravaClientId": "$EXPO_PUBLIC_STRAVA_CLIENT_ID"
     }
   }
 }

@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, ApiError } from "@/api/client";
 import { supabase } from "@/auth/supabase";
 import { colors, spacing, typography } from "@/design/tokens";
+import { StravaConnectSection } from "@/integrations/strava";
 
 type Me = {
   id: string;
@@ -30,7 +38,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.inner}>
+      <ScrollView contentContainerStyle={styles.inner}>
         <Text style={styles.h1}>Profile</Text>
         {error && <Text style={styles.error}>API error: {error}</Text>}
         {me ? (
@@ -43,10 +51,11 @@ export default function ProfileScreen() {
         ) : (
           <Text style={styles.body}>Loading...</Text>
         )}
+        <StravaConnectSection />
         <Pressable style={styles.button} onPress={handleSignOut}>
           <Text style={styles.buttonText}>Sign out</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

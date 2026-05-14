@@ -37,6 +37,7 @@ interface RawEnv {
   STRAVA_CLIENT_SECRET?: string;
   STRAVA_TOKEN_KEYS?: string;
   STRAVA_WEBHOOK_VERIFY_TOKEN?: string;
+  STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
 }
@@ -53,6 +54,7 @@ export interface AppConfig {
     clientSecret: string | undefined;
     tokenKeysRaw: string | undefined;
     webhookVerifyToken: string | undefined;
+    stateSigningKey: string | undefined;
   };
   inngest: {
     eventKey: string | undefined;
@@ -82,6 +84,43 @@ function requireProd(v: Validator, key: keyof RawEnv, label: string): void {
   }
   if (isPlaceholder(value)) {
     v.errors.push(`${label} contains placeholder value (env: ${key})`);
+  }
+}
+
+function validateStateSigningKeyProd(v: Validator): void {
+  // 32-byte HMAC-SHA256 key for the Strava OAuth state nonce
+  // (apps/web/src/strava/state-nonce.ts). Format: 64 hex chars (= 32
+  // bytes). The /init route refuses to sign and /connect refuses to
+  // verify when this is missing; in production that's a hard fail.
+  const raw = v.raw.STRAVA_OAUTH_STATE_SIGNING_KEY;
+  if (!raw) {
+    v.errors.push(
+      "STRAVA_OAUTH_STATE_SIGNING_KEY is required in production"
+    );
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push(
+      "STRAVA_OAUTH_STATE_SIGNING_KEY contains placeholder value"
+    );
+    return;
+  }
+  if (isAllZeroHex(raw)) {
+    v.errors.push(
+      "STRAVA_OAUTH_STATE_SIGNING_KEY is all-zero (placeholder)"
+    );
+    return;
+  }
+  if (!/^[0-9a-fA-F]+$/.test(raw)) {
+    v.errors.push(
+      "STRAVA_OAUTH_STATE_SIGNING_KEY contains non-hex characters"
+    );
+    return;
+  }
+  if (raw.length !== 64) {
+    v.errors.push(
+      `STRAVA_OAUTH_STATE_SIGNING_KEY must be 64 hex chars (32 bytes); got ${raw.length}`
+    );
   }
 }
 
@@ -165,6 +204,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       "Strava webhook verify token"
     );
     validateStravaTokenKeysProd(v);
+    validateStateSigningKeyProd(v);
     // Inngest event/signing keys aren't fatal at boot -- if they're missing
     // in production, Inngest itself surfaces the misconfig on first event
     // dispatch (event key) or first inbound invocation (signing key) with
@@ -180,6 +220,11 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
         "NEXT_PUBLIC_SUPABASE_URL missing (dev/test) -- supabase calls will fail"
+      );
+    }
+    if (!raw.STRAVA_OAUTH_STATE_SIGNING_KEY) {
+      v.warnings.push(
+        "STRAVA_OAUTH_STATE_SIGNING_KEY missing (dev/test) -- /api/integrations/strava/init will reject"
       );
     }
   }
@@ -206,6 +251,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       clientSecret: raw.STRAVA_CLIENT_SECRET,
       tokenKeysRaw: raw.STRAVA_TOKEN_KEYS,
       webhookVerifyToken: raw.STRAVA_WEBHOOK_VERIFY_TOKEN,
+      stateSigningKey: raw.STRAVA_OAUTH_STATE_SIGNING_KEY,
     },
     inngest: {
       eventKey: raw.INNGEST_EVENT_KEY,
