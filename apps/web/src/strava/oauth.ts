@@ -4,12 +4,16 @@
 //
 // The refresh-token path lives in StravaClient (apps/web/src/strava/client.ts);
 // this module covers the initial authorization-code exchange only.
+//
+// All Strava fetches go through `postStravaOauthForm` (http.ts) which
+// handles AbortSignal.timeout(), network-error wrapping, and JSON
+// parsing -- this file becomes a thin caller that interprets the
+// status code in the authorization-code context (400 -> code rejected).
 
 import { config } from "@/config";
 
 import { StravaError, StravaReauthRequired } from "./errors";
-
-const STRAVA_OAUTH_TOKEN_URL = "https://www.strava.com/oauth/token";
+import { postStravaOauthForm } from "./http";
 
 export interface StravaAuthorizeResult {
   accessToken: string;
@@ -59,47 +63,22 @@ export async function exchangeAuthorizationCode(
     redirect_uri: opts.redirectUri,
   });
 
-  let response: Response;
-  try {
-    response = await fetch(STRAVA_OAUTH_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
-    });
-  } catch (err) {
-    throw new StravaError(
-      "network",
-      `Strava /oauth/token unreachable: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+  const { status, body: parsedBody } = await postStravaOauthForm(body);
 
-  if (response.status === 400) {
-    // Strava signals an invalid/used code with 400; surface as a typed
-    // "rejected code" error so the route returns a normalized error code
-    // rather than the raw Strava body.
+  if (status === 400 || status === 401) {
+    // Strava signals an invalid/used code with 400 (and occasionally 401
+    // when the client_id mismatch combines with a stale code); surface
+    // as a typed "rejected code" error so the route returns a normalized
+    // error code rather than the raw Strava body.
     throw new StravaReauthRequired(
       "Strava rejected the authorization code (invalid, expired, or reused)"
     );
   }
-  if (!response.ok) {
-    throw new StravaError(
-      "unexpected",
-      `Strava /oauth/token returned ${response.status}`,
-      response.status
-    );
-  }
 
-  let parsed: RawAuthorizeResponse;
-  try {
-    parsed = (await response.json()) as RawAuthorizeResponse;
-  } catch {
-    throw new StravaError(
-      "unexpected",
-      "Strava /oauth/token response was not valid JSON"
-    );
-  }
+  const parsed = parsedBody as RawAuthorizeResponse | null;
 
   if (
+    !parsed ||
     !parsed.access_token ||
     !parsed.refresh_token ||
     typeof parsed.expires_at !== "number" ||

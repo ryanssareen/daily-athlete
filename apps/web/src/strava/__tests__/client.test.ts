@@ -15,23 +15,27 @@
 // same STRAVA_TOKEN_KEYS env, so encrypt(...) outputs are decryptable
 // inside the fake DB layer (we encrypt at test setup and let the client
 // decrypt on read -- exactly the production path).
+//
+// BYTEA write format: production wraps ciphertext as `\x<hex>` strings
+// before passing to supabase-js (so PostgREST stores them as BYTEA via
+// JSON). The fake below stores whatever the client passes and reads it
+// back unchanged; we assert the write path uses `\x<hex>` (not
+// Uint8Array) in the refresh test.
 
-// vi.hoisted runs BEFORE ESM imports are evaluated, which is the only
-// reliable way to seed env vars that client.ts / config.ts read at module
-// load. A plain top-level `process.env.X = ...` would run AFTER the
-// hoisted imports below have already evaluated the config module.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
   process.env.STRAVA_TOKEN_KEYS =
     "1:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
+  process.env.STRAVA_OAUTH_STATE_SIGNING_KEY =
+    "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
   process.env.STRAVA_CLIENT_ID = "test-client-id";
   process.env.STRAVA_CLIENT_SECRET = "test-client-secret";
 });
 
 import { setupServer } from "msw/node";
 
-import { encrypt } from "@/security/token-crypto";
+import { decrypt, encrypt } from "@/security/token-crypto";
 
 import { createStravaClient } from "../client";
 import {
@@ -59,8 +63,9 @@ beforeEach(() => {
 
 interface FakeRow {
   user_id: string;
-  access_token_enc: Uint8Array;
-  refresh_token_enc: Uint8Array;
+  // Stored as the production wire format: `\x<hex>` strings (BYTEA literal).
+  access_token_enc: string;
+  refresh_token_enc: string;
   expires_at: string;
   key_version: number;
   last_used_at: string | null;
@@ -68,9 +73,18 @@ interface FakeRow {
 
 interface FakeAdmin {
   rows: Map<string, FakeRow>;
-  // Cast to SupabaseClient at the call site; we only implement the surface
-  // the client actually touches.
   asSupabase: () => unknown;
+}
+
+function bytesToHexLiteral(bytes: Uint8Array): string {
+  return `\\x${Buffer.from(bytes).toString("hex")}`;
+}
+
+function hexLiteralToBytes(literal: string): Uint8Array {
+  if (literal.startsWith("\\x")) {
+    return new Uint8Array(Buffer.from(literal.slice(2), "hex"));
+  }
+  return new Uint8Array(Buffer.from(literal, "base64"));
 }
 
 function makeFakeAdmin(initialRow: FakeRow): FakeAdmin {
@@ -113,12 +127,11 @@ class SelectBuilder {
     }
     const row = this.rows.get(this.filter.value as string);
     if (!row) return { data: null, error: null };
-    // Convert Uint8Array to base64 to simulate PostgREST wire format. The
-    // client's decodeBytea() handles both \x-hex and base64; using base64
-    // mirrors what we'd get from supabase-js by default.
+    // Return the literal in its PostgREST-default `\x<hex>` form -- the
+    // client's decodeBytea handles both that and base64.
     const out = {
-      access_token_enc: Buffer.from(row.access_token_enc).toString("base64"),
-      refresh_token_enc: Buffer.from(row.refresh_token_enc).toString("base64"),
+      access_token_enc: row.access_token_enc,
+      refresh_token_enc: row.refresh_token_enc,
       expires_at: row.expires_at,
       key_version: row.key_version,
     } as unknown as T;
@@ -136,7 +149,6 @@ class UpdateBuilder {
     this.filter = { col, value };
     return this;
   }
-  // Update returns a thenable so `await admin.from().update().eq(...)` works.
   then<TResult1 = { error: null }, TResult2 = never>(
     onfulfilled?:
       | ((value: { data: null; error: null }) => TResult1 | PromiseLike<TResult1>)
@@ -169,8 +181,8 @@ function buildSeedRow(opts: {
   const encRefresh = encrypt(new TextEncoder().encode(opts.refreshPlain));
   return {
     user_id: opts.userId,
-    access_token_enc: encAccess.ciphertext,
-    refresh_token_enc: encRefresh.ciphertext,
+    access_token_enc: bytesToHexLiteral(encAccess.ciphertext),
+    refresh_token_enc: bytesToHexLiteral(encRefresh.ciphertext),
     expires_at: opts.expiresAtIso ?? "2026-05-14T12:00:00+00:00",
     key_version: opts.keyVersion ?? encAccess.keyVersion,
     last_used_at: null,
@@ -207,18 +219,15 @@ describe("StravaClient happy path", () => {
 });
 
 describe("StravaClient refresh-on-401", () => {
-  it("refreshes atomically, persists both new tokens, re-reads on retry, and succeeds", async () => {
+  it("refreshes atomically, writes BYTEA hex strings, re-reads on retry, and succeeds", async () => {
     const userId = "22222222-2222-2222-2222-222222222222";
     const row = buildSeedRow({
       userId,
       accessPlain: "access-old",
       refreshPlain: "refresh-old",
     });
-    // Capture the original ciphertexts BEFORE handing to the fake -- the
-    // fake's update mutates row in place, so direct references would
-    // tautologically equal after the refresh.
-    const originalAccessEnc = new Uint8Array(row.access_token_enc);
-    const originalRefreshEnc = new Uint8Array(row.refresh_token_enc);
+    const originalAccessEnc = row.access_token_enc;
+    const originalRefreshEnc = row.refresh_token_enc;
     const fake = makeFakeAdmin(row);
 
     mockState.apiResponses["/athlete"] = [
@@ -249,8 +258,116 @@ describe("StravaClient refresh-on-401", () => {
     // Persisted row reflects BOTH new tokens, atomically (single UPDATE).
     const persisted = fake.rows.get(userId)!;
     expect(persisted.expires_at).toBe("2026-05-14T18:00:00.000Z");
-    expect(persisted.access_token_enc).not.toEqual(originalAccessEnc);
-    expect(persisted.refresh_token_enc).not.toEqual(originalRefreshEnc);
+    // BYTEA write contract: strings prefixed with `\x`.
+    expect(typeof persisted.access_token_enc).toBe("string");
+    expect(persisted.access_token_enc.startsWith("\\x")).toBe(true);
+    expect(persisted.access_token_enc).not.toBe(originalAccessEnc);
+    expect(persisted.refresh_token_enc).not.toBe(originalRefreshEnc);
+    // Round-trip decrypt confirms the new plaintext is present.
+    const decryptedAccess = new TextDecoder().decode(
+      decrypt(
+        hexLiteralToBytes(persisted.access_token_enc),
+        persisted.key_version
+      )
+    );
+    expect(decryptedAccess).toBe("access-new");
+  });
+
+  it("concurrent refresh: loser uses winner's persisted refresh_token (forceReload)", async () => {
+    // Two StravaClient instances for the same user. Both hit a 401 in
+    // sequence; the second instance must read the winner's already-
+    // persisted refresh_token rather than reuse its own stale in-memory
+    // copy. Without forceReload at the top of refreshTokens(), the
+    // second instance would post refresh-old to Strava and (since the
+    // queue only has refresh-mid available) misbehave.
+    const userId = "concurrent-refresh";
+    const row = buildSeedRow({
+      userId,
+      accessPlain: "access-old",
+      refreshPlain: "refresh-old",
+    });
+    const fake = makeFakeAdmin(row);
+
+    // First client refreshes successfully and writes "refresh-mid".
+    mockState.apiResponses["/athlete"] = [
+      { kind: "auth-expired-401" },
+      { kind: "ok", body: { id: 1 } },
+    ];
+    mockState.refresh.push({
+      kind: "ok",
+      payload: {
+        access_token: "access-mid",
+        refresh_token: "refresh-mid",
+        expires_at: Math.floor(Date.UTC(2026, 4, 14, 18, 0, 0) / 1000),
+      },
+    });
+
+    const client1 = createStravaClient(userId, fake.asSupabase() as never);
+    const res1 = await client1.fetch("/athlete");
+    expect(res1.status).toBe(200);
+    expect(mockState.refreshCalls).toHaveLength(1);
+    expect(mockState.refreshCalls[0]!.refresh_token).toBe("refresh-old");
+
+    // Now a SECOND client wakes up with an old in-memory state -- it
+    // was constructed before the refresh, so its tokenCache would still
+    // hold "refresh-old" if it had pre-loaded. Instead, the client's
+    // refresh path calls ensureTokens(true) at the top, which reloads
+    // the row (now holding refresh-mid) BEFORE posting to /oauth/token.
+    // The msw queue is scripted to return refresh-final ONLY when
+    // refresh_token=refresh-mid arrives.
+    mockState.apiResponses["/athlete"] = [
+      { kind: "auth-expired-401" },
+      { kind: "ok", body: { id: 2 } },
+    ];
+    mockState.refresh.push({
+      kind: "ok",
+      payload: {
+        access_token: "access-final",
+        refresh_token: "refresh-final",
+        expires_at: Math.floor(Date.UTC(2026, 4, 14, 19, 0, 0) / 1000),
+      },
+    });
+
+    const client2 = createStravaClient(userId, fake.asSupabase() as never);
+    const res2 = await client2.fetch("/athlete");
+    expect(res2.status).toBe(200);
+    // Critical assertion: the second client's refresh POST carried the
+    // WINNER's refresh_token (refresh-mid), not its own stale view of
+    // refresh-old. This is the forceReload guarantee.
+    expect(mockState.refreshCalls).toHaveLength(2);
+    expect(mockState.refreshCalls[1]!.refresh_token).toBe("refresh-mid");
+  });
+
+  it("call 401 + refresh ok + retry 401 -> throws StravaReauthRequired (T-01)", async () => {
+    // Plan-mandated behavior: a 401 that survives a successful refresh
+    // means the user revoked from Strava's side mid-flight. Surface as
+    // a typed error so Inngest callers can branch without status-code
+    // introspection.
+    const userId = "double-401";
+    const row = buildSeedRow({
+      userId,
+      accessPlain: "a",
+      refreshPlain: "r",
+    });
+    const fake = makeFakeAdmin(row);
+
+    mockState.apiResponses["/athlete"] = [
+      { kind: "auth-expired-401" },
+      { kind: "auth-expired-401" },
+    ];
+    mockState.refresh.push({
+      kind: "ok",
+      payload: {
+        access_token: "a2",
+        refresh_token: "r2",
+        expires_at: Math.floor(Date.UTC(2026, 4, 14, 18, 0, 0) / 1000),
+      },
+    });
+
+    const client = createStravaClient(userId, fake.asSupabase() as never);
+    await expect(client.fetch("/athlete")).rejects.toBeInstanceOf(
+      StravaReauthRequired
+    );
   });
 
   it("does NOT refresh when 401 body reads as rate-limit (Strava daily quota)", async () => {
@@ -311,7 +428,7 @@ describe("StravaClient refresh-on-401", () => {
 });
 
 describe("StravaClient key rotation", () => {
-  it("throws StravaKeyRotationError when the row's key_version is not in env", async () => {
+  it("throws StravaKeyRotationError when the row's key_version is not in env (asserts missingKeyVersion)", async () => {
     const userId = "66666666-6666-6666-6666-666666666666";
     const row = buildSeedRow({
       userId,
@@ -323,9 +440,11 @@ describe("StravaClient key rotation", () => {
     const fake = makeFakeAdmin(row);
 
     const client = createStravaClient(userId, fake.asSupabase() as never);
-    await expect(client.fetch("/athlete")).rejects.toBeInstanceOf(
-      StravaKeyRotationError
-    );
+    const err = await client.fetch("/athlete").catch((e) => e);
+    expect(err).toBeInstanceOf(StravaKeyRotationError);
+    // Phase C/D callers use missingKeyVersion to decide whether to alert
+    // operators on a key-rotation regression.
+    expect((err as StravaKeyRotationError).missingKeyVersion).toBe(99);
   });
 });
 

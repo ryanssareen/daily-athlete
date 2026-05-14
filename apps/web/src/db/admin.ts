@@ -1,3 +1,5 @@
+import "server-only";
+
 // Service-role supabase-js admin client factory. Use ONLY for paths that
 // must bypass RLS (e.g. strava_tokens writes, Inngest functions doing
 // cross-user work).

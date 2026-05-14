@@ -5,16 +5,30 @@ import {
   StravaConnectErrorResponseSchema,
   StravaConnectRequestSchema,
   StravaConnectResponseSchema,
+  StravaInitResponseSchema,
 } from "../strava-connect";
 
+describe("StravaInitResponseSchema", () => {
+  it("accepts a server-signed state string", () => {
+    const result = StravaInitResponseSchema.safeParse({
+      state: "nonce.1234567890.aabbcc",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty state", () => {
+    const result = StravaInitResponseSchema.safeParse({ state: "" });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe("StravaConnectRequestSchema", () => {
-  it("accepts a complete valid request body", () => {
+  it("accepts a complete valid request body (no expected_state)", () => {
     const result = StravaConnectRequestSchema.safeParse({
       code: "auth-code-1",
       code_verifier: "verifier-1",
       redirect_uri: "https://example.com/cb",
-      state: "state-1",
-      expected_state: "state-1",
+      state: "signed-state-blob",
     });
     expect(result.success).toBe(true);
   });
@@ -24,17 +38,15 @@ describe("StravaConnectRequestSchema", () => {
       code: "x",
       redirect_uri: "https://example.com/cb",
       state: "s",
-      expected_state: "s",
     });
     expect(result.success).toBe(false);
   });
 
-  it("rejects missing expected_state (state validation impossible)", () => {
+  it("rejects missing state (server cannot verify CSRF defense)", () => {
     const result = StravaConnectRequestSchema.safeParse({
       code: "x",
       code_verifier: "v",
       redirect_uri: "https://example.com/cb",
-      state: "s",
     });
     expect(result.success).toBe(false);
   });
@@ -45,7 +57,6 @@ describe("StravaConnectRequestSchema", () => {
       code_verifier: "v",
       redirect_uri: "https://example.com/cb",
       state: "s",
-      expected_state: "s",
     });
     expect(result.success).toBe(false);
   });
@@ -56,9 +67,27 @@ describe("StravaConnectRequestSchema", () => {
       code_verifier: "v",
       redirect_uri: "not-a-uri",
       state: "s",
-      expected_state: "s",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("strips legacy expected_state if a client still sends it (Zod default)", () => {
+    // Schema does not list expected_state; safeParse succeeds and Zod
+    // drops unknown keys by default. Documents the migration posture for
+    // any in-flight mobile build that hasn't picked up the new contract.
+    const result = StravaConnectRequestSchema.safeParse({
+      code: "c",
+      code_verifier: "v",
+      redirect_uri: "https://example.com/cb",
+      state: "s",
+      expected_state: "legacy",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(
+        (result.data as Record<string, unknown>).expected_state
+      ).toBeUndefined();
+    }
   });
 });
 

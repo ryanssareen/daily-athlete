@@ -11,6 +11,7 @@ export type StravaErrorCode =
   | "needs_reauth"
   | "rate_limited"
   | "key_rotation"
+  | "account_collision"
   | "network"
   | "unexpected";
 
@@ -51,5 +52,28 @@ export class StravaKeyRotationError extends StravaError {
     );
     this.name = "StravaKeyRotationError";
     this.missingKeyVersion = missingKeyVersion;
+  }
+}
+
+/**
+ * Thrown when a Postgres unique_violation (23505) on
+ * `strava_tokens.athlete_strava_id` fires during upsert.
+ *
+ * This is the race-arbiter for the TOCTOU window between the
+ * `findUserByAthleteStravaId` pre-check and the upsert: two concurrent
+ * users connecting the same Strava account can both pass the pre-check,
+ * but only one upsert can succeed. The loser hits the unique constraint;
+ * we surface it as a typed error so the route handler returns 409
+ * `strava_account_already_linked` instead of a generic 500.
+ */
+export class StravaAccountCollisionError extends StravaError {
+  public readonly athleteStravaId: number | null;
+  constructor(athleteStravaId: number | null) {
+    super(
+      "account_collision",
+      `strava_tokens.athlete_strava_id collision (race after pre-check)`
+    );
+    this.name = "StravaAccountCollisionError";
+    this.athleteStravaId = athleteStravaId;
   }
 }

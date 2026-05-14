@@ -23,7 +23,9 @@
 //        (Strava rotates both) plus expires_at + key_version in a single
 //        statement. Re-read the row from DB on retry so a concurrent
 //        refresh's loser picks up the winner's fresh tokens. Retry the
-//        original request once; on a second 401 surface the response.
+//        original request once; on a second 401 throw StravaReauthRequired
+//        (the typed error is more useful to Inngest callers than a bare
+//        Response).
 //   6. On 429 from a regular fetch: return the 429 response. Caller (the
 //      backfill Inngest function) decides retry strategy via step.sleep --
 //      client must not auto-retry on rate limits.
@@ -33,6 +35,12 @@
 // every fetch. Phase C/D callers invoke it once per logical session so a
 // 200-activity backfill doesn't generate 200 UPDATE writes. Phase B has no
 // caller for it; the method exists so C/D can ship without revisiting.
+//
+// BYTEA serialisation:
+//   Writes pass ciphertext as `\x<hex>` strings; supabase-js JSON.stringifies
+//   the body and PostgREST needs the BYTEA hex literal form. Reads come back
+//   as either `\x<hex>` (PostgREST default) or base64 (legacy supabase-js);
+//   `decodeBytea()` handles both.
 
 import { Buffer } from "node:buffer";
 
@@ -42,14 +50,16 @@ import { config } from "@/config";
 import { decrypt, encrypt } from "@/security/token-crypto";
 
 import {
+  STRAVA_API_BASE,
+  STRAVA_API_FETCH_TIMEOUT_MS,
+} from "./constants";
+import {
   StravaError,
   StravaKeyRotationError,
   StravaRateLimited,
   StravaReauthRequired,
 } from "./errors";
-
-const STRAVA_API_BASE = "https://www.strava.com/api/v3";
-const STRAVA_OAUTH_TOKEN_URL = "https://www.strava.com/oauth/token";
+import { postStravaOauthForm } from "./http";
 
 // Rate-limit header indices: Strava returns `15min,daily` as a single
 // comma-separated value for both X-RateLimit-Limit and X-RateLimit-Usage.
@@ -81,6 +91,13 @@ function decodeBytea(value: string | Uint8Array): Uint8Array {
     return new Uint8Array(Buffer.from(value.slice(2), "hex"));
   }
   return new Uint8Array(Buffer.from(value, "base64"));
+}
+
+function toByteaHex(bytes: Uint8Array): string {
+  // Mirror of strava-tokens.ts. PostgREST expects `\x<hex>` literals for
+  // BYTEA values in JSON request bodies; supabase-js JSON.stringifies a
+  // bare Uint8Array as `{"0":..,"1":..,...}`, which PostgREST 422s.
+  return `\\x${Buffer.from(bytes).toString("hex")}`;
 }
 
 function parseRateLimitHeader(headerValue: string | null): {
@@ -232,8 +249,21 @@ export function createStravaClient(
     return fresh;
   }
 
+  /**
+   * Refresh the token pair. The loser of a concurrent-refresh race
+   * picks up the winner's tokens by force-reloading from DB BEFORE
+   * calling Strava: if it arrives second, the DB already holds the
+   * winner's new refresh_token, so its own /oauth/token POST uses a
+   * VALID refresh_token rather than the stale in-memory copy. Without
+   * the force-reload the loser sends the original (now-rotated)
+   * refresh_token, gets 400 invalid_grant, and incorrectly throws
+   * StravaReauthRequired.
+   */
   async function refreshTokens(): Promise<TokenRow> {
-    const current = await ensureTokens();
+    // FIX-3 / REL-003 / ADV-002: force a DB re-read at the start of
+    // refresh so a concurrent loser uses the winner's already-persisted
+    // refresh_token rather than its own (now-invalidated) cached copy.
+    const current = await ensureTokens(true);
     const clientId = config.strava.clientId;
     const clientSecret = config.strava.clientSecret;
     if (!clientId || !clientSecret) {
@@ -250,44 +280,21 @@ export function createStravaClient(
       refresh_token: current.refreshToken,
     });
 
-    let response: Response;
-    try {
-      response = await fetch(STRAVA_OAUTH_TOKEN_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      });
-    } catch (err) {
-      throw new StravaError(
-        "network",
-        `Strava /oauth/token unreachable: ${err instanceof Error ? err.message : String(err)}`
-      );
-    }
+    const { status, body: parsedBody } = await postStravaOauthForm(body);
 
-    if (response.status === 401 || response.status === 400) {
+    if (status === 401 || status === 400) {
       // Strava signals an invalid refresh_token with 400 + body
       // {"error": "invalid_grant"} OR 401. Both mean re-auth required.
       throw new StravaReauthRequired();
     }
-    if (!response.ok) {
-      throw new StravaError(
-        "unexpected",
-        `Strava /oauth/token returned ${response.status}`,
-        response.status
-      );
-    }
 
-    let parsed: StravaTokenRefreshResponse;
-    try {
-      parsed = (await response.json()) as StravaTokenRefreshResponse;
-    } catch {
-      throw new StravaError(
-        "unexpected",
-        "Strava /oauth/token response was not valid JSON"
-      );
-    }
-
-    if (!parsed.access_token || !parsed.refresh_token || !parsed.expires_at) {
+    const parsed = parsedBody as StravaTokenRefreshResponse | null;
+    if (
+      !parsed ||
+      !parsed.access_token ||
+      !parsed.refresh_token ||
+      !parsed.expires_at
+    ) {
       throw new StravaError(
         "unexpected",
         "Strava /oauth/token response missing required fields"
@@ -306,8 +313,10 @@ export function createStravaClient(
     const { error: updateErr } = await admin
       .from("strava_tokens")
       .update({
-        access_token_enc: encAccess.ciphertext,
-        refresh_token_enc: encRefresh.ciphertext,
+        // BYTEA columns need the `\x<hex>` PostgREST wire format -- a
+        // bare Uint8Array serialises as JSON object and 422s.
+        access_token_enc: toByteaHex(encAccess.ciphertext),
+        refresh_token_enc: toByteaHex(encRefresh.ciphertext),
         expires_at: expiresAtIso,
         key_version: encAccess.keyVersion,
       })
@@ -336,7 +345,14 @@ export function createStravaClient(
     headers.set("Authorization", `Bearer ${tokens.accessToken}`);
     let response: Response;
     try {
-      response = await fetch(url, { ...init, headers });
+      response = await fetch(url, {
+        ...init,
+        headers,
+        // Phase C/D backfill steps wrap this in step.run() with their
+        // own retry. We still want a per-request deadline so a stuck
+        // connection doesn't burn the Inngest step's full timeout.
+        signal: AbortSignal.timeout(STRAVA_API_FETCH_TIMEOUT_MS),
+      });
     } catch (err) {
       throw new StravaError(
         "network",
@@ -373,12 +389,19 @@ export function createStravaClient(
     }
 
     const refreshed = await refreshTokens();
-    // Retry once with the freshly-read tokens. A second 401 here means the
-    // refresh succeeded but the access_token is still being rejected;
-    // surface the response so the caller can decide (the path-specific
-    // semantics differ -- e.g., a 401 on /athlete after a successful
-    // refresh usually means the user revoked from Strava's side).
-    return await fetchOnce(path, init, refreshed);
+    // Retry once with the freshly-read tokens. A second 401 here means
+    // the refresh succeeded but the access_token is still being rejected
+    // -- usually the athlete revoked from Strava's side mid-flight.
+    // The plan mandates throwing StravaReauthRequired (typed) rather
+    // than handing back an opaque 401 Response so Inngest callers can
+    // class-switch on the error type without status-code introspection.
+    const retried = await fetchOnce(path, init, refreshed);
+    if (retried.status === 401) {
+      throw new StravaReauthRequired(
+        "Strava returned 401 after a successful token refresh; user may have revoked"
+      );
+    }
+    return retried;
   }
 
   return {

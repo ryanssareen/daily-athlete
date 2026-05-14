@@ -1,22 +1,32 @@
-// Wire contract for POST /api/integrations/strava/connect.
+// Wire contract for POST /api/integrations/strava/init and
+// POST /api/integrations/strava/connect.
 //
-// The mobile client (apps/mobile/src/integrations/strava.tsx) sends the
-// authorization code + PKCE verifier + state nonce after expo-auth-session
-// returns from Strava's authorize page. The server validates state, then
-// exchanges the code+verifier with Strava's /oauth/token endpoint.
-//
-// Why state is on the body (not a cookie):
-// - Mobile OAuth runs over the device's browser/in-app-browser, not the
-//   Next.js cookie jar. The mobile client persists the state it generated
-//   between auth-request and POST and passes it explicitly so the server
-//   can verify it matches what the mobile session presented as
-//   `expected_state`.
+// Flow:
+// 1. Mobile POSTs to `/api/integrations/strava/init` (empty body). The
+//    server signs a state nonce keyed to the authenticated user and
+//    returns it. The signing key (`STRAVA_OAUTH_STATE_SIGNING_KEY`) lives
+//    only on the server, so the mobile client cannot mint its own.
+// 2. Mobile uses that signed `state` as the OAuth state parameter when
+//    opening Strava's authorize page; expo-auth-session passes it through.
+// 3. After Strava redirects back, mobile POSTs `/connect` with
+//    `{ code, code_verifier, redirect_uri, state }`. The server
+//    HMAC-verifies the state against the signing key + user_id + expiry.
+//    Mismatch -> 400 `state_mismatch`. Both `expected_state` and the
+//    timingSafeEqual on attacker-controlled inputs are gone -- the
+//    signing key is the server-side ground truth.
 //
 // Sensitive fields (`code`, `code_verifier`) MUST NOT appear in logs --
 // the route handler's logging policy enforces this; this schema is just
 // the shape contract.
 
 import { z } from "zod";
+
+export const StravaInitResponseSchema = z.object({
+  // Server-signed state nonce: <nonce>.<expiresAt>.<hmacHex>. Opaque to
+  // the client; the server verifies on /connect.
+  state: z.string().min(1),
+});
+export type StravaInitResponse = z.infer<typeof StravaInitResponseSchema>;
 
 export const StravaConnectRequestSchema = z.object({
   // Authorization code returned by Strava on the OAuth callback. Single-use.
@@ -27,14 +37,11 @@ export const StravaConnectRequestSchema = z.object({
   // The exact redirect_uri used in the original authorize request. Must
   // be one of the values registered with the Strava developer app.
   redirect_uri: z.string().url(),
-  // OAuth state nonce. The mobile client generated it, presented it to
-  // Strava, and Strava echoed it back; the server compares against
-  // `expected_state` (the value the mobile session captured before the
-  // authorize hop).
+  // Server-signed state nonce echoed back from Strava. The server
+  // HMAC-verifies this against its signing key + the authenticated user_id.
+  // No `expected_state` field -- both sides of the comparison must not
+  // come from the same attacker-controlled body.
   state: z.string().min(1, "state is required"),
-  // The state value the mobile session originally generated. Server
-  // compares state === expected_state. Mismatch -> 400 (CSRF protection).
-  expected_state: z.string().min(1, "expected_state is required"),
 });
 export type StravaConnectRequest = z.infer<typeof StravaConnectRequestSchema>;
 
@@ -46,6 +53,11 @@ export type StravaConnectResponse = z.infer<typeof StravaConnectResponseSchema>;
 
 // Normalized error codes the route emits. Strava's raw response body is
 // never echoed -- callers (mobile UI) branch on these codes.
+//
+// `strava_rejected_code` covers both an expired/replayed authorization
+// code AND a PKCE verification failure. The only recovery is a fresh
+// authorize round trip (new code + new verifier). Mobile state machine
+// surfaces this as `auth_error`.
 export const StravaConnectErrorCodeSchema = z.enum([
   "state_mismatch",
   "invalid_input",

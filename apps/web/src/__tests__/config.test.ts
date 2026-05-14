@@ -20,6 +20,7 @@ const baseProdEnv: Record<string, string> = {
   STRAVA_CLIENT_SECRET: "client-secret-stub",
   STRAVA_TOKEN_KEYS: `1:${VALID_KEY}`,
   STRAVA_WEBHOOK_VERIFY_TOKEN: "webhook-verify-token-stub",
+  STRAVA_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
   INNGEST_EVENT_KEY: "inngest-event-key",
   INNGEST_SIGNING_KEY: "inngest-signing-key",
 };
@@ -35,6 +36,7 @@ async function importFresh(env: Record<string, string | undefined>) {
     "STRAVA_CLIENT_SECRET",
     "STRAVA_TOKEN_KEYS",
     "STRAVA_WEBHOOK_VERIFY_TOKEN",
+    "STRAVA_OAUTH_STATE_SIGNING_KEY",
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
   ];
@@ -151,6 +153,38 @@ describe("config validator -- production failure modes", () => {
     await expect(
       importFresh({ ...baseProdEnv, STRAVA_WEBHOOK_VERIFY_TOKEN: "" })
     ).rejects.toThrow(/STRAVA_WEBHOOK_VERIFY_TOKEN/);
+  });
+
+  it("rejects when STRAVA_OAUTH_STATE_SIGNING_KEY is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.STRAVA_OAUTH_STATE_SIGNING_KEY;
+    await expect(importFresh(env)).rejects.toThrow(
+      /STRAVA_OAUTH_STATE_SIGNING_KEY/
+    );
+  });
+
+  it("rejects when STRAVA_OAUTH_STATE_SIGNING_KEY is the placeholder 'hex'", async () => {
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_OAUTH_STATE_SIGNING_KEY: "hex",
+      })
+    ).rejects.toThrow(/STRAVA_OAUTH_STATE_SIGNING_KEY|placeholder|non-hex/i);
+  });
+
+  it("rejects when STRAVA_OAUTH_STATE_SIGNING_KEY is all-zeros", async () => {
+    await expect(
+      importFresh({
+        ...baseProdEnv,
+        STRAVA_OAUTH_STATE_SIGNING_KEY: "0".repeat(64),
+      })
+    ).rejects.toThrow(/STRAVA_OAUTH_STATE_SIGNING_KEY|all-zero/i);
+  });
+
+  it("rejects when STRAVA_OAUTH_STATE_SIGNING_KEY is the wrong length", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, STRAVA_OAUTH_STATE_SIGNING_KEY: "deadbeef" })
+    ).rejects.toThrow(/STRAVA_OAUTH_STATE_SIGNING_KEY.*64 hex chars/i);
   });
 
   it("accumulates multiple errors into one message rather than failing on the first", async () => {

@@ -17,11 +17,19 @@ import { defineConfig } from "vitest/config";
 // `include` now also covers `app/**/__tests__/**` so Next.js Route Handler
 // tests (e.g. app/api/integrations/strava/connect/__tests__/route.test.ts)
 // run alongside src-tree tests.
+//
+// `server-only` is mapped to a no-op shim: the `import 'server-only'`
+// guard in @/db/admin and @/db/strava-tokens is a Next.js bundler-time
+// safety net (throws if a client-component tree imports it). vitest runs
+// in Node where there is no bundler, and the default export of
+// `server-only` throws at import time. The alias below lets server-side
+// modules under test load cleanly.
 
 export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "server-only": path.resolve(__dirname, "./src/__tests__/server-only-shim.ts"),
     },
   },
   test: {
