@@ -47,7 +47,14 @@ async function importFresh(env: Record<string, string | undefined>) {
       delete (process.env as Record<string, string | undefined>)[k];
     else process.env[k] = v;
   }
-  return await import("../config");
+  const mod = await import("../config");
+  // The production `config` export is a Proxy that defers `loadConfig()`
+  // until first property access (build-safety: bundlers must not run the
+  // validator at module load). The test harness pulls the validator call
+  // forward so existing `await expect(importFresh(env)).rejects.toThrow(...)`
+  // patterns still see invalid-env errors as promise rejections.
+  mod.loadConfig();
+  return mod;
 }
 
 const originalEnv = { ...process.env };
@@ -277,6 +284,53 @@ describe("config validator -- non-production", () => {
     const a = mod.loadConfig();
     const b = mod.loadConfig();
     expect(a).toBe(b);
-    expect(a).toBe(mod.config);
+    // `mod.config` is a Proxy that defers to the same `loadConfig()` cache,
+    // so identity comparison against the cached AppConfig isn't meaningful
+    // (the Proxy is not `===` the target). Verify each top-level slice
+    // returns the same reference instead.
+    expect(mod.config.strava).toBe(a.strava);
+    expect(mod.config.supabase).toBe(a.supabase);
+    expect(mod.config.inngest).toBe(a.inngest);
+  });
+});
+
+describe("config validator -- build-time safety (Vercel bundler / Next build)", () => {
+  // Regression test for the build failure on PR #62: Vercel's Next.js build
+  // bundles route handlers, which evaluates module-top-level code. If
+  // `config` is an eager `const config = loadConfig()`, the bundler runs
+  // the production validator -- and fails -- on every build, even though
+  // the validator's real job is to gate request handling. The fix is to
+  // keep `config` as a lazy Proxy that defers `loadConfig()` until first
+  // property access. This test pins that property.
+  it("does NOT throw at module import time even when production env is missing", async () => {
+    vi.resetModules();
+    const wipe = [
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "STRAVA_CLIENT_ID",
+      "STRAVA_CLIENT_SECRET",
+      "STRAVA_TOKEN_KEYS",
+      "STRAVA_WEBHOOK_VERIFY_TOKEN",
+      "STRAVA_OAUTH_STATE_SIGNING_KEY",
+      "INNGEST_EVENT_KEY",
+      "INNGEST_SIGNING_KEY",
+    ];
+    for (const k of wipe)
+      delete (process.env as Record<string, string | undefined>)[k];
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+
+    // Importing the module must succeed; the Proxy is constructed without
+    // calling loadConfig().
+    const mod = await import("../config");
+    expect(mod.config).toBeDefined();
+    expect(typeof mod.loadConfig).toBe("function");
+
+    // First property access on `config` invokes the validator, which then
+    // throws because production env is missing. This is the desired
+    // request-time fail-fast.
+    expect(() => mod.config.strava).toThrow(
+      /Strava client id is required in production/
+    );
   });
 });

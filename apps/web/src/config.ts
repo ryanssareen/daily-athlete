@@ -266,7 +266,23 @@ export function loadConfig(): AppConfig {
   return cached;
 }
 
-// Eager singleton evaluated at module import so a misconfigured production
-// deploy fails fast at boot rather than at first request. Tests that need
-// to validate boot behavior use vi.resetModules() + dynamic import.
-export const config: AppConfig = loadConfig();
+// Lazy singleton via Proxy. Callers write `import { config } from "@/config"`
+// and access properties normally (`config.strava.clientId`); each top-level
+// property read invokes `loadConfig()` once and caches.
+//
+// Why a Proxy instead of an eager `const config = loadConfig()`:
+// Next.js's build phase evaluates module-top-level expressions to bundle
+// route handlers. An eager call to `loadConfig()` runs the production
+// validator at BUILD time -- on Vercel, in CI, anywhere the bundler runs --
+// not just at request time. Build environments don't have the real secrets
+// (and shouldn't), so validation has to defer to first access, not first
+// import. The Proxy keeps the ergonomic `config.x.y` shape while moving
+// validation to the call site, where the secret actually matters.
+//
+// Tests that explicitly exercise boot-time behavior still call
+// `loadConfig()` directly via the named export.
+export const config: AppConfig = new Proxy({} as AppConfig, {
+  get(_target, prop, receiver) {
+    return Reflect.get(loadConfig(), prop, receiver);
+  },
+});
