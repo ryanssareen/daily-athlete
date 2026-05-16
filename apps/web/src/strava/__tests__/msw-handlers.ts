@@ -62,6 +62,36 @@ export interface StravaMockState {
   }[];
 }
 
+/**
+ * Build a minimal Strava activity fixture suitable for backfill tests.
+ * id and sport_type are required; all other fields optional.
+ */
+export function makeStravaActivity(
+  overrides: Partial<{
+    id: number;
+    name: string;
+    sport_type: string;
+    start_date: string;
+    distance: number;
+    moving_time: number;
+    elapsed_time: number;
+    average_heartrate: number;
+    max_heartrate: number;
+  }> = {}
+): Record<string, unknown> {
+  return {
+    id: overrides.id ?? 100000001,
+    name: overrides.name ?? "Morning Run",
+    sport_type: overrides.sport_type ?? "Run",
+    start_date: overrides.start_date ?? new Date().toISOString(),
+    distance: overrides.distance ?? 5000,
+    moving_time: overrides.moving_time ?? 1800,
+    elapsed_time: overrides.elapsed_time ?? 1850,
+    average_heartrate: overrides.average_heartrate,
+    max_heartrate: overrides.max_heartrate,
+  };
+}
+
 export function createMockState(): StravaMockState {
   return {
     apiResponses: {},

@@ -77,3 +77,15 @@ export class StravaAccountCollisionError extends StravaError {
     this.athleteStravaId = athleteStravaId;
   }
 }
+
+/**
+ * Classify an unknown thrown value into a closed StravaBackfillErrorCode.
+ * Never echoes err.message into the return value — only stable code strings.
+ */
+export function classifyError(err: unknown): import("@da2/shared").StravaBackfillErrorCode {
+  if (err instanceof StravaReauthRequired) return "needs_reauth";
+  if (err instanceof StravaKeyRotationError) return "key_rotation";
+  if (err instanceof StravaRateLimited) return "rate_limited";
+  if (err instanceof StravaError && err.code === "network") return "network";
+  return "unknown";
+}

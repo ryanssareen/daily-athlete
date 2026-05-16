@@ -4,8 +4,14 @@
 //
 // New functions are added via:
 //   import { someFn } from "./some-fn";
-//   export const functions = [someFn];
+//   export const functions = [...functions, someFn];
 
 import type { InngestFunction } from "inngest";
 
-export const functions: InngestFunction.Any[] = [];
+import { backfillStravaFn } from "./backfill-strava";
+import { backfillWatchdog } from "./backfill-watchdog";
+
+export const functions: InngestFunction.Any[] = [
+  backfillStravaFn,
+  backfillWatchdog,
+];
