@@ -257,7 +257,7 @@ describe("athlete_profiles RLS + cascade + first-touch race", () => {
     const { data, error } = await admin
       .from("athlete_profiles")
       .select(
-        "user_id, baselines, weekly_volume_ewma, manual_fields, manual_field_edited_at, derived_at, created_at, updated_at",
+        "user_id, baselines, weekly_volume_ewma, manual_fields, manual_field_edited_at, backfill_status, derived_at, created_at, updated_at",
       )
       .eq("user_id", user.id)
       .single();
