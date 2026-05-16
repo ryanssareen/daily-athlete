@@ -452,6 +452,9 @@ function SiteFooter() {
           <Link href="/privacy" className="hover:text-[color:var(--color-ink)]">
             Privacy
           </Link>
+          <Link href="/terms" className="hover:text-[color:var(--color-ink)]">
+            Terms
+          </Link>
         </nav>
       </div>
     </footer>
