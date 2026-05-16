@@ -205,17 +205,11 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     );
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
-    // Inngest event/signing keys aren't fatal at boot -- if they're missing
-    // in production, Inngest itself surfaces the misconfig on first event
-    // dispatch (event key) or first inbound invocation (signing key) with
-    // a clearer, library-side message. We warn on both so log triage
-    // catches the misconfig before a customer-facing failure does.
-    if (!raw.INNGEST_EVENT_KEY) {
-      v.warnings.push("INNGEST_EVENT_KEY missing in production");
-    }
-    if (!raw.INNGEST_SIGNING_KEY) {
-      v.warnings.push("INNGEST_SIGNING_KEY missing in production");
-    }
+    // Phase C: backfill function is the first production Inngest consumer.
+    // Missing keys in production means backfill events are accepted unsigned
+    // (security) or silently dropped (reliability). Promote to hard-fail.
+    requireProd(v, "INNGEST_EVENT_KEY", "Inngest event key");
+    requireProd(v, "INNGEST_SIGNING_KEY", "Inngest signing key");
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(

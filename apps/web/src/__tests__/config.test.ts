@@ -209,33 +209,21 @@ describe("config validator -- production failure modes", () => {
   });
 });
 
-describe("config validator -- production warnings (do not block boot)", () => {
-  it("warns when INNGEST_EVENT_KEY is missing in production", async () => {
+describe("config validator -- production failures (Phase C: Inngest keys required)", () => {
+  it("rejects when INNGEST_EVENT_KEY is missing in production", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_EVENT_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_EVENT_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest event key.*required in production/i
+    );
   });
 
-  it("warns when INNGEST_SIGNING_KEY is missing in production", async () => {
+  it("rejects when INNGEST_SIGNING_KEY is missing in production", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_SIGNING_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_SIGNING_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest signing key.*required in production/i
+    );
   });
 });
 
