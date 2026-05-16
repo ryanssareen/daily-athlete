@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { ArrowLeft, Mail } from "lucide-react";
 
+import { authCallbackUrl } from "@/auth/redirect";
 import { createClient } from "@/auth/supabase";
 
 const ROSTER_PATH = "/roster";
@@ -12,12 +14,28 @@ const ROSTER_PATH = "/roster";
 type Mode = "password" | "signup";
 type Status = "idle" | "sending" | "sent" | "error";
 
-export default function SignInPage() {
+type AuthHealthResponse = {
+  ok?: boolean;
+  hint?: string;
+  detail?: string;
+  error?: string;
+};
+
+function SignInContent() {
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromCallback = searchParams.get("error");
+    if (fromCallback) {
+      setErrorMsg(fromCallback);
+      setStatus("error");
+    }
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +44,11 @@ export default function SignInPage() {
     const supabase = createClient();
 
     if (mode === "signup") {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(ROSTER_PATH)}`,
+          emailRedirectTo: authCallbackUrl(ROSTER_PATH),
         },
       });
       if (error) {
@@ -58,18 +75,48 @@ export default function SignInPage() {
 
   const onGoogleClick = async () => {
     setErrorMsg(null);
+    setStatus("sending");
+
+    try {
+      const healthRes = await fetch("/api/auth/health");
+      const health = (await healthRes.json()) as AuthHealthResponse;
+      if (!health.ok) {
+        setErrorMsg(
+          health.hint ??
+            health.detail ??
+            "Supabase is not reachable. Restore your project in the Supabase dashboard, then try again.",
+        );
+        setStatus("error");
+        return;
+      }
+    } catch {
+      // If the health probe fails unexpectedly, still attempt OAuth.
+    }
+
     const supabase = createClient();
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = authCallbackUrl(ROSTER_PATH);
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(ROSTER_PATH)}`,
+        redirectTo,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: "select_account" },
       },
     });
+
     if (error) {
       setErrorMsg(error.message);
       setStatus("error");
+      return;
     }
+
+    if (!data?.url) {
+      setErrorMsg("Could not start Google sign-in. Check Supabase configuration.");
+      setStatus("error");
+      return;
+    }
+
+    window.location.assign(data.url);
   };
 
   const heading =
@@ -111,7 +158,8 @@ export default function SignInPage() {
               <button
                 type="button"
                 onClick={onGoogleClick}
-                className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] hover:bg-[color:var(--color-canvas-soft)] transition font-medium"
+                disabled={status === "sending"}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] hover:bg-[color:var(--color-canvas-soft)] transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <GoogleGlyph />
                 Continue with Google
@@ -205,6 +253,14 @@ export default function SignInPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInContent />
+    </Suspense>
   );
 }
 

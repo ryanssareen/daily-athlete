@@ -40,6 +40,25 @@ Then copy these values into `apps/web/.env.local` and `apps/mobile/.env`:
 
 Also: enable Apple + Google sign-in providers in the Supabase Auth dashboard.
 
+For Google sign-in:
+- In Google Cloud Console, add `https://<project-ref>.supabase.co/auth/v1/callback`
+  as an authorized redirect URI for the OAuth client used by Supabase.
+- In Supabase Auth > URL Configuration, set Site URL to
+  `https://da2-one.vercel.app`.
+- Add these redirect URLs in Supabase Auth > URL Configuration:
+  `http://localhost:3000/**`, `https://da2-one.vercel.app/**`, and any
+  trusted Vercel preview pattern such as `https://da2-*.vercel.app/**`.
+
+If Google sign-in fails with `DNS_PROBE_FINISHED_NXDOMAIN` on `*.supabase.co`, the linked
+project is likely **paused** (`INACTIVE`). Restore it in the Supabase dashboard
+(Project Settings → General → Restore project), then verify:
+
+```bash
+curl -sS "$(grep NEXT_PUBLIC_SUPABASE_URL apps/web/.env.local | cut -d= -f2-)/auth/v1/health"
+# or, with the dev server running:
+curl -sS http://localhost:3000/api/auth/health
+```
+
 ## 2. Vercel (Next.js + API)
 
 The Next.js app at `apps/web` hosts both the UI and the API. Route handlers under `app/api/*` deploy as serverless functions automatically.
@@ -49,6 +68,7 @@ The Next.js app at `apps/web` hosts both the UI and the API. Route handlers unde
 vercel link
 vercel env add NEXT_PUBLIC_SUPABASE_URL
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
+vercel env add NEXT_PUBLIC_SITE_URL       # https://da2-one.vercel.app
 vercel env add SUPABASE_SERVICE_ROLE_KEY
 vercel env add STRAVA_TOKEN_KEYS         # versioned hex keys, see Wave 2
 vercel env add STRAVA_CLIENT_ID
