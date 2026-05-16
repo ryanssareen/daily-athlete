@@ -19,6 +19,8 @@
 
 import { z } from "zod";
 
+import { BackfillStatusColumnSchema } from "./strava-backfill";
+
 // ---------------------------------------------------------------------------
 // `baselines` JSONB column (derivation-owned).
 // Per R4: per-sport pace/HR/power, dominant sport, confidence.
@@ -122,6 +124,11 @@ export const AthleteProfileRowSchema = z.object({
   weekly_volume_ewma: WeeklyVolumeEwmaSchema,
   manual_fields: ManualFieldsSchema,
   manual_field_edited_at: ManualFieldEditedAtSchema,
+  // Per Phase C (migration 0009): per-provider backfill state, written by
+  // the Inngest backfill worker. Shape lives in strava-backfill.ts to keep
+  // it co-located with the retry endpoint envelopes that share the same
+  // error-code vocabulary.
+  backfill_status: BackfillStatusColumnSchema,
   derived_at: z.string().datetime({ offset: true }).nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
