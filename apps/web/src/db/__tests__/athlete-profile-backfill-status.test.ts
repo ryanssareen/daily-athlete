@@ -87,7 +87,7 @@ describe("athlete_profiles.backfill_status (migration 0009)", () => {
         provider: "strava",
         state: "in_progress",
         completed: 100,
-        estimatedTotal: 200,
+        estimated_total: 200,
       },
     });
     expect(error).toBeNull();

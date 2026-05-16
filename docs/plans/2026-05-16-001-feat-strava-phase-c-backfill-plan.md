@@ -185,7 +185,7 @@ export type StravaBackfillErrorCode = z.infer<typeof StravaBackfillErrorCodeSche
 export const BackfillStatusColumnSchema = z.object({
   provider: z.literal("strava").optional(),
   state: z.enum(["queued", "in_progress", "complete", "failed", "needs_reauth"]).optional(),
-  estimatedTotal: z.number().int().nonnegative().optional(),
+  estimated_total: z.number().int().nonnegative().optional(),
   completed: z.number().int().nonnegative().optional(),
   started_at: z.string().datetime({ offset: true }).optional(),
   completed_at: z.string().datetime({ offset: true }).optional(),
@@ -425,7 +425,7 @@ export const backfillStravaFn = inngest.createFunction(
             provider: "strava",
             state: "in_progress",
             completed: totalImported + inserted,
-            estimatedTotal: MAX_ACTIVITIES,
+            estimated_total: MAX_ACTIVITIES,
           });
           return { inserted, hasMore: activities.length === PER_PAGE };
         });
@@ -685,7 +685,7 @@ export async function insertOrUpdateStravaCompletedWorkout(admin: SupabaseClient
 **Reducer extension** (R.7 — flat states with semantic field names + monotonic merge):
 ```typescript
 // Add to state union:
-| { kind: "backfill_in_progress"; athleteStravaId: number; completed: number; estimatedTotal: number }
+| { kind: "backfill_in_progress"; athleteStravaId: number; completed: number; estimated_total: number }
 | { kind: "backfill_complete"; athleteStravaId: number; importedCount: number }
 | { kind: "backfill_failed"; athleteStravaId: number; partialImportedCount?: number; errorCode?: string }
 | { kind: "backfill_retrying"; athleteStravaId: number; partialImportedCount?: number }
@@ -710,7 +710,7 @@ case "backfill_status_received": {
     case "queued":
     case "in_progress":
       return { kind: "backfill_in_progress", athleteStravaId: action.athleteStravaId,
-               completed, estimatedTotal: action.status.estimatedTotal ?? 200 };
+               completed, estimated_total: action.status.estimated_total ?? 200 };
     case "complete":
       return { kind: "backfill_complete", athleteStravaId: action.athleteStravaId,
                importedCount: action.status.completed ?? 0 };
@@ -737,7 +737,7 @@ case "retry_response":
                             status: action.snapshot, athleteStravaId: state.athleteStravaId });
   }
   return { kind: "backfill_in_progress", athleteStravaId: state.athleteStravaId,
-           completed: state.partialImportedCount ?? 0, estimatedTotal: 200 };
+           completed: state.partialImportedCount ?? 0, estimated_total: 200 };
 ```
 
 **Polling hook** (R.6 — RLS-bound direct read, AbortController, useRef, AppState, capped backoff, refetch):
@@ -1319,7 +1319,7 @@ Findings below are organized by the section of the plan they amend. Severity tag
 
 - `[MED]` **Rename fields for semantic clarity:**
   ```typescript
-  | { kind: "backfill_in_progress"; athleteStravaId: number; completed: number; estimatedTotal: number }
+  | { kind: "backfill_in_progress"; athleteStravaId: number; completed: number; estimated_total: number }
   | { kind: "backfill_complete"; athleteStravaId: number; importedCount: number }
   | { kind: "backfill_failed"; athleteStravaId: number; reason?: string; partialImportedCount?: number }
   ```
@@ -1352,7 +1352,7 @@ Findings below are organized by the section of the plan they amend. Severity tag
 
 - `[MED]` **Add `StravaBackfillErrorCodeSchema = z.enum([...])`** (closed set: `needs_reauth`, `rate_limited`, `key_rotation`, `max_retries_exhausted`, `network`, `corrupt_state`, `unknown`). Prevents any path where `err.message` echoes into the DB and onto the device. *(security review.)*
 
-- `[MED]` **Audit schema breadth.** UI consumes `state`, `completed`, `total` (rename to `estimatedTotal`/`importedCount`). `started_at`, `completed_at`, `error_code`, `attempt` are not displayed — keep them for operational debugging (queryable in DB) but document they're not part of the mobile contract. *(simplicity review.)*
+- `[MED]` **Audit schema breadth.** UI consumes `state`, `completed`, `total` (rename to `estimated_total`/`importedCount`). `started_at`, `completed_at`, `error_code`, `attempt` are not displayed — keep them for operational debugging (queryable in DB) but document they're not part of the mobile contract. *(simplicity review.)*
 
 ### R.9 — Config / production hardening
 

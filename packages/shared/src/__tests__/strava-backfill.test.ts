@@ -34,11 +34,11 @@ describe("BackfillStatusColumnSchema", () => {
       provider: "strava",
       state: "in_progress",
       completed: 142,
-      estimatedTotal: 200,
+      estimated_total: 200,
       started_at: "2026-05-16T10:30:00+00:00",
     });
     expect(parsed.completed).toBe(142);
-    expect(parsed.estimatedTotal).toBe(200);
+    expect(parsed.estimated_total).toBe(200);
     expect(parsed.started_at).toBe("2026-05-16T10:30:00+00:00");
   });
 
@@ -47,7 +47,7 @@ describe("BackfillStatusColumnSchema", () => {
       provider: "strava",
       state: "complete",
       completed: 200,
-      estimatedTotal: 200,
+      estimated_total: 200,
       started_at: "2026-05-16T10:30:00+00:00",
       completed_at: "2026-05-16T10:33:21+00:00",
     });

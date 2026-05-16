@@ -58,9 +58,9 @@ export type StravaBackfillErrorCode = z.infer<typeof StravaBackfillErrorCodeSche
 // treat `state === undefined` as "implicit queued" (the user has never
 // triggered a backfill, or the row predates Phase C).
 //
-// `estimatedTotal` is named to disambiguate from the final `completed`
+// `estimated_total` is named to disambiguate from the final `completed`
 // count in the `complete` state: the in-progress UI shows
-// "completed of estimatedTotal"; the complete UI shows just `completed`.
+// "completed of estimated_total"; the complete UI shows just `completed`.
 // ---------------------------------------------------------------------------
 
 export const BackfillStatusColumnSchema = z
@@ -70,7 +70,7 @@ export const BackfillStatusColumnSchema = z
       .enum(["queued", "in_progress", "complete", "failed", "needs_reauth"])
       .optional(),
     completed: z.number().int().nonnegative().optional(),
-    estimatedTotal: z.number().int().nonnegative().optional(),
+    estimated_total: z.number().int().nonnegative().optional(),
     // Timestamps use `.datetime({ offset: true })` because PostgREST returns
     // TIMESTAMPTZ values in offset notation. Convention locked across the
     // per-table modules in packages/shared.
@@ -112,8 +112,12 @@ export type StravaBackfillRetryResponse = z.infer<
   typeof StravaBackfillRetryResponseSchema
 >;
 
+// Mirrors the Phase B envelope shape from strava-connect.ts so mobile can
+// parse both endpoints' error responses uniformly. The optional `message`
+// is a human-readable hint only; clients should branch on `error`.
 export const StravaBackfillRetryErrorResponseSchema = z.object({
   error: StravaBackfillRetryErrorCodeSchema,
+  message: z.string().optional(),
 });
 
 export type StravaBackfillRetryErrorResponse = z.infer<
