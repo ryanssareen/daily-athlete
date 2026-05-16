@@ -23,8 +23,17 @@ enabled = true
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000", "exp://localhost:8081", "da2://"]
+# Production URL — also set in Supabase dashboard (URL Configuration).
+# Do not `supabase config push` until [auth.external.google] is enabled with secrets,
+# or a push can disable Google on the linked remote project.
+site_url = "https://da2-one.vercel.app"
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "https://da2-one.vercel.app/**",
+  "https://da2-*.vercel.app/**",
+  "exp://localhost:8081",
+  "da2://",
+]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
