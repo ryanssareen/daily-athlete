@@ -205,11 +205,15 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     );
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
-    // Phase C: backfill function is the first production Inngest consumer.
-    // Missing keys in production means backfill events are accepted unsigned
-    // (security) or silently dropped (reliability). Promote to hard-fail.
-    requireProd(v, "INNGEST_EVENT_KEY", "Inngest event key");
-    requireProd(v, "INNGEST_SIGNING_KEY", "Inngest signing key");
+    // Inngest keys are optional — backfill runs via Next.js after() + Vercel
+    // cron. The /api/inngest route still exists for future use; warn so any
+    // accidental production misconfiguration surfaces in deploy logs.
+    if (!raw.INNGEST_EVENT_KEY) {
+      v.warnings.push("INNGEST_EVENT_KEY missing in production");
+    }
+    if (!raw.INNGEST_SIGNING_KEY) {
+      v.warnings.push("INNGEST_SIGNING_KEY missing in production");
+    }
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(

@@ -36,7 +36,11 @@
 // error code, and the event name. Reviewers grep this diff for stray
 // `console.*` calls.
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+
+// Backfill runs after the response via `after()`. 60s is the Hobby-plan max;
+// enough for 1 Strava page fetch + ~200 DB writes in normal conditions.
+export const maxDuration = 60;
 
 import type { StravaConnectErrorCode } from "@da2/shared";
 import { StravaConnectRequestSchema } from "@da2/shared";
@@ -48,8 +52,8 @@ import {
   findUserByAthleteStravaId,
   upsertStravaToken,
 } from "@/db/strava-tokens";
-import { inngest } from "@/inngest/client";
 import { encrypt } from "@/security/token-crypto";
+import { runBackfillForUser } from "@/strava/run-backfill";
 import {
   StravaAccountCollisionError,
   StravaError,
@@ -262,24 +266,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     return errorJson("internal_error", 500);
   }
 
-  // 7. Enqueue the on-connect backfill. Isolate failures: if Inngest is
-  //    unreachable, the user IS connected -- log and return 202. The
-  //    backfill can be re-triggered later (Phase C2 progress UI surfaces
-  //    re-trigger affordance).
-  try {
-    await inngest.send({
-      name: "strava/backfill.start",
-      data: { user_id: user.id },
-    });
-  } catch {
-    logEvent({
-      name: "backfill_start_enqueue_failed",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: true, // user is connected; this is a soft failure
-      code: "internal_error",
-    });
-  }
+  // 7. Kick off the backfill after this response is sent. `after()` runs
+  //    the callback within Vercel's function timeout (60s on Hobby) after
+  //    the 202 is delivered to the client. Progress is tracked in
+  //    athlete_profiles.backfill_status; mobile polls to show live state.
+  after(() => runBackfillForUser(user.id));
 
   logEvent({
     name: "connected",
