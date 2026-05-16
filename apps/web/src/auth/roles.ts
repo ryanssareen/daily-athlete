@@ -26,7 +26,10 @@ export async function getUserWithRoles(): Promise<UserWithRoles | null> {
   return { user, roles };
 }
 
-export function landingPathForRoles(roles: Role[]): string {
+// Return a literal union so callers using `redirect()` under Next.js'
+// typedRoutes get a `Route`-assignable value (a bare `string` no longer
+// satisfies redirect/Link in Next.js 15.5+).
+export function landingPathForRoles(roles: Role[]): "/roster" | "/athlete" {
   if (roles.includes("coach")) return "/roster";
   return "/athlete";
 }
