@@ -16,10 +16,15 @@
     "@da2/shared": "workspace:*",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.46.0",
+    "@tailwindcss/postcss": "^4.2.4",
+    "geist": "^1.7.0",
     "inngest": "^3.27.0",
+    "lucide-react": "^1.14.0",
     "next": "15.5.18",
+    "postcss": "^8.5.13",
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
+    "tailwindcss": "^4.2.4",
     "zod": "^3.23.0"
   },
   "devDependencies": {
