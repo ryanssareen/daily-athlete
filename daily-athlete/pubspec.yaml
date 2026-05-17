@@ -1,0 +1,60 @@
+name: daily_athlete
+description: "DA2 mobile app — athlete and coach training companion."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase — auth, database, realtime. Pin to minor version; review changelog on bump.
+  supabase_flutter: ^2.8.4
+
+  # Secure session storage — replaces insecure SharedPreferences default on Android.
+  flutter_secure_storage: ^9.2.2
+
+  # Navigation — handles da2:// deep links and auth redirect guards.
+  go_router: ^14.8.1
+
+  # State management — async Supabase queries + realtime streams.
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Deep-link handling — receives da2://auth/callback and da2://strava-oauth URIs.
+  app_links: ^6.4.0
+
+  # Open external browser for Strava OAuth (Strava ToS prohibits webview).
+  url_launcher: ^6.3.1
+
+  # HTTP client for Next.js API calls (strava init/connect, disconnect, coach routes).
+  http: ^1.2.2
+
+  # PKCE: SHA-256 code_challenge derivation for Strava OAuth.
+  crypto: ^3.0.6
+
+  # Calendar widget for Month view.
+  table_calendar: ^3.1.3
+
+  # Date formatting for calendar views (also a transitive dep of table_calendar).
+  intl: ^0.20.2
+
+  # Map rendering for activity detail with GPS track.
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  riverpod_generator: ^2.6.2
+  build_runner: ^2.4.14
+  mockito: ^5.4.5
+
+flutter:
+  uses-material-design: true
