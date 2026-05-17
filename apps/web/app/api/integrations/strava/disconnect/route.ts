@@ -37,7 +37,17 @@ function logEvent(event: {
   );
 }
 
+// POST is used by HTML forms (method="post"). DELETE is used by API clients
+// (Flutter app, direct API calls). Both run identical logic.
+export async function POST(request: Request): Promise<NextResponse> {
+  return disconnect(request);
+}
+
 export async function DELETE(request: Request): Promise<NextResponse> {
+  return disconnect(request);
+}
+
+async function disconnect(request: Request): Promise<NextResponse> {
   // 1. Authenticate the caller.
   const supabase = await createServerClient();
   const { user, error: authErr } = await resolveAuth(supabase, request);
