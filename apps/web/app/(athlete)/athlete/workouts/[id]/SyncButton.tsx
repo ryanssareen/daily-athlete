@@ -71,7 +71,19 @@ export default function SyncButton({ workoutId }: { workoutId: string }) {
         )}
       </button>
       {state === "error" && (
-        <span style={{ fontSize: 11, color: "var(--color-danger)" }}>{errMsg}</span>
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--color-danger)",
+            background: "color-mix(in oklab, var(--color-danger) 10%, transparent)",
+            border: "1px solid color-mix(in oklab, var(--color-danger) 25%, transparent)",
+            borderRadius: 8,
+            padding: "4px 10px",
+            display: "block",
+          }}
+        >
+          {errMsg}
+        </span>
       )}
     </div>
   );

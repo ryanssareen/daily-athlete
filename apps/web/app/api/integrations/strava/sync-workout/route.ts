@@ -5,6 +5,7 @@ import { createAdminClient } from "@/db/admin";
 import { createClient } from "@/auth/server";
 import { getWorkoutById } from "@/db/workouts";
 import { createStravaClient } from "@/strava/client";
+import { StravaReauthRequired, StravaRateLimited } from "@/strava/errors";
 import { StravaActivitySchema } from "@/strava/schemas";
 
 function buildStats(activity: ReturnType<typeof StravaActivitySchema.parse>): Record<string, unknown> {
@@ -46,12 +47,35 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const stravaClient = createStravaClient(session.user.id, admin);
 
-  const res = await stravaClient.fetch(`/activities/${workout.strava_activity_id}`);
+  let res: Response;
+  try {
+    res = await stravaClient.fetch(`/activities/${workout.strava_activity_id}`);
+  } catch (err) {
+    if (err instanceof StravaReauthRequired) {
+      return NextResponse.json(
+        { error: "Strava connection expired — reconnect Strava in Settings" },
+        { status: 401 }
+      );
+    }
+    if (err instanceof StravaRateLimited) {
+      return NextResponse.json(
+        { error: "Strava rate limit reached, try again in a few minutes" },
+        { status: 429 }
+      );
+    }
+    return NextResponse.json({ error: "Could not reach Strava" }, { status: 502 });
+  }
+
   if (res.status === 429) return NextResponse.json({ error: "Strava rate limit reached, try again shortly" }, { status: 429 });
   if (!res.ok) return NextResponse.json({ error: `Strava returned ${res.status}` }, { status: 502 });
 
   const raw = await res.json();
-  const activity = StravaActivitySchema.parse(raw);
+  let activity: ReturnType<typeof StravaActivitySchema.parse>;
+  try {
+    activity = StravaActivitySchema.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "Unexpected data from Strava" }, { status: 502 });
+  }
   const newStats = buildStats(activity);
 
   // service-role: explicit user filter required
