@@ -212,7 +212,7 @@ export default function PrivacyPolicyPage() {
 
           <P>
             <strong>Coach Collaboration:</strong> When you invite a coach to view and edit
-            your plan, that coach's information (name, email) is stored and they can access
+            your plan, that coach&apos;s information (name, email) is stored and they can access
             your training plan, workouts, and related data through their account. Coaches
             operate under separate terms and their own privacy obligations.
           </P>

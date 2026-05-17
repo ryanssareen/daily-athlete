@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exclude flutter_secure_storage encrypted values from Android Full Backup.
+  Without this exclusion, session tokens stored by flutter_secure_storage
+  could be backed up to Google account and restored on a different device,
+  causing session cross-device leakage.
+
+  flutter_secure_storage stores encrypted values in a SharedPreferences file
+  named "FlutterSecureStorage". The encryption key itself is stored in the
+  Android Keystore which is already excluded from backup by the OS.
+  Excluding the SharedPreferences file ensures no encrypted session data
+  is ever backed up at all.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSecureStorage"/>
+</full-backup-content>
