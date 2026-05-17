@@ -24,10 +24,14 @@ export default function CoachSignUpPage() {
     setErrorMsg(null);
     const supabase = createClient();
     const origin = typeof window !== "undefined" ? window.location.origin : "";
+    // `intended_role` is read by the handle_new_auth_user trigger
+    // (migration 0012) to set role_flags = ['coach'] at user creation
+    // time, so we never land in athlete onboarding.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        data: { intended_role: "coach" },
         emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(REDIRECT_PATH)}`,
       },
     });
@@ -45,6 +49,13 @@ export default function CoachSignUpPage() {
     setErrorMsg(null);
     const supabase = createClient();
     const origin = typeof window !== "undefined" ? window.location.origin : "";
+    // Google's OAuth callback overwrites raw_user_meta_data with the
+    // Google profile, so we can't piggy-back intended_role through the
+    // signUp metadata channel. Drop a short-lived cookie instead;
+    // /auth/callback reads it post-exchange and service-role-promotes
+    // the user to the coach role if it's set. SameSite=Lax is required
+    // so the cookie survives the top-level navigation back from Google.
+    document.cookie = `da2_intended_role=coach; Path=/; Max-Age=600; SameSite=Lax`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
