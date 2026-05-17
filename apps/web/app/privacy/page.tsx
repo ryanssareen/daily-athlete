@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy — DA2",
   description:
-    "How The Daily Athlete collects, uses, stores, and protects your personal information.",
+    "How DA2 collects, uses, stores, and protects your personal information.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -13,18 +13,19 @@ export default function PrivacyPolicyPage() {
       <SiteHeader />
 
       <article className="mx-auto max-w-3xl px-6 py-16 lg:py-24 w-full">
-        <p className="eyebrow mb-3">Last updated: March 26, 2026</p>
+        <p className="eyebrow mb-3">Last updated: May 17, 2026</p>
         <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight leading-tight mb-10">
           Privacy Policy
         </h1>
 
         <Section title="1. Introduction">
           <P>
-            The Daily Athlete (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is a workout
-            tracking platform operated by Rishi Sareen, based in India. This Privacy
-            Policy explains how we collect, use, store, and protect your personal
-            information when you use our website and services at{" "}
-            <strong>thedailyathlete.in</strong> (the &quot;Service&quot;).
+            DA2 (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is an AI-powered endurance training
+            platform that generates personalized, race-specific training plans and adapts them
+            based on your actual workout performance. This Privacy Policy explains how we collect,
+            use, store, and protect your personal information when you use our website, mobile
+            apps, and services at <strong>da2-one.vercel.app</strong> and related domains (the
+            &quot;Service&quot;).
           </P>
           <P>
             This policy is designed to comply with the Information Technology Act, 2000,
@@ -56,23 +57,31 @@ export default function PrivacyPolicyPage() {
             and profile photo.
           </P>
 
-          <H3>2.3 Workout &amp; Health-Related Data</H3>
+          <H3>2.3 Training Plan &amp; Event Information</H3>
           <P>
-            We store workout data you create manually, import via CSV/XLSX, or sync
-            from third-party services. This includes workout type, date, duration,
-            distance, pace, heart rate, elevation, calories, laps/splits, and any notes
-            or descriptions you add.
-          </P>
-          <P>
-            <strong>Note on health data:</strong> Some workout data (heart rate,
-            calories, body metrics) may be classified as health-related or sensitive
-            personal data under certain jurisdictions. We treat all such data with the
-            same level of protection as described in this policy. This data is used
-            solely for providing you with training analytics and insights within the
-            Service.
+            When you create a training plan, we collect your event type (swim, bike, run,
+            triathlon, strength, mobility), event date, training goal, current fitness level,
+            available weekly training hours, and training history. This data is essential for
+            generating your personalized, race-specific periodized training plan.
           </P>
 
-          <H3>2.4 Third-Party Service Data</H3>
+          <H3>2.4 Workout &amp; Health-Related Data</H3>
+          <P>
+            We store all workout data you log in the app or sync from third-party services.
+            This includes workout type, date, duration, distance, pace, heart rate, elevation,
+            calories, laps/splits, perceived effort, and any notes or descriptions you add.
+            We use this data to adapt your plan weekly—updating volume, intensity, and focus
+            based on your actual performance.
+          </P>
+          <P>
+            <strong>Note on health data:</strong> Some workout data (heart rate, calories,
+            body metrics) may be classified as health-related or sensitive personal data under
+            certain jurisdictions. We treat all such data with the same level of protection as
+            described in this policy. This data is used solely for generating your training
+            plan, adapting it weekly, and providing you with training analytics and insights.
+          </P>
+
+          <H3>2.5 Third-Party Service Data</H3>
           <P>
             When you connect third-party fitness services, we access and store data
             from those platforms:
@@ -90,7 +99,7 @@ export default function PrivacyPolicyPage() {
             page, which revokes our access to new data from that service.
           </P>
 
-          <H3>2.5 Usage Data</H3>
+          <H3>2.6 Usage Data</H3>
           <P>
             We collect anonymized product analytics via PostHog to understand how the
             Service is used and to improve it. This may include pages visited, features
@@ -98,7 +107,7 @@ export default function PrivacyPolicyPage() {
             with third parties for advertising purposes.
           </P>
 
-          <H3>2.6 Push Notification Tokens</H3>
+          <H3>2.7 Push Notification Tokens</H3>
           <P>
             If you opt in to push notifications, we store your device&apos;s push
             subscription endpoint to send you workout reminders, sync completion
@@ -109,20 +118,19 @@ export default function PrivacyPolicyPage() {
         <Section title="3. How We Use Your Information">
           <P>We use your data to:</P>
           <UL>
+            <LI>Generate your personalized, race-specific periodized training plan</LI>
+            <LI>Adapt your plan weekly based on your actual workout performance</LI>
+            <LI>Sync your Strava workouts and merge them with your plan</LI>
+            <LI>Provide AI-powered coaching insights, adjustments, and recommendations</LI>
+            <LI>Allow coaches to view, comment on, and collaborate on your plan</LI>
+            <LI>
+              Generate progress reports, training analytics, and performance insights
+            </LI>
+            <LI>
+              Send you notifications about plan changes, workout reminders, and weekly
+              reviews
+            </LI>
             <LI>Provide, maintain, and improve the Service</LI>
-            <LI>
-              Display your workout history, stats, progress, and training insights
-            </LI>
-            <LI>
-              Generate AI-powered workout suggestions, reports, and coaching insights
-            </LI>
-            <LI>
-              Sync and merge workout data from connected third-party services (Strava)
-            </LI>
-            <LI>
-              Send you email summaries, weekly wraps, and push notifications (with your
-              consent)
-            </LI>
             <LI>Detect and prevent abuse, fraud, or unauthorized access</LI>
             <LI>Generate anonymized aggregate statistics about platform usage</LI>
           </UL>
@@ -178,7 +186,7 @@ export default function PrivacyPolicyPage() {
               </ExternalA>
             </LI>
             <LI>
-              <strong>Groq:</strong> AI-powered insights and suggestions —{" "}
+              <strong>Groq:</strong> AI-powered plan generation and coaching insights —{" "}
               <ExternalA href="https://groq.com/privacy-policy/">
                 Privacy Policy
               </ExternalA>
@@ -195,10 +203,18 @@ export default function PrivacyPolicyPage() {
             </LI>
           </UL>
           <P>
-            When you use AI features (workout suggestions, reports, coaching), your
-            workout data may be sent to Groq for processing. We do not send personally
-            identifiable information (name, email) to AI providers — only anonymized
-            workout metrics.
+            When we generate your training plan, adapt it weekly, and provide coaching
+            insights, your event info and workout data may be sent to Groq for AI processing.
+            We do not send personally identifiable information (name, email) to Groq — only
+            anonymized training and workout metrics necessary for plan generation and
+            adaptation.
+          </P>
+
+          <P>
+            <strong>Coach Collaboration:</strong> When you invite a coach to view and edit
+            your plan, that coach's information (name, email) is stored and they can access
+            your training plan, workouts, and related data through their account. Coaches
+            operate under separate terms and their own privacy obligations.
           </P>
         </Section>
 
@@ -209,9 +225,14 @@ export default function PrivacyPolicyPage() {
           </P>
           <UL>
             <LI>
+              <strong>Coach collaboration:</strong> When you invite a coach, they have
+              access to your training plan, workouts, athlete profile, and event
+              information. This sharing is limited to coaches you explicitly invite.
+            </LI>
+            <LI>
               <strong>Public profiles:</strong> If you enable your public profile, your
-              display name, username, bio, workout stats, and profile photo are visible
-              to anyone with your profile link.
+              display name, username, bio, and profile photo are visible to anyone with
+              your profile link.
             </LI>
             <LI>
               <strong>Service providers:</strong> We use third-party services (listed
@@ -368,16 +389,13 @@ export default function PrivacyPolicyPage() {
             the purpose of this Privacy Policy:
           </P>
           <div className="my-6 p-6 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-paper)]">
-            <p className="font-semibold text-[color:var(--color-ink)]">Rishi Sareen</p>
+            <p className="font-semibold text-[color:var(--color-ink)]">DA2 Support</p>
             <p className="text-sm text-[color:var(--color-ink-muted)] mt-1">
               Grievance Officer &amp; Data Protection Contact
             </p>
             <p className="text-sm text-[color:var(--color-ink-muted)]">
-              The Daily Athlete
-            </p>
-            <p className="text-sm text-[color:var(--color-ink-muted)]">
               Email:{" "}
-              <ExternalA href="mailto:rsareen@gmail.com">rsareen@gmail.com</ExternalA>
+              <ExternalA href="mailto:support@da2.coach">support@da2.coach</ExternalA>
             </p>
           </div>
           <P>

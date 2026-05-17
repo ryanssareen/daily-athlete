@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service — DA2",
-  description: "The terms under which you may use The Daily Athlete.",
+  description: "The terms under which you may use DA2.",
 };
 
 export default function TermsOfServicePage() {
@@ -12,17 +12,16 @@ export default function TermsOfServicePage() {
       <SiteHeader />
 
       <article className="mx-auto max-w-3xl px-6 py-16 lg:py-24 w-full">
-        <p className="eyebrow mb-3">Last updated: March 26, 2026</p>
+        <p className="eyebrow mb-3">Last updated: May 17, 2026</p>
         <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight leading-tight mb-10">
           Terms of Service
         </h1>
 
         <Section title="1. Acceptance of Terms">
           <P>
-            By accessing or using The Daily Athlete (&quot;the Service&quot;),
-            operated by Rishi Sareen, you agree to be bound by these Terms of Service
-            (&quot;Terms&quot;). If you do not agree to these Terms, do not use the
-            Service.
+            By accessing or using DA2 (&quot;the Service&quot;), you agree to be bound
+            by these Terms of Service (&quot;Terms&quot;). If you do not agree to these
+            Terms, do not use the Service.
           </P>
           <P>
             We reserve the right to modify these Terms at any time. Changes take
@@ -33,57 +32,115 @@ export default function TermsOfServicePage() {
 
         <Section title="2. Description of Service">
           <P>
-            The Daily Athlete is a multi-sport workout tracking platform that allows
-            you to:
+            DA2 is an AI-powered endurance training platform that generates personalized,
+            race-specific training plans and adapts them based on your actual workout
+            performance. The Service allows you to:
           </P>
           <UL>
             <LI>
-              Log and track workouts across multiple sports (running, cycling,
-              swimming, walking, strength training)
-            </LI>
-            <LI>Sync workout data from third-party services including Strava</LI>
-            <LI>
-              View training analytics, progress reports, and AI-generated insights
+              Create AI-generated periodized training plans for swim, bike, run, triathlon,
+              strength, and mobility events
             </LI>
             <LI>
-              Set goals, track personal records, and monitor training trends
+              Sync workout data from Strava and log workouts directly in the app
             </LI>
             <LI>
-              Share training summaries (weekly wraps, monthly reviews, yearly wrapped)
+              Have your plan automatically adapt weekly based on your actual performance
             </LI>
-            <LI>Import workout history from CSV/XLSX files</LI>
-            <LI>Receive AI-powered workout suggestions and coaching</LI>
+            <LI>
+              Invite coaches to view, edit, comment on, and collaborate on your plan
+            </LI>
+            <LI>
+              Receive AI-powered coaching insights and weekly plan adjustment
+              recommendations
+            </LI>
+            <LI>
+              View training analytics, progress reports, and performance metrics
+            </LI>
+            <LI>
+              Access your plan on iOS/Android mobile apps and via the web coach
+              experience
+            </LI>
           </UL>
         </Section>
 
         <Section title="3. Account Registration">
-          <P>To use the Service, you must create an account. You agree to:</P>
+          <P>
+            To use the Service, you must create an account as either an Athlete or Coach.
+            Athletes receive training plans; Coaches can view and collaborate on athlete
+            plans. You agree to:
+          </P>
           <UL>
-            <LI>Provide accurate and complete information during registration</LI>
+            <LI>
+              Provide accurate and complete information during registration and plan
+              creation (event type, date, fitness level, available weekly hours)
+            </LI>
             <LI>Maintain the security of your account credentials</LI>
             <LI>Notify us immediately of any unauthorized use of your account</LI>
             <LI>Accept responsibility for all activity under your account</LI>
             <LI>Not create multiple accounts or impersonate others</LI>
+            <LI>
+              If you are a Coach, only accept invitations from athletes who want your
+              collaboration
+            </LI>
           </UL>
-          <P>
-            Usernames must be 3–20 characters, lowercase letters, numbers, and
-            underscores only. We reserve the right to reject or reclaim usernames that
-            are offensive, misleading, or conflict with reserved words.
-          </P>
         </Section>
 
-        <Section title="4. Third-Party Integrations">
-          <H3>4.1 Strava</H3>
+        <Section title="4. Coach Collaboration">
+          <H3>4.1 Inviting Coaches</H3>
+          <P>
+            As an Athlete, you may invite Coaches to collaborate on your training plan.
+            When you invite a Coach:
+          </P>
+          <UL>
+            <LI>
+              The Coach gains access to your training plan, workouts, event info, and
+              athlete profile
+            </LI>
+            <LI>
+              The Coach can view, edit, and comment on your plan and suggest adjustments
+            </LI>
+            <LI>The Coach becomes a collaborator alongside the AI, not a replacement</LI>
+            <LI>You can revoke Coach access at any time</LI>
+            <LI>
+              Coach relationships are governed by separate agreements between you and
+              the Coach
+            </LI>
+          </UL>
+
+          <H3>4.2 Coach Responsibilities</H3>
+          <P>
+            If you are a Coach using this Service, you agree that you will not:
+          </P>
+          <UL>
+            <LI>Share an athlete&apos;s training plan, workouts, or data without permission</LI>
+            <LI>Provide medical advice or diagnose health conditions</LI>
+            <LI>
+              Make edits to plans that could cause injury or violate the athlete&apos;s
+              stated goals
+            </LI>
+            <LI>Use the Service to coach athletes without their explicit invitation</LI>
+          </UL>
+        </Section>
+
+        <Section title="5. Third-Party Integrations">
+          <H3>5.1 Strava</H3>
           <P>
             When you connect your Strava account, you authorize us to access your
             Strava activity data via the Strava API. Your use of Strava is governed by{" "}
             <ExternalA href="https://www.strava.com/legal/terms">
               Strava&apos;s Terms of Service
             </ExternalA>
-            . You may disconnect Strava at any time from your Settings page.
+            . We use Strava data to:
           </P>
+          <UL>
+            <LI>Import your past workout history</LI>
+            <LI>Sync new workouts automatically to update your plan</LI>
+            <LI>Provide accurate training metrics and analysis</LI>
+          </UL>
+          <P>You may disconnect Strava at any time from your Settings page.</P>
 
-          <H3>4.2 General</H3>
+          <H3>5.2 General</H3>
           <P>
             We are not responsible for the availability, accuracy, or functionality of
             third-party services. Third-party services may change their APIs, rate
@@ -92,7 +149,7 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="5. Acceptable Use">
+        <Section title="6. Acceptable Use">
           <P>You agree not to:</P>
           <UL>
             <LI>Use the Service for any unlawful purpose</LI>
@@ -116,7 +173,7 @@ export default function TermsOfServicePage() {
           </UL>
         </Section>
 
-        <Section title="6. User Content">
+        <Section title="7. User Content">
           <P>
             You retain ownership of all content you create or upload to the Service
             (workouts, notes, photos, comments). By using the Service, you grant us a
@@ -130,34 +187,40 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="7. AI Features">
+        <Section title="8. AI-Powered Training Plans">
           <P>
-            The Service includes AI-powered features (workout suggestions, training
-            reports, coaching insights) powered by third-party AI models
-            (Groq/LLaMA). You acknowledge that:
+            DA2 uses AI (powered by Groq/LLaMA) to generate and adapt your training plans.
+            You acknowledge that:
           </P>
           <UL>
             <LI>
-              AI-generated content is for informational purposes only and does not
-              constitute medical, fitness, or health advice
+              AI-generated training plans are for informational purposes and do not
+              constitute medical, fitness, or professional coaching advice
             </LI>
             <LI>
-              AI suggestions may not be appropriate for your specific health
-              conditions or fitness level
+              Plans may not be appropriate for your specific health conditions, injuries,
+              or fitness level
             </LI>
             <LI>
-              You should consult a qualified professional before starting any new
-              exercise program
+              You should consult a qualified fitness professional or physician before
+              starting any new training program
             </LI>
             <LI>
               We are not liable for any injury or harm resulting from following
-              AI-generated suggestions
+              AI-generated plans
             </LI>
-            <LI>AI outputs may contain errors or inaccuracies</LI>
+            <LI>
+              AI outputs may contain errors or generate plans that are not optimal for
+              your situation
+            </LI>
+            <LI>
+              You are responsible for reviewing your plan and making modifications as
+              needed
+            </LI>
           </UL>
         </Section>
 
-        <Section title="8. Service Availability">
+        <Section title="9. Service Availability">
           <P>
             The Service is provided &quot;as is&quot; and &quot;as available.&quot;
             We do not guarantee uninterrupted or error-free operation. We may:
@@ -173,23 +236,22 @@ export default function TermsOfServicePage() {
           </P>
           <UL>
             <LI>
-              <strong>Database:</strong> Shared daily read quota across all users
-              (currently 50,000 reads/day). During peak usage, some features may
-              temporarily show cached data or be unavailable.
+              <strong>Database:</strong> Shared daily read/write quota across all users.
+              During peak usage, some features may temporarily be unavailable.
             </LI>
             <LI>
-              <strong>AI Features:</strong> Workout suggestions and AI reports are
-              subject to third-party API rate limits (approximately 100,000
-              tokens/day). When limits are reached, AI features may be temporarily
-              unavailable.
-            </LI>
-            <LI>
-              <strong>Storage:</strong> Profile photos and backups are subject to
-              storage quotas. Large file uploads may be restricted.
+              <strong>AI Plan Generation &amp; Adaptation:</strong> Subject to
+              third-party API rate limits. When limits are reached, plan generation
+              or weekly adaptations may be temporarily delayed.
             </LI>
             <LI>
               <strong>Strava Sync:</strong> Subject to Strava&apos;s API rate limits
               (100 requests per 15 minutes, 1,000 per day per application).
+            </LI>
+            <LI>
+              <strong>Mobile Apps:</strong> Available on TestFlight (iOS) and Play
+              internal track (Android) during beta. Availability, features, and
+              functionality may change.
             </LI>
           </UL>
           <P>
@@ -200,7 +262,7 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="9. Account Termination">
+        <Section title="10. Account Termination">
           <P>
             We reserve the right to suspend or terminate your account if you violate
             these Terms, abuse the Service, or engage in activity that threatens other
@@ -216,12 +278,11 @@ export default function TermsOfServicePage() {
           </UL>
         </Section>
 
-        <Section title="10. Indemnification">
+        <Section title="11. Indemnification">
           <P>
-            You agree to indemnify, defend, and hold harmless The Daily Athlete, its
-            operator, and affiliates from any claims, damages, losses, liabilities,
-            costs, or expenses (including reasonable attorney&apos;s fees) arising
-            from:
+            You agree to indemnify, defend, and hold harmless DA2 and its team from any
+            claims, damages, losses, liabilities, costs, or expenses (including
+            reasonable attorney&apos;s fees) arising from:
           </P>
           <UL>
             <LI>Your use of the Service or violation of these Terms</LI>
@@ -237,24 +298,26 @@ export default function TermsOfServicePage() {
           </UL>
         </Section>
 
-        <Section title="11. Limitation of Liability">
+        <Section title="12. Limitation of Liability">
           <P>
-            To the maximum extent permitted by applicable law (including the Consumer
-            Protection Act, 2019 and the Indian Contract Act, 1872), The Daily
-            Athlete and its operator shall not be liable for any indirect, incidental,
-            special, consequential, or punitive damages arising from your use of the
-            Service, including but not limited to:
+            To the maximum extent permitted by applicable law, DA2 shall not be liable
+            for any indirect, incidental, special, consequential, or punitive damages
+            arising from your use of the Service, including but not limited to:
           </P>
           <UL>
-            <LI>Loss of data, workouts, or training history</LI>
+            <LI>Loss of data, training plans, workouts, or training history</LI>
             <LI>Inability to access the Service or third-party integrations</LI>
             <LI>
-              Injuries resulting from following workout suggestions or AI-generated
-              content
+              Injuries, illness, or harm resulting from following AI-generated training
+              plans
             </LI>
-            <LI>Inaccuracies in synced data from third-party services</LI>
+            <LI>Inaccuracies in synced data from Strava or other services</LI>
             <LI>
-              Unauthorized access to your account due to credential compromise
+              Unauthorized access to your account or coach relationships due to
+              credential compromise
+            </LI>
+            <LI>
+              Plan changes made by coaches or the AI that do not align with your goals
             </LI>
           </UL>
           <P>
@@ -263,7 +326,7 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="12. Disclaimer of Warranties">
+        <Section title="13. Disclaimer of Warranties">
           <P>
             The Service is provided &quot;as is&quot; and &quot;as available&quot;
             without warranties of any kind, express or implied, including but not
@@ -273,7 +336,7 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="13. Dispute Resolution">
+        <Section title="14. Dispute Resolution">
           <P>
             In the event of any dispute arising from or relating to these Terms or
             your use of the Service, the parties agree to the following resolution
@@ -283,7 +346,7 @@ export default function TermsOfServicePage() {
             <LI>
               <strong>Step 1 — Informal Resolution:</strong> You agree to first
               contact us at{" "}
-              <ExternalA href="mailto:rsareen@gmail.com">rsareen@gmail.com</ExternalA>{" "}
+              <ExternalA href="mailto:support@da2.coach">support@da2.coach</ExternalA>{" "}
               and attempt to resolve the dispute informally within 30 days.
             </LI>
             <LI>
@@ -307,27 +370,22 @@ export default function TermsOfServicePage() {
           </P>
         </Section>
 
-        <Section title="14. Governing Law & Jurisdiction">
+        <Section title="15. Governing Law &amp; Jurisdiction">
           <P>
-            These Terms shall be governed by and construed in accordance with the
-            laws of India, including the Information Technology Act, 2000, the Indian
-            Contract Act, 1872, and the Consumer Protection Act, 2019, without
-            regard to conflict of law principles. Subject to the dispute resolution
-            process above, any legal proceedings shall be brought exclusively in the
-            courts of New Delhi, India.
+            These Terms shall be governed by and construed in accordance with the laws
+            of the jurisdiction where DA2 is primarily operated. Subject to the dispute
+            resolution process above, any legal proceedings shall be brought in the
+            courts of that jurisdiction.
           </P>
         </Section>
 
-        <Section title="15. Contact">
+        <Section title="16. Contact">
           <P>If you have questions about these Terms, contact us at:</P>
           <div className="my-6 p-6 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-paper)]">
-            <p className="font-semibold text-[color:var(--color-ink)]">Rishi Sareen</p>
-            <p className="text-sm text-[color:var(--color-ink-muted)] mt-1">
-              The Daily Athlete
-            </p>
+            <p className="font-semibold text-[color:var(--color-ink)]">DA2 Support</p>
             <p className="text-sm text-[color:var(--color-ink-muted)]">
               Email:{" "}
-              <ExternalA href="mailto:rsareen@gmail.com">rsareen@gmail.com</ExternalA>
+              <ExternalA href="mailto:support@da2.coach">support@da2.coach</ExternalA>
             </p>
           </div>
           <P>
