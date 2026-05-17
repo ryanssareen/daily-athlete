@@ -137,6 +137,17 @@ a {
 /* ---------- Activity table rows -------------------------------------- */
 .activity-row:hover { background: var(--color-canvas-soft); }
 
+/* ---------- Workout detail 2-col layout ------------------------------ */
+.workout-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .workout-detail-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- Misc animations ------------------------------------------ */
 @keyframes spin {
   from { transform: rotate(0deg); }

@@ -136,5 +136,7 @@ function buildSummaryStats(activity: StravaActivity): Record<string, unknown> {
   if (activity.total_elevation_gain != null) stats.total_elevation_gain = activity.total_elevation_gain;
   if (activity.suffer_score != null) stats.suffer_score = activity.suffer_score;
   if (activity.name) stats.name = activity.name;
+  const poly = activity.map?.summary_polyline;
+  if (poly && poly.length > 0) stats.polyline = poly;
   return stats;
 }
