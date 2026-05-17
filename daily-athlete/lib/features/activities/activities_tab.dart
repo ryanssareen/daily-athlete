@@ -10,12 +10,10 @@ import '../shell/role_notifier.dart';
 
 /// Activities tab — the entry point for Unit 7 (R4–R9).
 ///
-/// - [activityId]: deep-link into a specific activity (reserved for router).
 /// - [athleteId]: coach mode — pre-selects a specific athlete's feed.
 class ActivitiesTab extends ConsumerWidget {
-  const ActivitiesTab({super.key, this.activityId, this.athleteId});
+  const ActivitiesTab({super.key, this.athleteId});
 
-  final String? activityId;
   final String? athleteId;
 
   @override

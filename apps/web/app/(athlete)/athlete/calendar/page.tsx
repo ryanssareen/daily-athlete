@@ -164,7 +164,8 @@ function PlannedChip({ p }: { p: PlannedRow }) {
 function CompletedChip({ w }: { w: WorkoutRow }) {
   const color = getSportColor(w.sport);
   return (
-    <div
+    <Link
+      href={`/athlete/workouts/${w.id}?from=calendar`}
       style={{
         borderLeft: `3px solid ${color}`,
         background: `color-mix(in oklab, ${color} 10%, var(--color-paper))`,
@@ -173,6 +174,7 @@ function CompletedChip({ w }: { w: WorkoutRow }) {
         display: "flex",
         flexDirection: "column",
         gap: 2,
+        textDecoration: "none",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -210,7 +212,7 @@ function CompletedChip({ w }: { w: WorkoutRow }) {
           )}
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 

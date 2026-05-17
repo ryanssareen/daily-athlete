@@ -135,5 +135,6 @@ function buildSummaryStats(activity: StravaActivity): Record<string, unknown> {
   if (activity.average_watts != null) stats.average_watts = activity.average_watts;
   if (activity.total_elevation_gain != null) stats.total_elevation_gain = activity.total_elevation_gain;
   if (activity.suffer_score != null) stats.suffer_score = activity.suffer_score;
+  if (activity.name) stats.name = activity.name;
   return stats;
 }

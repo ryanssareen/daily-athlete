@@ -1,217 +1,316 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activity_row.dart';
+import '../activities/workout_detail_provider.dart';
 
-/// Full activity detail screen (R7).
-/// Shows all summary_stats fields in a readable card layout.
-/// If summary_stats contains a non-null 'map_polyline' (encoded polyline),
-/// renders a flutter_map tile map with the GPS track decoded.
-class ActivityDetailScreen extends StatelessWidget {
-  const ActivityDetailScreen({super.key, required this.workout});
+// Keys that appear in named sections — excluded from the overflow card.
+const _namedKeys = {
+  'name',
+  'average_speed',
+  'max_speed',
+  'average_heartrate',
+  'max_heartrate',
+  'average_watts',
+  'max_watts',
+  'total_elevation_gain',
+  'suffer_score',
+  'average_cadence',
+  'map_polyline',
+};
+
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
+
+class ActivityDetailScreen extends ConsumerWidget {
+  const ActivityDetailScreen({
+    super.key,
+    required this.workoutId,
+    required this.from,
+  });
+
+  final String workoutId;
+  final String from;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workoutAsync = ref.watch(workoutDetailProvider(workoutId));
+
+    ref.listen(workoutDetailProvider(workoutId), (_, next) {
+      final hasError = next is AsyncError;
+      final notFound = next is AsyncData && next.value == null;
+      if (hasError || notFound) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load workout')),
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(_fallbackRoute(from));
+        }
+      }
+    });
+
+    return workoutAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => _navigateBack(context)),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => Scaffold(
+        appBar: AppBar(
+          leading: BackButton(onPressed: () => _navigateBack(context)),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      data: (workout) {
+        if (workout == null) {
+          return Scaffold(
+            appBar: AppBar(
+              leading: BackButton(onPressed: () => _navigateBack(context)),
+            ),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _DetailScaffold(workout: workout, from: from);
+      },
+    );
+  }
+
+  void _navigateBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(_fallbackRoute(from));
+    }
+  }
+
+  static String _fallbackRoute(String from) {
+    if (from == 'dashboard') return '/dashboard';
+    if (from == 'calendar') return '/calendar';
+    return '/activities';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Detail scaffold — only shown once data is loaded
+// ---------------------------------------------------------------------------
+
+class _DetailScaffold extends StatelessWidget {
+  const _DetailScaffold({required this.workout, required this.from});
 
   final CompletedWorkoutRow workout;
+  final String from;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final stats = workout.summaryStats;
-    final polyline = stats['map_polyline'] as String?;
+    final title = (workout.name?.isNotEmpty == true)
+        ? workout.name!
+        : workout.sport.displayName;
+    final backLabel = _backLabel(from);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(workout.name ?? workout.sport.displayName),
+        title: Text(title),
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(_ActivityDetailScreen_fallbackRoute(from));
+            }
+          },
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Sport + date header
-          Row(
-            children: [
-              Icon(
-                sportIcon(workout.sport),
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                workout.sport.displayName,
-                style: theme.textTheme.titleMedium,
-              ),
-              const Spacer(),
-              Text(
-                _formattedDateTime(workout.startedAt),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Key stats row
-          _KeyStatsRow(workout: workout),
+          _buildHeader(context),
           const SizedBox(height: 20),
-
-          // Map if polyline available (R7)
-          if (polyline != null && polyline.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                height: 240,
-                child: _ActivityMap(encodedPolyline: polyline),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // Full stats card
-          if (stats.isNotEmpty) _StatsCard(stats: stats),
+          _PrimaryStatsCard(workout: workout),
+          ..._buildSportSections(context),
+          _buildOverflow(context),
+          if (!workout.isStrava) _StravaConnectNote(),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  static String _formattedDateTime(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final min = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} $hour:$min $ampm';
+  static String _backLabel(String from) {
+    if (from == 'dashboard') return 'Dashboard';
+    if (from == 'calendar') return 'Calendar';
+    return 'Activities';
   }
-}
 
-// ---------------------------------------------------------------------------
-// Key stats row
-// ---------------------------------------------------------------------------
-
-class _KeyStatsRow extends StatelessWidget {
-  const _KeyStatsRow({required this.workout});
-  final CompletedWorkoutRow workout;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
-    final items = <({String label, String value})>[];
+    final dateTime = _formatDateTime(workout.startedAt.toLocal());
+    final sourceBadgeText =
+        workout.isStrava ? 'Strava' : 'Manual Entry';
 
-    if (workout.distanceM != null && workout.distanceM! > 0) {
-      final km = workout.distanceM! / 1000;
-      items.add((label: 'Distance', value: '${km.toStringAsFixed(2)} km'));
-    }
-    if (workout.durationS != null) {
-      items.add(
-        (label: 'Duration', value: _detailDuration(workout.durationS!)),
-      );
-    }
-
-    // Pace for run (min/km)
-    if (workout.sport == Sport.run &&
-        workout.distanceM != null &&
-        workout.distanceM! > 0 &&
-        workout.durationS != null) {
-      final paceSecPerKm = workout.durationS! / (workout.distanceM! / 1000);
-      final paceMin = paceSecPerKm ~/ 60;
-      final paceSec = (paceSecPerKm % 60).round().toString().padLeft(2, '0');
-      items.add((label: 'Pace', value: '$paceMin:$paceSec /km'));
-    }
-
-    if (items.isEmpty) return const SizedBox.shrink();
-
-    return Row(
-      children: items
-          .map(
-            (item) => Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  child: Column(
-                    children: [
-                      Text(
-                        item.value,
-                        style: theme.textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  static String _detailDuration(int seconds) {
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    final s = seconds % 60;
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m ${s}s';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Stats card — renders all summary_stats fields
-// ---------------------------------------------------------------------------
-
-class _StatsCard extends StatelessWidget {
-  const _StatsCard({required this.stats});
-  final Map<String, dynamic> stats;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Exclude map_polyline from the display (rendered above as a map).
-    final displayEntries = stats.entries
-        .where((e) => e.key != 'map_polyline' && e.value != null)
-        .toList();
-
-    if (displayEntries.isEmpty) return const SizedBox.shrink();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Text('Details', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 12),
-            ...displayEntries.map(
-              (e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _labelFor(e.key),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      _valueFor(e.value),
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500),
-                    ),
-                  ],
+            Icon(sportIcon(workout.sport), color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                workout.sport.displayName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          dateTime,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Chip(
+          label: Text(
+            sourceBadgeText,
+            style: const TextStyle(fontSize: 11),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildSportSections(BuildContext context) {
+    final stats = workout.summaryStats;
+    final isStrava = workout.isStrava;
+    final sport = workout.sport;
+    final widgets = <Widget>[];
+
+    if (!isStrava) return widgets;
+
+    // Heart rate
+    final avgHR = stats['average_heartrate'] as num?;
+    final maxHR = stats['max_heartrate'] as num?;
+    if (avgHR != null) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(
+        _SectionCard(
+          title: 'Heart Rate',
+          children: [
+            _StatRow(label: 'Avg HR', value: '${avgHR.round()} bpm'),
+            if (maxHR != null)
+              _StatRow(label: 'Max HR', value: '${maxHR.round()} bpm'),
+          ],
+        ),
+      );
+    }
+
+    // Power (bike only)
+    if (sport == Sport.bike) {
+      final avgWatts = stats['average_watts'] as num?;
+      if (avgWatts != null) {
+        widgets.add(const SizedBox(height: 16));
+        widgets.add(
+          _SectionCard(
+            title: 'Power',
+            children: [
+              _StatRow(label: 'Avg Power', value: '${avgWatts.round()} W'),
+            ],
+          ),
+        );
+      }
+    }
+
+    // Elevation (non-strength)
+    if (sport != Sport.strength) {
+      final elevation = stats['total_elevation_gain'] as num?;
+      if (elevation != null) {
+        widgets.add(const SizedBox(height: 16));
+        widgets.add(
+          _SectionCard(
+            title: 'Elevation',
+            children: [
+              _StatRow(label: 'Gain', value: '${elevation.round()} m'),
+            ],
+          ),
+        );
+      }
+    }
+
+    // Stroke rate (swim only)
+    if (sport == Sport.swim) {
+      final cadence = stats['average_cadence'] as num?;
+      if (cadence != null) {
+        widgets.add(const SizedBox(height: 16));
+        widgets.add(
+          _SectionCard(
+            title: 'Stroke Rate',
+            children: [
+              _StatRow(
+                label: 'Avg Stroke Rate',
+                value: '${cadence.round()} spm',
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    // Relative effort
+    final sufferScore = stats['suffer_score'] as num?;
+    if (sufferScore != null) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(
+        _SectionCard(
+          title: 'Effort',
+          children: [
+            _StatRow(
+              label: 'Relative Effort',
+              value: sufferScore.round().toString(),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  Widget _buildOverflow(BuildContext context) {
+    final overflowEntries = workout.summaryStats.entries
+        .where((e) => !_namedKeys.contains(e.key) && e.value != null)
+        .toList();
+
+    if (overflowEntries.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        _SectionCard(
+          title: 'More stats',
+          children: overflowEntries
+              .map(
+                (e) => _StatRow(
+                  label: _labelFor(e.key),
+                  value: _valueFor(e.value),
+                ),
+              )
+              .toList(),
+        ),
+      ],
     );
   }
 
@@ -228,85 +327,220 @@ class _StatsCard extends StatelessWidget {
     if (value is double) return value.toStringAsFixed(1);
     return value.toString();
   }
+
+  static String _formatDateTime(DateTime localDt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour = localDt.hour % 12 == 0 ? 12 : localDt.hour % 12;
+    final min = localDt.minute.toString().padLeft(2, '0');
+    final ampm = localDt.hour < 12 ? 'AM' : 'PM';
+    return '${months[localDt.month - 1]} ${localDt.day} · $hour:$min $ampm';
+  }
+}
+
+// Top-level helper so the back button lambda can call it without a `this`.
+String _ActivityDetailScreen_fallbackRoute(String from) {
+  if (from == 'dashboard') return '/dashboard';
+  if (from == 'calendar') return '/calendar';
+  return '/activities';
 }
 
 // ---------------------------------------------------------------------------
-// Map widget (R7)
+// Extension
 // ---------------------------------------------------------------------------
 
-class _ActivityMap extends StatelessWidget {
-  const _ActivityMap({required this.encodedPolyline});
-  final String encodedPolyline;
+extension on CompletedWorkoutRow {
+  bool get isStrava => source == CompletedWorkoutSource.strava;
+}
+
+// ---------------------------------------------------------------------------
+// Primary stats card
+// ---------------------------------------------------------------------------
+
+class _PrimaryStatsCard extends StatelessWidget {
+  const _PrimaryStatsCard({required this.workout});
+  final CompletedWorkoutRow workout;
 
   @override
   Widget build(BuildContext context) {
-    final points = _decodePolyline(encodedPolyline);
-    if (points.isEmpty) {
-      return const Center(child: Text('No GPS data'));
+    final sport = workout.sport;
+    final durationStr = workout.durationS != null
+        ? _detailDuration(workout.durationS!)
+        : '—';
+
+    // Distance: hidden for strength; meters for swim; km otherwise
+    String? distanceStr;
+    if (sport != Sport.strength) {
+      final m = workout.distanceM;
+      if (m != null && m > 0) {
+        distanceStr =
+            sport == Sport.swim ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1)} km';
+      } else {
+        distanceStr = '—';
+      }
     }
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCameraFit: CameraFit.coordinates(
-          coordinates: points,
-          padding: const EdgeInsets.all(16),
-        ),
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.none,
+    // Pace / speed
+    String? paceStr;
+    if (sport != Sport.strength && sport != Sport.mobility) {
+      final m = workout.distanceM;
+      final s = workout.durationS;
+      if (m != null && m > 0 && s != null && s > 0) {
+        if (sport == Sport.bike) {
+          final kmh = (m / 1000) / (s / 3600);
+          paceStr = '${kmh.toStringAsFixed(1)} km/h';
+        } else {
+          final unit = sport == Sport.swim ? 100.0 : 1000.0;
+          final ps = (s / m) * unit;
+          final pm = ps ~/ 60;
+          final ps2 = (ps % 60).round().toString().padLeft(2, '0');
+          final label = sport == Sport.swim ? '/100m' : '/km';
+          paceStr = '$pm:$ps2 $label';
+        }
+      }
+    }
+
+    final items = <({String label, String value})>[
+      (label: 'Duration', value: durationStr),
+      if (distanceStr != null) (label: 'Distance', value: distanceStr),
+      if (paceStr != null)
+        (label: sport == Sport.bike ? 'Speed' : 'Pace', value: paceStr),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        child: Row(
+          children: items
+              .map(
+                (item) => Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        item.value,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.label,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
         ),
       ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.da2.daily_athlete',
-        ),
-        PolylineLayer(
-          polylines: [
-            Polyline(
-              points: points,
-              strokeWidth: 3,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ],
-        ),
-      ],
     );
   }
 
-  /// Decodes a Google-encoded polyline string into a list of LatLng points.
-  /// Algorithm: https://developers.google.com/maps/documentation/utilities/polylinealgorithm
-  static List<LatLng> _decodePolyline(String encoded) {
-    final result = <LatLng>[];
-    int index = 0;
-    int lat = 0;
-    int lng = 0;
-
-    while (index < encoded.length) {
-      int shift = 0;
-      int resultLat = 0;
-      int b;
-      do {
-        if (index >= encoded.length) break;
-        b = encoded.codeUnitAt(index++) - 63;
-        resultLat |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      final dlat = (resultLat & 1) != 0 ? ~(resultLat >> 1) : (resultLat >> 1);
-      lat += dlat;
-
-      shift = 0;
-      int resultLng = 0;
-      do {
-        if (index >= encoded.length) break;
-        b = encoded.codeUnitAt(index++) - 63;
-        resultLng |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      final dlng = (resultLng & 1) != 0 ? ~(resultLng >> 1) : (resultLng >> 1);
-      lng += dlng;
-
-      result.add(LatLng(lat / 1e5, lng / 1e5));
+  static String _detailDuration(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    final sPad = s.toString().padLeft(2, '0');
+    if (h > 0) {
+      return '$h:${m.toString().padLeft(2, '0')}:$sPad';
     }
-    return result;
+    return '$m:$sPad';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section card
+// ---------------------------------------------------------------------------
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stat row (label + value)
+// ---------------------------------------------------------------------------
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Strava connect nudge (manual workouts only)
+// ---------------------------------------------------------------------------
+
+class _StravaConnectNote extends StatelessWidget {
+  const _StravaConnectNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          'Logged manually — connect Strava in Settings for detailed stats.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
   }
 }
