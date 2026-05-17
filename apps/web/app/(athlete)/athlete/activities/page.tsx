@@ -1,14 +1,10 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
-import { createAdminClient } from "@/db/admin";
-import { getAthleteWorkouts } from "@/db/roster";
-import type { WorkoutRow } from "@/db/workouts";
-
-type Props = {
-  params: Promise<{ id: string }>;
-};
+import { createClient } from "@/auth/server";
+import { getRecentWorkouts, type WorkoutRow } from "@/db/workouts";
 
 // ---------- Helpers -------------------------------------------------------
 
@@ -40,19 +36,19 @@ function getSportEmoji(sport: string): string {
   return "⚡";
 }
 
-function getMonthLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
 function formatDateFull(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function getMonthLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
     timeZone: "UTC",
   });
 }
@@ -76,35 +72,16 @@ function groupByMonth(workouts: WorkoutRow[]): { label: string; workouts: Workou
 
 // ---------- Page ----------------------------------------------------------
 
-export default async function AthleteDetailPage({ params }: Props) {
+export default async function AthleteActivitiesPage() {
   const session = await getUserWithRoles();
   if (!session) redirect("/sign-in");
 
-  const { id: athleteId } = await params;
-  const admin = createAdminClient();
-
-  // service-role: explicit user filter required (filtered by athlete_id)
-  const workouts = await getAthleteWorkouts(admin, athleteId, 30);
+  const supabase = await createClient();
+  const workouts = await getRecentWorkouts(supabase, session.user.id, 50);
   const groups = groupByMonth(workouts);
 
   return (
     <div style={{ maxWidth: 760 }}>
-      {/* Back link */}
-      <Link
-        href="/roster"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          color: "var(--color-ink-muted)",
-          marginBottom: 24,
-          fontWeight: 500,
-        }}
-      >
-        ← Back to roster
-      </Link>
-
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1
@@ -116,14 +93,15 @@ export default async function AthleteDetailPage({ params }: Props) {
             margin: 0,
           }}
         >
-          Athlete Activities
+          Activities
         </h1>
         <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
-          Last 30 completed workouts.
+          Your recent training sessions.
         </p>
       </div>
 
       {workouts.length === 0 ? (
+        /* Empty state */
         <div
           style={{
             background: "var(--color-paper)",
@@ -133,15 +111,60 @@ export default async function AthleteDetailPage({ params }: Props) {
             textAlign: "center",
           }}
         >
-          <p style={{ fontSize: 14, color: "var(--color-ink-muted)" }}>
-            No activities yet. The athlete hasn&apos;t logged any workouts.
+          <p
+            style={{
+              fontSize: 32,
+              marginBottom: 12,
+              lineHeight: 1,
+            }}
+          >
+            ⚡
           </p>
+          <p
+            style={{
+              fontSize: 16,
+              fontWeight: 500,
+              color: "var(--color-ink)",
+              marginBottom: 8,
+            }}
+          >
+            No activities yet
+          </p>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--color-ink-muted)",
+              marginBottom: 24,
+            }}
+          >
+            Connect Strava to sync your workouts automatically.
+          </p>
+          <Link
+            href={"/athlete/settings" as Route}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "9px 18px",
+              borderRadius: 999,
+              fontSize: 14,
+              fontWeight: 500,
+              background: "var(--color-ink)",
+              color: "var(--color-canvas)",
+            }}
+          >
+            Connect Strava
+          </Link>
         </div>
       ) : (
+        /* Activity list grouped by month */
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           {groups.map((group) => (
             <div key={group.label}>
-              <p className="eyebrow" style={{ marginBottom: 12 }}>
+              <p
+                className="eyebrow"
+                style={{ marginBottom: 12 }}
+              >
                 {group.label}
               </p>
               <div
@@ -166,6 +189,7 @@ export default async function AthleteDetailPage({ params }: Props) {
                           : "none",
                     }}
                   >
+                    {/* Sport emoji */}
                     <span
                       style={{
                         fontSize: 20,
@@ -177,6 +201,8 @@ export default async function AthleteDetailPage({ params }: Props) {
                     >
                       {getSportEmoji(w.sport)}
                     </span>
+
+                    {/* Sport + date */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
@@ -199,7 +225,9 @@ export default async function AthleteDetailPage({ params }: Props) {
                         {formatDateFull(w.started_at)}
                       </p>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+
+                    {/* Duration + distance */}
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
                       {w.duration_s != null && (
                         <p
                           style={{
@@ -225,6 +253,8 @@ export default async function AthleteDetailPage({ params }: Props) {
                         </p>
                       )}
                     </div>
+
+                    {/* Source badge */}
                     <span
                       style={{
                         flexShrink: 0,

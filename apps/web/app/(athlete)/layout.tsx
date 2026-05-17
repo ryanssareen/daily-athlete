@@ -1,8 +1,38 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { getUserWithRoles } from "@/auth/roles";
+import { AppNav } from "@/components/app-nav";
+
+function Wordmark() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 4px" }}>
+      <span
+        style={{
+          display: "inline-block",
+          width: 28,
+          height: 28,
+          borderRadius: "50%",
+          background:
+            "conic-gradient(from 220deg, var(--color-clay) 0deg, var(--color-pine) 180deg, var(--color-clay) 360deg)",
+          flexShrink: 0,
+        }}
+        aria-hidden="true"
+      />
+      <span
+        style={{
+          fontWeight: 600,
+          fontSize: 15,
+          letterSpacing: "-0.02em",
+          color: "var(--color-ink)",
+        }}
+      >
+        DA2
+      </span>
+    </div>
+  );
+}
 
 export default async function AthleteLayout({ children }: { children: ReactNode }) {
   const session = await getUserWithRoles();
@@ -13,24 +43,48 @@ export default async function AthleteLayout({ children }: { children: ReactNode 
     redirect("/roster");
   }
 
+  const cookieStore = await cookies();
+  const theme = cookieStore.get("da2-theme")?.value ?? "light";
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-canvas)" }}>
+      {/* Sidebar */}
       <aside
         style={{
           width: 220,
-          padding: 24,
-          borderRight: "1px solid var(--border)",
-          background: "var(--surface)",
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--color-paper)",
+          borderRight: "1px solid var(--color-border)",
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          overflowY: "auto",
         }}
       >
-        <h2 style={{ fontSize: 18, marginBottom: 24 }}>DA2 Athlete</h2>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <Link href="/athlete">Today</Link>
-          <Link href="/athlete/calendar">Calendar</Link>
-          <Link href="/athlete/profile">Profile</Link>
-        </nav>
+        {/* Wordmark */}
+        <div
+          style={{
+            padding: "20px 16px 16px",
+            borderBottom: "1px solid var(--color-border)",
+          }}
+        >
+          <Wordmark />
+        </div>
+
+        {/* Nav */}
+        <div style={{ flex: 1 }}>
+          <AppNav
+            role="athlete"
+            email={session.user.email ?? ""}
+            theme={theme}
+          />
+        </div>
       </aside>
-      <main style={{ flex: 1, padding: 32 }}>{children}</main>
+
+      {/* Main content */}
+      <main style={{ flex: 1, minWidth: 0, padding: 32 }}>{children}</main>
     </div>
   );
 }

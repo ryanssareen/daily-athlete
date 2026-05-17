@@ -122,3 +122,16 @@ a {
   border-color: var(--color-ink);
   background: var(--color-canvas-soft);
 }
+
+/* ---------- Dark theme ------------------------------------------------ */
+[data-theme="dark"] {
+  --color-canvas: #111009;
+  --color-canvas-soft: #18160f;
+  --color-paper: #1e1c14;
+  --color-ink: #f0ece3;
+  --color-ink-muted: #a09890;
+  --color-ink-subtle: #655f58;
+  --color-border: #2b2820;
+  --color-border-strong: #3a3628;
+  /* clay/pine stay — they're brand colors */
+}

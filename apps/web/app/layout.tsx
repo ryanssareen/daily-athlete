@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { cookies } from "next/headers";
 
 import "./globals.css";
 
@@ -12,9 +13,16 @@ export const metadata: Metadata = {
     "AI-paced training plans for runners, cyclists, swimmers, and triathletes. Coaches optional.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies();
+  const theme = cookieStore.get("da2-theme")?.value ?? "light";
+
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="en"
+      data-theme={theme}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
       <body>{children}</body>
     </html>
   );
