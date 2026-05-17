@@ -5,89 +5,145 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import { getRecentWorkouts, type WorkoutRow } from "@/db/workouts";
+import { formatDuration, formatDistance, formatPace } from "@/lib/format";
 
-// ---------- Helpers -------------------------------------------------------
+// ─── Sport config ────────────────────────────────────────────────────────────
 
-function formatDuration(s: number): string {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
-  return `${m}m`;
-}
-
-function formatDistance(m: number): string {
-  return `${(m / 1000).toFixed(1)} km`;
-}
-
-const sportEmoji: Record<string, string> = {
-  swim: "🏊",
-  bike: "🚴",
-  ride: "🚴",
-  run: "🏃",
-  strength: "💪",
-  mobility: "🧘",
+const SPORT_CONFIG: Record<string, { typeLabel: string; color: string; bg: string; emoji: string }> = {
+  run:      { typeLabel: "RUNNING",           color: "#c45a30", bg: "#f6e0d2", emoji: "🏃" },
+  swim:     { typeLabel: "POOL SWIM",         color: "#1a6891", bg: "#cde6f5", emoji: "🏊" },
+  bike:     { typeLabel: "CYCLING",           color: "#2d6b44", bg: "#c6ddd5", emoji: "🚴" },
+  ride:     { typeLabel: "CYCLING",           color: "#2d6b44", bg: "#c6ddd5", emoji: "🚴" },
+  strength: { typeLabel: "STRENGTH TRAINING", color: "#4a3a80", bg: "#d8d4ee", emoji: "🏋️" },
+  mobility: { typeLabel: "MOBILITY",          color: "#6b4c22", bg: "#ead9c4", emoji: "🧘" },
 };
 
-function getSportEmoji(sport: string): string {
-  const lower = sport.toLowerCase();
-  for (const [key, emoji] of Object.entries(sportEmoji)) {
-    if (lower.includes(key)) return emoji;
-  }
-  return "⚡";
+function getSportConfig(sport: string) {
+  return SPORT_CONFIG[sport.toLowerCase()] ?? {
+    typeLabel: sport.toUpperCase(),
+    color: "var(--color-ink-muted)",
+    bg: "var(--color-canvas-soft)",
+    emoji: "⚡",
+  };
 }
 
-function formatDateFull(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
+// ─── Activity name ────────────────────────────────────────────────────────────
+
+function getActivityName(w: WorkoutRow): string {
+  const s = w.summary_stats;
+  if (typeof s.name === "string" && s.name.trim()) return s.name.trim();
+  const cfg = getSportConfig(w.sport);
+  return cfg.typeLabel
+    .split(" ")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
-function getMonthLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+// ─── Stat columns ─────────────────────────────────────────────────────────────
+
+type Stat = { value: string; label: string };
+
+function getStats(w: WorkoutRow): Stat[] {
+  const s = w.summary_stats;
+  const avgHr = typeof s.average_heartrate === "number" ? Math.round(s.average_heartrate) : null;
+  const maxHr = typeof s.max_heartrate === "number" ? Math.round(s.max_heartrate) : null;
+  const avgSpeed = typeof s.average_speed === "number" ? s.average_speed : null; // m/s
+  const avgWatts = typeof s.average_watts === "number" ? Math.round(s.average_watts) : null;
+  const elevGain = typeof s.total_elevation_gain === "number" ? Math.round(s.total_elevation_gain) : null;
+  const sport = w.sport.toLowerCase();
+
+  if (sport === "run") return [
+    { value: formatDistance(w.distance_m, "run"), label: "DISTANCE" },
+    { value: formatDuration(w.duration_s), label: "TIME" },
+    { value: formatPace(w.distance_m, w.duration_s, "run") ?? "—", label: "AVG PACE" },
+    { value: avgHr != null ? `${avgHr} bpm` : "—", label: "AVG HR" },
+    { value: elevGain != null ? `${elevGain} m` : "—", label: "ELEVATION" },
+  ];
+
+  if (sport === "swim") return [
+    { value: formatDistance(w.distance_m, "swim"), label: "DISTANCE" },
+    { value: formatDuration(w.duration_s), label: "TIME" },
+    { value: formatPace(w.distance_m, w.duration_s, "swim") ?? "—", label: "AVG PACE" },
+    { value: avgHr != null ? `${avgHr} bpm` : "—", label: "AVG HR" },
+    { value: "—", label: "SWOLF" },
+  ];
+
+  if (sport === "bike" || sport === "ride") return [
+    { value: formatDistance(w.distance_m, "bike"), label: "DISTANCE" },
+    { value: formatDuration(w.duration_s), label: "TIME" },
+    { value: avgSpeed != null ? `${(avgSpeed * 3.6).toFixed(1)} km/h` : "—", label: "AVG SPEED" },
+    { value: avgWatts != null ? `${avgWatts} W` : "—", label: "AVG POWER" },
+    { value: avgHr != null ? `${avgHr} bpm` : "—", label: "AVG HR" },
+  ];
+
+  if (sport === "strength") return [
+    { value: formatDuration(w.duration_s), label: "TIME" },
+    { value: avgHr != null ? `${avgHr} bpm` : "—", label: "AVG HR" },
+    { value: maxHr != null ? `${maxHr} bpm` : "—", label: "MAX HR" },
+    { value: "—", label: "CALORIES" },
+    { value: "", label: "" },
+  ];
+
+  return [
+    { value: formatDistance(w.distance_m, sport), label: "DISTANCE" },
+    { value: formatDuration(w.duration_s), label: "TIME" },
+    { value: avgHr != null ? `${avgHr} bpm` : "—", label: "AVG HR" },
+    { value: "", label: "" },
+    { value: "", label: "" },
+  ];
 }
 
-function groupByMonth(workouts: WorkoutRow[]): { label: string; workouts: WorkoutRow[] }[] {
-  const groups: { label: string; workouts: WorkoutRow[] }[] = [];
-  const seen = new Map<string, number>();
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 
-  for (const w of workouts) {
-    const label = getMonthLabel(w.started_at);
-    if (seen.has(label)) {
-      groups[seen.get(label)!].workouts.push(w);
-    } else {
-      seen.set(label, groups.length);
-      groups.push({ label, workouts: [w] });
-    }
-  }
-
-  return groups;
+function fmtDay(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+function fmtYear(iso: string) {
+  return new Date(iso).getUTCFullYear().toString();
 }
 
-// ---------- Page ----------------------------------------------------------
+// ─── Filter tabs ──────────────────────────────────────────────────────────────
 
-export default async function AthleteActivitiesPage() {
+const TABS = [
+  { label: "All",      value: "" },
+  { label: "Run",      value: "run" },
+  { label: "Swim",     value: "swim" },
+  { label: "Bike",     value: "bike" },
+  { label: "Strength", value: "strength" },
+  { label: "Mobility", value: "mobility" },
+];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default async function AthleteActivitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sport?: string }>;
+}) {
   const session = await getUserWithRoles();
   if (!session) redirect("/sign-in");
 
+  const { sport: sportFilter } = await searchParams;
   const supabase = await createClient();
-  const workouts = await getRecentWorkouts(supabase, session.user.id, 50);
-  const groups = groupByMonth(workouts);
+  const workouts = await getRecentWorkouts(supabase, session.user.id, 100, sportFilter || undefined);
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 20,
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <h1
           style={{
-            fontSize: 28,
-            fontWeight: 600,
+            fontSize: 26,
+            fontWeight: 700,
             letterSpacing: "-0.02em",
             color: "var(--color-ink)",
             margin: 0,
@@ -95,201 +151,266 @@ export default async function AthleteActivitiesPage() {
         >
           Activities
         </h1>
-        <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
-          Your recent training sessions.
-        </p>
       </div>
 
+      {/* Sport filter tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+        {TABS.map((tab) => {
+          const active = (sportFilter ?? "") === tab.value;
+          const href = tab.value
+            ? (`/athlete/activities?sport=${tab.value}` as Route)
+            : ("/athlete/activities" as Route);
+          return (
+            <Link
+              key={tab.value}
+              href={href}
+              style={{
+                padding: "5px 14px",
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 500,
+                textDecoration: "none",
+                background: active ? "var(--color-ink)" : "var(--color-paper)",
+                color: active ? "var(--color-canvas)" : "var(--color-ink-muted)",
+                border: "1px solid",
+                borderColor: active ? "var(--color-ink)" : "var(--color-border)",
+              }}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Activity count */}
+      {workouts.length > 0 && (
+        <p
+          style={{
+            fontSize: 12,
+            color: "var(--color-ink-muted)",
+            marginBottom: 12,
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {workouts.length} {workouts.length === 1 ? "activity" : "activities"}
+        </p>
+      )}
+
+      {/* Table */}
       {workouts.length === 0 ? (
-        /* Empty state */
+        <EmptyState />
+      ) : (
         <div
           style={{
             background: "var(--color-paper)",
             border: "1px solid var(--color-border)",
             borderRadius: 16,
-            padding: "56px 40px",
-            textAlign: "center",
+            overflow: "hidden",
           }}
         >
-          <p
+          {/* Column header */}
+          <div
             style={{
-              fontSize: 32,
-              marginBottom: 12,
-              lineHeight: 1,
+              display: "grid",
+              gridTemplateColumns: "56px 36px 1fr repeat(5, minmax(80px, 100px))",
+              gap: 12,
+              padding: "8px 20px",
+              borderBottom: "1px solid var(--color-border)",
+              background: "var(--color-canvas-soft)",
             }}
           >
-            ⚡
-          </p>
-          <p
-            style={{
-              fontSize: 16,
-              fontWeight: 500,
-              color: "var(--color-ink)",
-              marginBottom: 8,
-            }}
-          >
-            No activities yet
-          </p>
-          <p
-            style={{
-              fontSize: 14,
-              color: "var(--color-ink-muted)",
-              marginBottom: 24,
-            }}
-          >
-            Connect Strava to sync your workouts automatically.
-          </p>
-          <Link
-            href={"/athlete/settings" as Route}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "9px 18px",
-              borderRadius: 999,
-              fontSize: 14,
-              fontWeight: 500,
-              background: "var(--color-ink)",
-              color: "var(--color-canvas)",
-            }}
-          >
-            Connect Strava
-          </Link>
-        </div>
-      ) : (
-        /* Activity list grouped by month */
-        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {groups.map((group) => (
-            <div key={group.label}>
-              <p
-                className="eyebrow"
-                style={{ marginBottom: 12 }}
-              >
-                {group.label}
-              </p>
-              <div
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "var(--color-ink-muted)" }}>DATE</div>
+            <div />
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "var(--color-ink-muted)" }}>ACTIVITY</div>
+            {["STAT 1", "STAT 2", "STAT 3", "STAT 4", "STAT 5"].map((_, i) => (
+              <div key={i} />
+            ))}
+          </div>
+
+          {workouts.map((w, i) => {
+            const cfg = getSportConfig(w.sport);
+            const stats = getStats(w);
+            const name = getActivityName(w);
+
+            return (
+              <Link
+                key={w.id}
+                href={`/athlete/workouts/${w.id}?from=activities` as Route}
                 style={{
-                  background: "var(--color-paper)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 16,
-                  overflow: "hidden",
+                  display: "grid",
+                  gridTemplateColumns: "56px 36px 1fr repeat(5, minmax(80px, 100px))",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "11px 20px",
+                  borderBottom: i < workouts.length - 1 ? "1px solid var(--color-border)" : "none",
+                  textDecoration: "none",
+                  color: "inherit",
+                  transition: "background 0.08s",
                 }}
+                className="activity-row"
               >
-                {group.workouts.map((w, i) => (
-                  <Link
-                    key={w.id}
-                    href={`/athlete/workouts/${w.id}?from=activities` as Route}
+                {/* Date */}
+                <div>
+                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      padding: "14px 20px",
-                      borderBottom:
-                        i < group.workouts.length - 1
-                          ? "1px solid var(--color-border)"
-                          : "none",
-                      textDecoration: "none",
-                      color: "inherit",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "var(--color-ink)",
+                      lineHeight: 1.25,
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    {/* Sport emoji */}
-                    <span
-                      style={{
-                        fontSize: 20,
-                        lineHeight: 1,
-                        width: 28,
-                        textAlign: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {getSportEmoji(w.sport)}
-                    </span>
+                    {fmtDay(w.started_at)}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--color-ink-muted)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {fmtYear(w.started_at)}
+                  </div>
+                </div>
 
-                    {/* Sport + date */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontWeight: 500,
-                          fontSize: 14,
-                          color: "var(--color-ink)",
-                          textTransform: "capitalize",
-                          margin: 0,
-                        }}
-                      >
-                        {w.sport}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "var(--color-ink-muted)",
-                          margin: 0,
-                        }}
-                      >
-                        {formatDateFull(w.started_at)}
-                      </p>
-                    </div>
+                {/* Sport icon */}
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: cfg.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    flexShrink: 0,
+                  }}
+                >
+                  {cfg.emoji}
+                </div>
 
-                    {/* Duration + distance */}
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      {w.duration_s != null && (
-                        <p
+                {/* Name + type */}
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "var(--color-ink)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.05em",
+                      color: cfg.color,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {cfg.typeLabel}
+                  </div>
+                </div>
+
+                {/* Stat columns */}
+                {stats.map((stat, si) => (
+                  <div key={si} style={{ textAlign: "right" }}>
+                    {stat.value ? (
+                      <>
+                        <div
                           style={{
-                            fontFamily: "var(--font-mono)",
                             fontSize: 13,
-                            color: "var(--color-ink)",
-                            margin: 0,
-                          }}
-                        >
-                          {formatDuration(w.duration_s)}
-                        </p>
-                      )}
-                      {w.distance_m != null && w.distance_m > 0 && (
-                        <p
-                          style={{
+                            fontWeight: 500,
                             fontFamily: "var(--font-mono)",
-                            fontSize: 12,
-                            color: "var(--color-ink-muted)",
-                            margin: 0,
+                            color: "var(--color-ink)",
+                            lineHeight: 1.25,
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          {formatDistance(w.distance_m)}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Source badge */}
-                    <span
-                      style={{
-                        flexShrink: 0,
-                        padding: "3px 8px",
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 500,
-                        fontFamily: "var(--font-mono)",
-                        background:
-                          w.source === "strava"
-                            ? "color-mix(in oklab, var(--color-clay) 15%, transparent)"
-                            : "var(--color-canvas-soft)",
-                        color:
-                          w.source === "strava"
-                            ? "var(--color-clay-deep)"
-                            : "var(--color-ink-muted)",
-                        border:
-                          w.source === "strava"
-                            ? "1px solid color-mix(in oklab, var(--color-clay) 30%, transparent)"
-                            : "1px solid var(--color-border)",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {w.source}
-                    </span>
-                  </Link>
+                          {stat.value}
+                        </div>
+                        {stat.label && (
+                          <div
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              color: "var(--color-ink-muted)",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {stat.label}
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
                 ))}
-              </div>
-            </div>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyState() {
+  return (
+    <div
+      style={{
+        background: "var(--color-paper)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 16,
+        padding: "56px 40px",
+        textAlign: "center",
+      }}
+    >
+      <p style={{ fontSize: 32, marginBottom: 12, lineHeight: 1 }}>⚡</p>
+      <p
+        style={{
+          fontSize: 16,
+          fontWeight: 500,
+          color: "var(--color-ink)",
+          marginBottom: 8,
+        }}
+      >
+        No activities yet
+      </p>
+      <p
+        style={{
+          fontSize: 14,
+          color: "var(--color-ink-muted)",
+          marginBottom: 24,
+        }}
+      >
+        Connect Strava to sync your workouts automatically.
+      </p>
+      <Link
+        href={"/athlete/settings" as Route}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "9px 18px",
+          borderRadius: 999,
+          fontSize: 14,
+          fontWeight: 500,
+          background: "var(--color-ink)",
+          color: "var(--color-canvas)",
+          textDecoration: "none",
+        }}
+      >
+        Connect Strava
+      </Link>
     </div>
   );
 }

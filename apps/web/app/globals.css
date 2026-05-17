@@ -134,6 +134,9 @@ a {
   border-radius: 4px;
 }
 
+/* ---------- Activity table rows -------------------------------------- */
+.activity-row:hover { background: var(--color-canvas-soft); }
+
 /* ---------- Misc animations ------------------------------------------ */
 @keyframes spin {
   from { transform: rotate(0deg); }

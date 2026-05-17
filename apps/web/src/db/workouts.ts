@@ -9,6 +9,7 @@ export interface WorkoutRow {
   duration_s: number | null;
   distance_m: number | null;
   source: string;
+  summary_stats: Record<string, unknown>;
 }
 
 export interface WorkoutDetailRow {
@@ -71,13 +72,18 @@ export async function getWorkoutById(
 export async function getRecentWorkouts(
   supabase: SupabaseClient,
   athleteId: string,
-  limit = 20
+  limit = 20,
+  sport?: string
 ): Promise<WorkoutRow[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("completed_workouts")
-    .select("id, started_at, sport, duration_s, distance_m, source")
+    .select("id, started_at, sport, duration_s, distance_m, source, summary_stats")
     .eq("athlete_id", athleteId)
-    .is("deleted_at", null)
+    .is("deleted_at", null);
+
+  if (sport) query = query.eq("sport", sport);
+
+  const { data, error } = await query
     .order("started_at", { ascending: false })
     .limit(limit);
 
