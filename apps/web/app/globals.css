@@ -123,6 +123,17 @@ a {
   background: var(--color-canvas-soft);
 }
 
+/* ---------- Skeleton loading ----------------------------------------- */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.skeleton {
+  background: var(--color-border);
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+  border-radius: 4px;
+}
+
 /* ---------- Dark theme ------------------------------------------------ */
 [data-theme="dark"] {
   --color-canvas: #111009;
