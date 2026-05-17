@@ -50,7 +50,7 @@ class ActivityDetailScreen extends ConsumerWidget {
         if (context.canPop()) {
           context.pop();
         } else {
-          context.go(_fallbackRoute(from));
+          context.go(_backRouteFor(from));
         }
       }
     });
@@ -62,7 +62,7 @@ class ActivityDetailScreen extends ConsumerWidget {
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (_, __) => Scaffold(
+      error: (_, _) => Scaffold(
         appBar: AppBar(
           leading: BackButton(onPressed: () => _navigateBack(context)),
         ),
@@ -86,14 +86,8 @@ class ActivityDetailScreen extends ConsumerWidget {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go(_fallbackRoute(from));
+      context.go(_backRouteFor(from));
     }
-  }
-
-  static String _fallbackRoute(String from) {
-    if (from == 'dashboard') return '/dashboard';
-    if (from == 'calendar') return '/calendar';
-    return '/activities';
   }
 }
 
@@ -112,8 +106,6 @@ class _DetailScaffold extends StatelessWidget {
     final title = (workout.name?.isNotEmpty == true)
         ? workout.name!
         : workout.sport.displayName;
-    final backLabel = _backLabel(from);
-
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -122,7 +114,7 @@ class _DetailScaffold extends StatelessWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go(_ActivityDetailScreen_fallbackRoute(from));
+              context.go(_backRouteFor(from));
             }
           },
         ),
@@ -140,12 +132,6 @@ class _DetailScaffold extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _backLabel(String from) {
-    if (from == 'dashboard') return 'Dashboard';
-    if (from == 'calendar') return 'Calendar';
-    return 'Activities';
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -340,8 +326,7 @@ class _DetailScaffold extends StatelessWidget {
   }
 }
 
-// Top-level helper so the back button lambda can call it without a `this`.
-String _ActivityDetailScreen_fallbackRoute(String from) {
+String _backRouteFor(String from) {
   if (from == 'dashboard') return '/dashboard';
   if (from == 'calendar') return '/calendar';
   return '/activities';
