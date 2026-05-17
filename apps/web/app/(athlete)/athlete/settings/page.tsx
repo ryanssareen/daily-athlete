@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -7,14 +6,17 @@ import { createClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { getAthleteCoach } from "@/db/roster";
+import { StravaToggle } from "@/components/strava-toggle";
 
 // ---------- Sub-components ------------------------------------------------
 
 function SectionCard({
   title,
+  description,
   children,
 }: {
   title: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -24,7 +26,8 @@ function SectionCard({
         border: "1px solid var(--color-border)",
         borderRadius: 16,
         overflow: "hidden",
-        marginBottom: 20,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
@@ -34,8 +37,19 @@ function SectionCard({
         }}
       >
         <p className="eyebrow">{title}</p>
+        {description && (
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--color-ink-muted)",
+              margin: "4px 0 0",
+            }}
+          >
+            {description}
+          </p>
+        )}
       </div>
-      <div style={{ padding: "20px 24px" }}>{children}</div>
+      <div style={{ padding: "20px 24px", flex: 1 }}>{children}</div>
     </div>
   );
 }
@@ -60,7 +74,7 @@ export default async function AthleteSettingsPage() {
   ]);
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: 1080, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1
@@ -75,215 +89,195 @@ export default async function AthleteSettingsPage() {
           Settings
         </h1>
         <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
-          Manage your account and integrations.
+          Manage your account, integrations, and preferences.
         </p>
       </div>
 
-      {/* Appearance */}
-      <SectionCard title="Appearance">
-        <p style={{ fontSize: 14, color: "var(--color-ink-muted)", marginBottom: 14 }}>
-          Choose your preferred color theme.
-        </p>
-        <div style={{ display: "flex", gap: 10 }}>
-          {(["light", "dark"] as const).map((t) => {
-            const isActive = theme === t;
-            return (
-              <form key={t} action="/api/theme" method="post">
-                <input type="hidden" name="theme" value={t} />
-                <button
-                  type="submit"
+      {/* 2-column grid on wide screens */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+          gap: 20,
+          alignItems: "stretch",
+        }}
+      >
+        {/* Appearance */}
+        <SectionCard
+          title="Appearance"
+          description="Choose your preferred color theme."
+        >
+          <div style={{ display: "flex", gap: 10 }}>
+            {(["light", "dark"] as const).map((t) => {
+              const isActive = theme === t;
+              return (
+                <form key={t} action="/api/theme" method="post" style={{ flex: 1 }}>
+                  <input type="hidden" name="theme" value={t} />
+                  <button
+                    type="submit"
+                    style={{
+                      width: "100%",
+                      padding: "10px 18px",
+                      borderRadius: 12,
+                      fontSize: 14,
+                      fontWeight: isActive ? 600 : 400,
+                      cursor: "pointer",
+                      border: isActive
+                        ? "2px solid var(--color-clay)"
+                        : "1px solid var(--color-border)",
+                      background: isActive
+                        ? "var(--color-clay-soft)"
+                        : "transparent",
+                      color: isActive
+                        ? "var(--color-clay-deep)"
+                        : "var(--color-ink-muted)",
+                      transition: "all 120ms ease",
+                    }}
+                  >
+                    {t === "light" ? "☀️ Light" : "🌙 Dark"}
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+        </SectionCard>
+
+        {/* Strava */}
+        <SectionCard
+          title="Strava"
+          description="Sync your workouts automatically after every activity."
+        >
+          <StravaToggle initialConnected={stravaConnected} />
+        </SectionCard>
+
+        {/* Coach */}
+        <SectionCard
+          title="Coach"
+          description="Your linked training partner."
+        >
+          {coach ? (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "12px 16px",
+                  background: "var(--color-canvas-soft)",
+                  borderRadius: 10,
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <div
                   style={{
-                    padding: "8px 18px",
-                    borderRadius: 999,
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "var(--color-pine)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
                     fontSize: 14,
-                    fontWeight: isActive ? 600 : 400,
-                    cursor: "pointer",
-                    border: isActive
-                      ? "2px solid var(--color-clay)"
-                      : "1px solid var(--color-border)",
-                    background: isActive ? "var(--color-clay-soft)" : "transparent",
-                    color: isActive ? "var(--color-clay-deep)" : "var(--color-ink-muted)",
-                    transition: "all 120ms ease",
+                    fontWeight: 600,
+                    flexShrink: 0,
                   }}
                 >
-                  {t === "light" ? "☀️ Light" : "🌙 Dark"}
-                </button>
-              </form>
-            );
-          })}
-        </div>
-      </SectionCard>
+                  {coach.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p
+                    style={{
+                      fontWeight: 500,
+                      fontSize: 14,
+                      color: "var(--color-ink)",
+                      margin: 0,
+                    }}
+                  >
+                    {coach.displayName}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 13,
+                      color: "var(--color-ink-muted)",
+                      margin: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {coach.email}
+                  </p>
+                </div>
+              </div>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--color-ink-subtle)",
+                  marginTop: 10,
+                  marginBottom: 0,
+                }}
+              >
+                To remove this coach link, contact {coach.displayName} directly.
+              </p>
+            </div>
+          ) : (
+            <p style={{ fontSize: 14, color: "var(--color-ink-muted)", margin: 0 }}>
+              No coach linked. Ask your coach to invite you &mdash; they&apos;ll send
+              you a link to connect.
+            </p>
+          )}
+        </SectionCard>
 
-      {/* Strava */}
-      <SectionCard title="Strava">
-        {stravaConnected ? (
+        {/* Account */}
+        <SectionCard
+          title="Account"
+          description="Your signed-in identity and session."
+        >
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
+              flexDirection: "column",
+              gap: 16,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span
+            <div>
+              <p className="eyebrow" style={{ marginBottom: 4 }}>
+                Email
+              </p>
+              <p
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "var(--color-pine)",
-                  display: "inline-block",
+                  fontSize: 15,
+                  color: "var(--color-ink)",
+                  margin: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
-              />
-              <p style={{ fontSize: 14, color: "var(--color-ink)", margin: 0, fontWeight: 500 }}>
-                Connected to Strava
+              >
+                {email}
               </p>
             </div>
-            <form action="/api/integrations/strava/disconnect" method="post">
+            <form action="/auth/sign-out" method="post">
               <button
                 type="submit"
                 style={{
-                  padding: "7px 16px",
+                  padding: "8px 18px",
                   borderRadius: 999,
                   fontSize: 13,
                   fontWeight: 500,
                   cursor: "pointer",
-                  border: "1px solid var(--color-danger)",
+                  border: "1px solid var(--color-border-strong)",
                   background: "transparent",
-                  color: "var(--color-danger)",
+                  color: "var(--color-ink-muted)",
                 }}
               >
-                Disconnect
+                Sign out
               </button>
             </form>
           </div>
-        ) : (
-          <div>
-            <p style={{ fontSize: 14, color: "var(--color-ink-muted)", marginBottom: 14 }}>
-              Connect Strava to sync your workouts automatically after every activity.
-            </p>
-            <Link
-              href="/api/integrations/strava/authorize"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "9px 18px",
-                borderRadius: 999,
-                fontSize: 14,
-                fontWeight: 500,
-                background: "#FC4C02",
-                color: "#fff",
-              }}
-            >
-              Connect Strava
-            </Link>
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Coach */}
-      <SectionCard title="Coach">
-        {coach ? (
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-                padding: "12px 16px",
-                background: "var(--color-canvas-soft)",
-                borderRadius: 10,
-                border: "1px solid var(--color-border)",
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "var(--color-pine)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  flexShrink: 0,
-                }}
-              >
-                {coach.displayName.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p
-                  style={{
-                    fontWeight: 500,
-                    fontSize: 14,
-                    color: "var(--color-ink)",
-                    margin: 0,
-                  }}
-                >
-                  {coach.displayName}
-                </p>
-                <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: 0 }}>
-                  {coach.email}
-                </p>
-              </div>
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--color-ink-subtle)",
-                marginTop: 12,
-              }}
-            >
-              To remove this coach link, contact {coach.displayName} directly.
-            </p>
-          </div>
-        ) : (
-          <p style={{ fontSize: 14, color: "var(--color-ink-muted)" }}>
-            No coach linked. Ask your coach to invite you — they&apos;ll send you a link to connect.
-          </p>
-        )}
-      </SectionCard>
-
-      {/* Account */}
-      <SectionCard title="Account">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div>
-            <p className="eyebrow" style={{ marginBottom: 2 }}>
-              Email
-            </p>
-            <p style={{ fontSize: 15, color: "var(--color-ink)", margin: 0 }}>{email}</p>
-          </div>
-          <form action="/auth/sign-out" method="post">
-            <button
-              type="submit"
-              style={{
-                padding: "7px 16px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: "pointer",
-                border: "1px solid var(--color-border-strong)",
-                background: "transparent",
-                color: "var(--color-ink-muted)",
-              }}
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      </div>
     </div>
   );
 }

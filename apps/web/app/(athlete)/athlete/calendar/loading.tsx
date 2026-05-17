@@ -1,6 +1,6 @@
 export default function CalendarLoading() {
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto" }}>
       {/* Header skeleton */}
       <div
         style={{
@@ -11,8 +11,8 @@ export default function CalendarLoading() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="skeleton" style={{ width: 160, height: 28 }} />
-          <div className="skeleton" style={{ width: 120, height: 14 }} />
+          <div className="skeleton" style={{ width: 200, height: 28 }} />
+          <div className="skeleton" style={{ width: 140, height: 14 }} />
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8 }} />
@@ -27,7 +27,7 @@ export default function CalendarLoading() {
           border: "1px solid var(--color-border)",
           borderRadius: 14,
           overflow: "hidden",
-          marginBottom: 20,
+          marginBottom: 24,
           background: "var(--color-border)",
         }}
       >
@@ -38,7 +38,7 @@ export default function CalendarLoading() {
               key={i}
               style={{
                 background: "var(--color-canvas-soft)",
-                padding: "10px 10px 9px",
+                padding: "12px 12px 10px",
                 borderBottom: "1px solid var(--color-border)",
               }}
             >
@@ -55,8 +55,8 @@ export default function CalendarLoading() {
               key={i}
               style={{
                 background: "var(--color-paper)",
-                minHeight: 180,
-                padding: "8px 6px",
+                minHeight: 200,
+                padding: "10px 8px",
                 display: "flex",
                 flexDirection: "column",
                 gap: 4,
@@ -73,26 +73,64 @@ export default function CalendarLoading() {
         </div>
       </div>
 
-      {/* Stats skeleton */}
-      <div style={{ display: "flex", gap: 10 }}>
-        {[80, 100, 90].map((w, i) => (
+      {/* Analytics rail */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
+          gap: 20,
+          alignItems: "start",
+        }}
+      >
+        <div>
+          <div className="skeleton" style={{ width: 110, height: 11, marginBottom: 10 }} />
           <div
-            key={i}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: "var(--color-paper)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 12,
+                  padding: "14px 18px",
+                  minHeight: 84,
+                }}
+              >
+                <div className="skeleton" style={{ width: 70, height: 10, marginBottom: 6 }} />
+                <div className="skeleton" style={{ width: 80, height: 22, marginBottom: 4 }} />
+                <div className="skeleton" style={{ width: 50, height: 10 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="skeleton" style={{ width: 70, height: 11, marginBottom: 10 }} />
+          <div
             style={{
               background: "var(--color-paper)",
               border: "1px solid var(--color-border)",
-              borderRadius: 10,
-              padding: "10px 16px",
+              borderRadius: 12,
+              padding: "16px 18px",
               display: "flex",
               flexDirection: "column",
-              gap: 4,
+              gap: 12,
             }}
           >
-            <div className="skeleton" style={{ width: w * 0.6, height: 10 }} />
-            <div className="skeleton" style={{ width: w, height: 24 }} />
-            <div className="skeleton" style={{ width: 50, height: 10 }} />
+            {[0, 1, 2].map((i) => (
+              <div key={i}>
+                <div className="skeleton" style={{ width: "60%", height: 12, marginBottom: 6 }} />
+                <div className="skeleton" style={{ width: "100%", height: 6, borderRadius: 999 }} />
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
