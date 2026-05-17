@@ -8,7 +8,13 @@ import { ArrowLeft, Mail } from "lucide-react";
 
 import { createClient } from "@/auth/supabase";
 
-const REDIRECT_PATH = "/athlete/onboarding";
+const DEFAULT_REDIRECT = "/athlete/onboarding";
+
+function getRedirectPath(): string {
+  if (typeof window === "undefined") return DEFAULT_REDIRECT;
+  const raw = new URLSearchParams(window.location.search).get("next") ?? "";
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : DEFAULT_REDIRECT;
+}
 
 type Status = "idle" | "sending" | "sent" | "error";
 
@@ -23,19 +29,20 @@ export default function AthleteSignUpPage() {
     setStatus("sending");
     setErrorMsg(null);
     const supabase = createClient();
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = window.location.origin;
+    const redirectPath = getRedirectPath();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(REDIRECT_PATH)}`,
+        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     });
     if (error) {
       setErrorMsg(error.message);
       setStatus("error");
     } else if (data.session) {
-      window.location.href = REDIRECT_PATH;
+      window.location.href = redirectPath;
     } else {
       setStatus("sent");
     }
@@ -44,11 +51,12 @@ export default function AthleteSignUpPage() {
   const onGoogleClick = async () => {
     setErrorMsg(null);
     const supabase = createClient();
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = window.location.origin;
+    const redirectPath = getRedirectPath();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(REDIRECT_PATH)}`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     });
     if (error) {

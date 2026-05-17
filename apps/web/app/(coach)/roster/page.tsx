@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { getCoachRoster, type AthleteEntry } from "@/db/roster";
+import InviteSection from "./InviteSection";
 
 // ---------- Helpers -------------------------------------------------------
 
@@ -131,6 +132,8 @@ export default async function RosterPage() {
 
   return (
     <div style={{ maxWidth: 900 }}>
+      <InviteSection coachId={session.user.id} />
+
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1
