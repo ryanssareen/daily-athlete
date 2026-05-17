@@ -58,18 +58,14 @@ async function disconnect(request: Request): Promise<NextResponse> {
   const admin = createAdminClient();
 
   // 2. Look up the current strava_tokens row to get the access token for
-  //    the deauthorize call. We read the raw (encrypted) row; the actual
-  //    Strava deauthorize call needs the decrypted token. However, to keep
-  //    this route self-contained and avoid duplicating the decrypt path, we
-  //    call Strava deauthorize using the token fetched via a dedicated helper.
-  //    See note below on deauthorize failure handling.
+  //    the Strava deauthorize call (we decrypt it below before calling Strava).
+  //    strava_tokens has no deleted_at column — filter by user_id only.
   //
   // service-role: explicit user filter required
   const { data: tokenRow, error: lookupErr } = await admin
     .from("strava_tokens")
     .select("user_id, access_token_enc, key_version")
     .eq("user_id", user.id)
-    .is("deleted_at", null)
     .maybeSingle<{
       user_id: string;
       access_token_enc: unknown;
@@ -96,20 +92,19 @@ async function disconnect(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  // 3. Soft-delete the local row. Per AGENTS.md convention and the plan spec,
-  //    we SOFT-DELETE only (set deleted_at = now()); we do NOT hard-delete.
-  //    This preserves the audit trail and allows recovery if needed.
+  // 3. Hard-delete the row. strava_tokens has no deleted_at column and tokens
+  //    carry no historical value — removing them fully is correct and lets
+  //    hasStravaToken() return false immediately after disconnect.
   //
   // service-role: explicit user filter required
   const { error: deleteErr } = await admin
     .from("strava_tokens")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("user_id", user.id)
-    .is("deleted_at", null);
+    .delete()
+    .eq("user_id", user.id);
 
   if (deleteErr) {
     logEvent({
-      name: "soft_delete_failed",
+      name: "delete_failed",
       user_id: user.id,
       success: false,
       code: "internal_error",
