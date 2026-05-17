@@ -3,7 +3,7 @@
 // The route depends on:
 // - @/auth/server.createClient (JWT SSR client) + resolveAuth (Bearer header)
 // - @/db/admin.createAdminClient (service-role) for strava_tokens writes
-// - inngest.send (event queue dispatch)
+// - next/server.after (schedules runBackfillForUser post-response)
 // - exchangeAuthorizationCode -> Strava /oauth/token (msw'd)
 // - verifyState() against the server-signed nonce minted in test setup
 //
@@ -54,7 +54,7 @@ const mocks = vi.hoisted(() => {
       // instead of writing.
       nextUpsertError?: { code: string; message: string; details?: string } | null;
     },
-    inngestSend: vi.fn(),
+    runBackfillForUser: vi.fn(),
   };
 });
 
@@ -90,10 +90,14 @@ vi.mock("@/db/admin", () => ({
   createAdminClient: () => makeAdminFake(),
 }));
 
-vi.mock("@/inngest/client", () => ({
-  inngest: {
-    send: mocks.inngestSend,
-  },
+// after() executes the callback synchronously so runBackfillForUser assertions work
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, after: vi.fn((fn: () => unknown) => fn()) };
+});
+
+vi.mock("@/strava/run-backfill", () => ({
+  runBackfillForUser: mocks.runBackfillForUser,
 }));
 
 function makeAdminFake() {
@@ -182,8 +186,8 @@ beforeEach(() => {
     ownerLookup: new Map(),
     nextUpsertError: null,
   };
-  mocks.inngestSend.mockReset();
-  mocks.inngestSend.mockResolvedValue({ ids: ["evt_1"] });
+  mocks.runBackfillForUser.mockReset();
+  mocks.runBackfillForUser.mockResolvedValue(undefined);
 });
 
 afterEach(() => server.resetHandlers());
@@ -282,7 +286,7 @@ describe("POST /api/integrations/strava/connect", () => {
     expect(mocks.lastBearerToken).toBe("test-jwt");
   });
 
-  it("on happy path: persists encrypted tokens (BYTEA hex string), enqueues backfill, returns 202", async () => {
+  it("on happy path: persists encrypted tokens (BYTEA hex string), schedules backfill, returns 202", async () => {
     mocks.authUser = { id: "user-happy" };
     mockState.authorize.push({
       kind: "ok",
@@ -328,11 +332,8 @@ describe("POST /api/integrations/strava/connect", () => {
       Buffer.from("access-1").toString("hex")
     );
 
-    // Backfill event enqueued.
-    expect(mocks.inngestSend).toHaveBeenCalledWith({
-      name: "strava/backfill.start",
-      data: { user_id: "user-happy" },
-    });
+    // Backfill scheduled via after().
+    expect(mocks.runBackfillForUser).toHaveBeenCalledWith("user-happy");
   });
 
   it("happy path: same-user reconnect (owner exists with same user_id) -> upsert succeeds (T-03)", async () => {
@@ -375,7 +376,7 @@ describe("POST /api/integrations/strava/connect", () => {
 
     // Critically: the original owner's row is NOT overwritten.
     expect(mocks.adminFake!.tokensByUser.get("user-collider")).toBeUndefined();
-    expect(mocks.inngestSend).not.toHaveBeenCalled();
+    expect(mocks.runBackfillForUser).not.toHaveBeenCalled();
   });
 
   it("returns 409 strava_account_already_linked when the upsert hits Postgres 23505 unique_violation (race)", async () => {
@@ -403,7 +404,7 @@ describe("POST /api/integrations/strava/connect", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("strava_account_already_linked");
     expect(mocks.adminFake!.tokensByUser.get("user-race-loser")).toBeUndefined();
-    expect(mocks.inngestSend).not.toHaveBeenCalled();
+    expect(mocks.runBackfillForUser).not.toHaveBeenCalled();
   });
 
   it("returns 400 strava_rejected_code when Strava 400s on the exchange", async () => {
@@ -417,8 +418,8 @@ describe("POST /api/integrations/strava/connect", () => {
     expect(mocks.adminFake!.tokensByUser.size).toBe(0);
   });
 
-  it("still returns 202 if Inngest enqueue fails after a successful token write", async () => {
-    mocks.authUser = { id: "user-inngest-down" };
+  it("still returns 202 after token write even if backfill throws (after() is fire-and-forget)", async () => {
+    mocks.authUser = { id: "user-backfill-err" };
     mockState.authorize.push({
       kind: "ok",
       payload: {
@@ -429,12 +430,12 @@ describe("POST /api/integrations/strava/connect", () => {
         athlete: { id: 6006 },
       },
     });
-    mocks.inngestSend.mockRejectedValueOnce(new Error("Inngest unreachable"));
+    mocks.runBackfillForUser.mockRejectedValueOnce(new Error("backfill error"));
 
-    const res = await invokeRoute(buildValidBody("user-inngest-down"));
+    const res = await invokeRoute(buildValidBody("user-backfill-err"));
     expect(res.status).toBe(202);
-    // Token row still persisted -- soft failure on the enqueue.
-    expect(mocks.adminFake!.tokensByUser.get("user-inngest-down")).toBeDefined();
+    // Token row still persisted -- backfill failure is non-fatal for the connect response.
+    expect(mocks.adminFake!.tokensByUser.get("user-backfill-err")).toBeDefined();
   });
 
   it("returns 502 strava_unreachable when Strava /oauth/token throws a network error", async () => {

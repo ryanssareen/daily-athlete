@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/backfill-watchdog",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

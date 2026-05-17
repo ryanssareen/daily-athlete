@@ -93,6 +93,23 @@ function isAthleteStravaIdConstraint(err: PgErrorLike): boolean {
 }
 
 /**
+ * Returns true if a strava_tokens row exists for this user.
+ * Used by the web profile page to show connected vs. disconnected UI.
+ */
+export async function hasStravaToken(
+  admin: SupabaseClient,
+  userId: string
+): Promise<boolean> {
+  // service-role: explicit user filter required
+  const { data } = await admin
+    .from("strava_tokens")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data !== null;
+}
+
+/**
  * INSERT ... ON CONFLICT (user_id) DO UPDATE. Same-user reconnect replaces
  * the row atomically; cross-user collision should be rejected BEFORE this
  * call (see findUserByAthleteStravaId). The
