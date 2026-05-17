@@ -9,6 +9,7 @@ export type Role = "athlete" | "coach";
 export type UserWithRoles = {
   user: User;
   roles: Role[];
+  timezone: string;
 };
 
 export async function getUserWithRoles(): Promise<UserWithRoles | null> {
@@ -20,12 +21,13 @@ export async function getUserWithRoles(): Promise<UserWithRoles | null> {
 
   const { data } = await supabase
     .from("users")
-    .select("role_flags")
+    .select("role_flags, timezone")
     .eq("id", user.id)
     .maybeSingle();
 
   const roles = (data?.role_flags ?? ["athlete"]) as Role[];
-  return { user, roles };
+  const timezone = (data?.timezone as string | null) ?? "UTC";
+  return { user, roles, timezone };
 }
 
 // Return a literal union so callers using `redirect()` under Next.js'

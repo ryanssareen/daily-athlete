@@ -7,6 +7,7 @@ import '../features/auth/sign_in_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
+import '../features/activities/activity_detail_screen.dart';
 import '../features/calendar/calendar_tab.dart';
 import '../features/settings/settings_tab.dart';
 import 'routes.dart';
@@ -66,9 +67,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, state) => ActivitiesTab(
-                  activityId: state.pathParameters['id'],
-                ),
+                builder: (_, state) {
+                  final id = state.pathParameters['id']!;
+                  final from =
+                      state.uri.queryParameters['from'] ?? 'activities';
+                  return ActivityDetailScreen(workoutId: id, from: from);
+                },
               ),
             ],
           ),

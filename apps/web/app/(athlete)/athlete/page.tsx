@@ -64,7 +64,13 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-function getFirstName(email: string): string {
+function getFirstName(displayName: string | null, email: string): string {
+  // Onboarding writes the athlete's chosen nickname into public.users.display_name.
+  // Prefer it; fall back to the email local-part for accounts that pre-date
+  // onboarding (or skipped/bypassed it via dev seed data).
+  if (displayName && displayName.trim().length > 0) {
+    return displayName.trim().split(/\s+/)[0];
+  }
   const local = email.split("@")[0];
   const parts = local.split(/[._]/);
   const first = parts[0];
@@ -195,14 +201,22 @@ export default async function AthleteDashboardPage() {
   in7.setUTCDate(now.getUTCDate() + 7);
   const in7Str = in7.toISOString().split("T")[0];
 
-  const [weekStats, recentWorkouts, upcomingPlanned] = await Promise.all([
+  const [weekStats, recentWorkouts, upcomingPlanned, userRow] = await Promise.all([
     getThisWeekStats(supabase, userId),
     getRecentWorkouts(supabase, userId, 6),
     getPlannedInRange(supabase, userId, todayStr, in7Str),
+    supabase
+      .from("users")
+      .select("display_name")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
 
   const greeting = getGreeting();
-  const firstName = getFirstName(session.user.email ?? "Athlete");
+  const firstName = getFirstName(
+    (userRow.data?.display_name as string | null) ?? null,
+    session.user.email ?? "Athlete"
+  );
   const hasWorkouts = recentWorkouts.length > 0;
 
   // Sport distribution from this week (for the right-rail breakdown)
@@ -298,8 +312,9 @@ export default async function AthleteDashboardPage() {
           {hasWorkouts ? (
             <div>
               {recentWorkouts.map((w, i) => (
-                <div
+                <Link
                   key={w.id}
+                  href={`/athlete/workouts/${w.id}?from=dashboard` as Route}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -309,6 +324,8 @@ export default async function AthleteDashboardPage() {
                       i < recentWorkouts.length - 1
                         ? "1px solid var(--color-border)"
                         : "none",
+                    textDecoration: "none",
+                    color: "inherit",
                   }}
                 >
                   <span
@@ -369,7 +386,7 @@ export default async function AthleteDashboardPage() {
                       </p>
                     )}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (

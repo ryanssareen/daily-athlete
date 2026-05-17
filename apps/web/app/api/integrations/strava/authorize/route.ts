@@ -35,7 +35,16 @@ const PKCE_COOKIE = "strava_pkce";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
-  const profileUrl = new URL("/athlete/profile", url.origin);
+
+  // Optional same-origin `?next=` path so the callback can return the
+  // user to an arbitrary step (e.g. /athlete/onboarding) instead of the
+  // default /athlete/profile. Anything that doesn't look like a relative
+  // path is dropped to prevent open-redirect.
+  const rawNext = url.searchParams.get("next") ?? "";
+  const safeNext =
+    rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "";
+
+  const fallbackUrl = new URL(safeNext || "/athlete/profile", url.origin);
 
   // 1. Auth check — cookie session only (this is a browser flow).
   const supabase = await createServerClient();
@@ -55,14 +64,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     state = signState(user.id, STATE_TTL_SECONDS);
   } catch {
-    profileUrl.searchParams.set("strava_error", "config_error");
-    return NextResponse.redirect(profileUrl);
+    fallbackUrl.searchParams.set("strava_error", "config_error");
+    return NextResponse.redirect(fallbackUrl);
   }
 
-  // 4. Store verifier in a short-lived httpOnly cookie. The /callback route
-  //    reads this to complete the exchange.
+  // 4. Store verifier + the optional `next` in a short-lived httpOnly cookie.
+  //    The /callback route reads both to complete the exchange and route
+  //    the user back to the right destination.
   const redirectUri = `${url.origin}/api/integrations/strava/callback`;
-  const pkcePayload = JSON.stringify({ verifier, redirectUri });
+  const pkcePayload = JSON.stringify({ verifier, redirectUri, next: safeNext });
   const isSecure = url.protocol === "https:";
   const cookieValue = [
     `${PKCE_COOKIE}=${encodeURIComponent(pkcePayload)}`,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activities_providers.dart';
 import '../activities/activity_row.dart';
-import '../activities/activity_detail_screen.dart';
 
 /// Sport filter tab definition.
 const _sportTabs = <({String label, Sport? sport})>[
@@ -72,11 +72,7 @@ class ActivityFeed extends ConsumerWidget {
   }
 
   void _openDetail(BuildContext context, CompletedWorkoutRow workout) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ActivityDetailScreen(workout: workout),
-      ),
-    );
+    context.push('/activities/${workout.id}?from=activities');
   }
 }
 

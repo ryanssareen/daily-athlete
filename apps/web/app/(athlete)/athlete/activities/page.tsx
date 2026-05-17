@@ -176,8 +176,9 @@ export default async function AthleteActivitiesPage() {
                 }}
               >
                 {group.workouts.map((w, i) => (
-                  <div
+                  <Link
                     key={w.id}
+                    href={`/athlete/workouts/${w.id}?from=activities` as Route}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -187,6 +188,8 @@ export default async function AthleteActivitiesPage() {
                         i < group.workouts.length - 1
                           ? "1px solid var(--color-border)"
                           : "none",
+                      textDecoration: "none",
+                      color: "inherit",
                     }}
                   >
                     {/* Sport emoji */}
@@ -280,7 +283,7 @@ export default async function AthleteActivitiesPage() {
                     >
                       {w.source}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

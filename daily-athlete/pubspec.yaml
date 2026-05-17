@@ -42,10 +42,6 @@ dependencies:
   # Date formatting for calendar views (also a transitive dep of table_calendar).
   intl: ^0.20.2
 
-  # Map rendering for activity detail with GPS track.
-  flutter_map: ^8.1.1
-  latlong2: ^0.9.1
-
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

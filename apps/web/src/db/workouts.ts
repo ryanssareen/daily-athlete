@@ -11,6 +11,17 @@ export interface WorkoutRow {
   source: string;
 }
 
+export interface WorkoutDetailRow {
+  id: string;
+  started_at: string;
+  sport: string;
+  duration_s: number | null;
+  distance_m: number | null;
+  source: string;
+  strava_activity_id: number | null;
+  summary_stats: Record<string, unknown>;
+}
+
 export interface PlannedRow {
   id: string;
   scheduled_date: string;
@@ -24,6 +35,33 @@ export interface WeekStats {
   totalDurationS: number;
   totalDistanceM: number;
   sports: Record<string, number>;
+}
+
+/**
+ * Returns a single workout by ID for the given athlete.
+ * Returns null if not found or soft-deleted / superseded.
+ * Throws on Supabase error.
+ */
+export async function getWorkoutById(
+  supabase: SupabaseClient,
+  athleteId: string,
+  workoutId: string
+): Promise<WorkoutDetailRow | null> {
+  const { data, error } = await supabase
+    .from("completed_workouts")
+    .select(
+      "id, started_at, sport, duration_s, distance_m, source, strava_activity_id, summary_stats"
+    )
+    .eq("id", workoutId)
+    .eq("athlete_id", athleteId)
+    .is("deleted_at", null)
+    .is("superseded_by_id", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`getWorkoutById failed: ${error.message}`);
+  }
+  return data as WorkoutDetailRow | null;
 }
 
 /**

@@ -31,11 +31,15 @@ export const maxDuration = 60;
 const PKCE_COOKIE = "strava_pkce";
 const CLEAR_COOKIE = `${PKCE_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax`;
 
-function redirectToProfile(
+function redirectBack(
   origin: string,
+  next: string,
   outcome: { connected: true } | { error: string }
 ): NextResponse {
-  const dest = new URL("/athlete/profile", origin);
+  // Same-origin guard — see /authorize for the matching policy.
+  const safeNext =
+    next.startsWith("/") && !next.startsWith("//") ? next : "/athlete/profile";
+  const dest = new URL(safeNext, origin);
   if ("connected" in outcome) {
     dest.searchParams.set("strava_connected", "1");
   } else {
@@ -50,36 +54,41 @@ export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
   const origin = url.origin;
 
+  // Read the PKCE verifier cookie set by /authorize. We may need `next`
+  // even for the early-exit (cancelled / invalid) paths so the user
+  // bounces back to the page they launched from.
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const cookieMatch = cookieHeader.match(
+    new RegExp(`(?:^|;\\s*)${PKCE_COOKIE}=([^;]+)`)
+  );
+  let pkce: { verifier?: string; redirectUri?: string; next?: string } = {};
+  if (cookieMatch) {
+    try {
+      pkce = JSON.parse(decodeURIComponent(cookieMatch[1]));
+    } catch {
+      pkce = {};
+    }
+  }
+  const next = pkce.next ?? "";
+
   // User denied access on Strava's page.
   const oauthError = url.searchParams.get("error");
   if (oauthError) {
-    return redirectToProfile(origin, { error: "cancelled" });
+    return redirectBack(origin, next, { error: "cancelled" });
   }
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   if (!code || !state) {
-    return redirectToProfile(origin, { error: "invalid_callback" });
+    return redirectBack(origin, next, { error: "invalid_callback" });
   }
 
-  // Read the PKCE verifier cookie set by /authorize.
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const match = cookieHeader.match(
-    new RegExp(`(?:^|;\\s*)${PKCE_COOKIE}=([^;]+)`)
-  );
-  if (!match) {
-    return redirectToProfile(origin, { error: "session_expired" });
-  }
-
-  let pkce: { verifier: string; redirectUri: string };
-  try {
-    pkce = JSON.parse(decodeURIComponent(match[1]));
-  } catch {
-    return redirectToProfile(origin, { error: "invalid_state" });
+  if (!cookieMatch) {
+    return redirectBack(origin, next, { error: "session_expired" });
   }
 
   if (!pkce.verifier || !pkce.redirectUri) {
-    return redirectToProfile(origin, { error: "invalid_state" });
+    return redirectBack(origin, next, { error: "invalid_state" });
   }
 
   // Delegate to the connect route — same logic mobile uses, reads the
@@ -106,10 +115,11 @@ export async function GET(request: Request): Promise<NextResponse> {
   const connectResponse = await connectPOST(connectReq);
 
   if (connectResponse.status === 202) {
-    return redirectToProfile(origin, { connected: true });
+    return redirectBack(origin, next, { connected: true });
   }
 
-  // Map the connect route's error code to a profile URL param.
+  // Map the connect route's error code to a URL param on the same
+  // destination the user launched from.
   let errorCode = "unknown";
   try {
     const body = (await connectResponse.json()) as { error?: string };
@@ -117,5 +127,5 @@ export async function GET(request: Request): Promise<NextResponse> {
   } catch {
     // ignore parse failure; errorCode stays "unknown"
   }
-  return redirectToProfile(origin, { error: errorCode });
+  return redirectBack(origin, next, { error: errorCode });
 }
