@@ -1,7 +1,7 @@
 ---
 title: "feat: Flutter app — core navigation, auth, and role-aware tabs"
 type: feat
-status: active
+status: completed
 date: 2026-05-17
 origin: docs/brainstorms/2026-05-17-flutter-app-core-navigation-requirements.md
 ---
