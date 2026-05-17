@@ -102,7 +102,7 @@ async function isLinkedCoach(
     .limit(1)
     .maybeSingle();
 
-  if (error) return false;
+  if (error) throw error;
   return data !== null;
 }
 
@@ -169,11 +169,23 @@ export async function POST(
   // 4. Authorization: caller must be the athlete OR a linked coach.
   const isOwner = plannedWorkout.athlete_id === user.id;
   if (!isOwner) {
-    const coachAllowed = await isLinkedCoach(
-      admin,
-      user.id,
-      plannedWorkout.athlete_id
-    );
+    let coachAllowed: boolean;
+    try {
+      coachAllowed = await isLinkedCoach(
+        admin,
+        user.id,
+        plannedWorkout.athlete_id
+      );
+    } catch {
+      logEvent({
+        name: "coach_check_failed",
+        user_id: user.id,
+        workout_id: workoutId,
+        success: false,
+        code: "internal",
+      });
+      return NextResponse.json({ error: "internal" }, { status: 500 });
+    }
     if (!coachAllowed) {
       logEvent({
         name: "forbidden",
@@ -300,7 +312,8 @@ async function _markCompleted(
   const { error: matchErr } = await admin.from("workout_matches").insert({
     planned_workout_id: plannedWorkout.id,
     completed_workout_id: insertedCW.id,
-    match_method: "manual",
+    method: "manual_user_link",
+    confidence: 1,
     matched_at: now,
   });
 

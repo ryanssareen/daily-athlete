@@ -271,7 +271,16 @@ class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
       return;
     }
 
-    // 7. POST /api/integrations/strava/connect.
+    // 7. Validate CSRF state before posting the token exchange.
+    final returnedState = callbackUri.queryParameters['state'];
+    if (returnedState == null || returnedState != signedState) {
+      state = const AsyncData(StravaOAuthState(
+        status: StravaConnectionStatus.authError,
+        errorMessage: 'OAuth state mismatch — please try connecting again.',
+      ));
+      return;
+    }
+
     state = const AsyncData(
       StravaOAuthState(status: StravaConnectionStatus.posting),
     );
@@ -279,7 +288,7 @@ class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
     await _postConnect(
       code: code,
       codeVerifier: codeVerifier,
-      returnedState: callbackUri.queryParameters['state'] ?? signedState,
+      returnedState: returnedState,
       accessToken: accessToken,
     );
   }

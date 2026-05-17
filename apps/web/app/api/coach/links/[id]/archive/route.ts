@@ -59,7 +59,7 @@ export async function PATCH(
   const admin = createAdminClient();
 
   // 2. Look up the link.
-  // service-role: explicit link_id filter required
+  // service-role: explicit user filter required
   const { data: link, error: lookupErr } = await admin
     .from("coach_athlete_links")
     .select("id, coach_user_id, status")
@@ -100,7 +100,7 @@ export async function PATCH(
   }
 
   // 4. Soft-delete (archive) the link.
-  // service-role: explicit link_id filter required
+  // service-role: explicit user filter required
   const { error: updateErr } = await admin
     .from("coach_athlete_links")
     .update({
