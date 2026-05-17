@@ -8,22 +8,16 @@ import { createAdminClient } from "@/db/admin";
 import { getWorkoutById } from "@/db/workouts";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { getSportEmoji, getSportLabel } from "@/lib/sport-display";
-import {
-  formatDuration,
-  formatDistance,
-  formatPace,
-  formatWorkoutDateTime,
-} from "@/lib/format";
+import { formatDuration, formatDistance, formatPace, formatWorkoutDateTime } from "@/lib/format";
 import MapSection from "./MapSection";
-
-// ---------- Types ------------------------------------------------------------
+import SyncButton from "./SyncButton";
 
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string }>;
 };
 
-// ---------- Back nav ---------------------------------------------------------
+// ─── Back nav ─────────────────────────────────────────────────────────────────
 
 const VALID_FROM = new Set(["dashboard", "activities", "calendar"]);
 
@@ -41,11 +35,35 @@ function backLabelFor(from: string | undefined): string {
   return "← Activities";
 }
 
-// ---------- UI atoms ---------------------------------------------------------
+// ─── Sport accent colors (matches activities page) ────────────────────────────
 
-function StatBlock({ label, value }: { label: string; value: string }) {
+const SPORT_ACCENT: Record<string, { color: string; bg: string }> = {
+  run:      { color: "#c45a30", bg: "color-mix(in oklab, #c45a30 8%, transparent)" },
+  swim:     { color: "#1a6891", bg: "color-mix(in oklab, #1a6891 8%, transparent)" },
+  bike:     { color: "#2d6b44", bg: "color-mix(in oklab, #2d6b44 8%, transparent)" },
+  ride:     { color: "#2d6b44", bg: "color-mix(in oklab, #2d6b44 8%, transparent)" },
+  strength: { color: "#4a3a80", bg: "color-mix(in oklab, #4a3a80 8%, transparent)" },
+  mobility: { color: "#6b4c22", bg: "color-mix(in oklab, #6b4c22 8%, transparent)" },
+};
+
+function sportAccent(sport: string) {
+  return SPORT_ACCENT[sport.toLowerCase()] ?? { color: "var(--color-ink-muted)", bg: "var(--color-canvas-soft)" };
+}
+
+// ─── Stat strip item ──────────────────────────────────────────────────────────
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        padding: "0 20px",
+        borderRight: "1px solid var(--color-border)",
+        minWidth: 90,
+      }}
+    >
       <span
         style={{
           fontSize: 10,
@@ -53,6 +71,7 @@ function StatBlock({ label, value }: { label: string; value: string }) {
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           color: "var(--color-ink-muted)",
+          whiteSpace: "nowrap",
         }}
       >
         {label}
@@ -60,10 +79,11 @@ function StatBlock({ label, value }: { label: string; value: string }) {
       <span
         style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 18,
-          fontWeight: 600,
-          color: "var(--color-ink)",
+          fontSize: 22,
+          fontWeight: 700,
+          color: accent ? "var(--color-clay)" : "var(--color-ink)",
           lineHeight: 1,
+          whiteSpace: "nowrap",
         }}
       >
         {value}
@@ -72,44 +92,8 @@ function StatBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({
-  title,
-  children,
-}: {
-  title?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--color-paper)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 14,
-        padding: "16px 20px",
-      }}
-    >
-      {title && (
-        <p
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-muted)",
-            marginBottom: 12,
-          }}
-        >
-          {title}
-        </p>
-      )}
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-        {children}
-      </div>
-    </div>
-  );
-}
+// ─── Keys shown in named sections ─────────────────────────────────────────────
 
-// Keys rendered in named sections — excluded from the overflow drawer
 const NAMED_KEYS = new Set([
   "average_speed", "max_speed",
   "average_heartrate", "max_heartrate",
@@ -121,11 +105,11 @@ const NAMED_KEYS = new Set([
   "polyline",
 ]);
 
-function labelFor(key: string): string {
+function labelFor(key: string) {
   return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// ---------- Page -------------------------------------------------------------
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AthleteWorkoutDetailPage({ params, searchParams }: Props) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
@@ -142,6 +126,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
   const stats = workout.summary_stats;
   const isStrava = workout.source === "strava";
   const sport = workout.sport;
+  const accent = sportAccent(sport);
 
   let showStravaConnect = false;
   if (!isStrava) {
@@ -149,7 +134,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
     showStravaConnect = !(await hasStravaToken(admin, session.user.id));
   }
 
-  // Derived values
+  // Core display values
   const workoutName = (stats.name as string | null) ?? getSportLabel(sport);
   const dateTime = formatWorkoutDateTime(workout.started_at, session.timezone);
   const durationStr = formatDuration(workout.duration_s);
@@ -157,212 +142,187 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
   const paceStr = formatPace(workout.distance_m, workout.duration_s, sport);
   const polyline = typeof stats.polyline === "string" ? stats.polyline : null;
 
-  // HR
-  const avgHR = stats.average_heartrate as number | null | undefined;
-  const maxHR = stats.max_heartrate as number | null | undefined;
-  const showHR = isStrava && avgHR != null;
+  // Stats
+  const avgHR = typeof stats.average_heartrate === "number" ? Math.round(stats.average_heartrate) : null;
+  const maxHR = typeof stats.max_heartrate === "number" ? Math.round(stats.max_heartrate) : null;
+  const elevation = typeof stats.total_elevation_gain === "number" ? Math.round(stats.total_elevation_gain) : null;
+  const avgWatts = typeof stats.average_watts === "number" ? Math.round(stats.average_watts) : null;
+  const avgCadence = typeof stats.average_cadence === "number" ? Math.round(stats.average_cadence) : null;
+  const sufferScore = typeof stats.suffer_score === "number" ? Math.round(stats.suffer_score) : null;
 
-  // Elevation
-  const elevation = stats.total_elevation_gain as number | null | undefined;
-  const showElevation = isStrava && sport !== "strength" && elevation != null;
-
-  // Power
-  const avgWatts = stats.average_watts as number | null | undefined;
-  const showPower = isStrava && sport === "bike" && avgWatts != null;
-
-  // Stroke rate
-  const avgCadence = stats.average_cadence as number | null | undefined;
-  const showStrokeRate = isStrava && sport === "swim" && avgCadence != null;
-
-  // Effort
-  const sufferScore = stats.suffer_score as number | null | undefined;
-  const showEffort = isStrava && sufferScore != null;
-
-  // Overflow
-  const overflowEntries = Object.entries(stats).filter(
-    ([k, v]) => !NAMED_KEYS.has(k) && v != null
-  );
-
-  const sourceBadgeStyle: React.CSSProperties = {
-    display: "inline-block",
-    padding: "3px 10px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 500,
-    fontFamily: "var(--font-mono)",
-    ...(isStrava
-      ? {
-          background: "color-mix(in oklab, var(--color-clay) 15%, transparent)",
-          color: "var(--color-clay-deep)",
-          border: "1px solid color-mix(in oklab, var(--color-clay) 30%, transparent)",
-        }
-      : {
-          background: "var(--color-canvas-soft)",
-          color: "var(--color-ink-muted)",
-          border: "1px solid var(--color-border)",
-        }),
-  };
-
-  const hasRightStats = showHR || showPower || showElevation || showStrokeRate || showEffort;
+  const isGPSSport = sport !== "strength" && sport !== "mobility";
+  const overflowEntries = Object.entries(stats).filter(([k, v]) => !NAMED_KEYS.has(k) && v != null);
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div style={{ maxWidth: 900 }}>
       {/* Back link */}
       <Link
         href={backHref}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          fontSize: 13,
-          color: "var(--color-ink-muted)",
-          marginBottom: 20,
-          textDecoration: "none",
-        }}
+        style={{ display: "inline-flex", alignItems: "center", fontSize: 13, color: "var(--color-ink-muted)", marginBottom: 16, textDecoration: "none" }}
       >
         {backLabel}
       </Link>
 
-      {/* Two-column layout */}
-      <div className="workout-detail-grid">
-        {/* ── Left column: identity + primary stats ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Header */}
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <span style={{ fontSize: 30, lineHeight: 1 }}>{getSportEmoji(sport)}</span>
-              <h1
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  letterSpacing: "-0.02em",
-                  color: "var(--color-ink)",
-                  margin: 0,
-                  lineHeight: 1.2,
-                }}
-              >
-                {workoutName}
-              </h1>
-            </div>
-            <p style={{ fontSize: 13, color: "var(--color-ink-muted)", marginBottom: 8 }}>
-              {dateTime}
-            </p>
-            <span style={sourceBadgeStyle}>{isStrava ? "Strava" : "Manual Entry"}</span>
+      {/* ── Hero card ── */}
+      <div
+        style={{
+          background: accent.bg,
+          border: "1px solid var(--color-border)",
+          borderRadius: 16,
+          padding: "20px 24px",
+          marginBottom: 3,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <span style={{ fontSize: 32, lineHeight: 1 }}>{getSportEmoji(sport)}</span>
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 700,
+                letterSpacing: "-0.025em",
+                color: "var(--color-ink)",
+                margin: 0,
+                lineHeight: 1.1,
+              }}
+            >
+              {workoutName}
+            </h1>
           </div>
-
-          {/* Primary stats */}
-          <StatCard title="Summary">
-            <StatBlock label="Duration" value={durationStr} />
-            {distanceStr != null && <StatBlock label="Distance" value={distanceStr} />}
-            {paceStr != null && (
-              <StatBlock label={sport === "bike" ? "Speed" : "Pace"} value={paceStr} />
-            )}
-          </StatCard>
-
-          {/* Strava connect nudge */}
-          {showStravaConnect && (
-            <div
-              style={{
-                padding: "14px 18px",
-                background: "var(--color-canvas-soft)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 12,
-                fontSize: 13,
-                color: "var(--color-ink-muted)",
-              }}
-            >
-              Logged manually —{" "}
-              <Link
-                href={"/athlete/settings" as Route}
-                style={{ color: "var(--color-ink)", textDecoration: "underline" }}
-              >
-                connect Strava
-              </Link>{" "}
-              for detailed stats and route map.
-            </div>
-          )}
+          <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "0 0 10px" }}>{dateTime}</p>
+          <span
+            style={{
+              display: "inline-block",
+              padding: "3px 10px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 600,
+              fontFamily: "var(--font-mono)",
+              background: isStrava
+                ? "color-mix(in oklab, var(--color-clay) 15%, transparent)"
+                : "var(--color-canvas-soft)",
+              color: isStrava ? "var(--color-clay-deep)" : "var(--color-ink-muted)",
+              border: isStrava
+                ? "1px solid color-mix(in oklab, var(--color-clay) 30%, transparent)"
+                : "1px solid var(--color-border)",
+            }}
+          >
+            {isStrava ? "Strava" : "Manual Entry"}
+          </span>
         </div>
 
-        {/* ── Right column: map + detail stats ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Route map */}
-          {polyline ? (
-            <div
-              style={{
-                borderRadius: 14,
-                overflow: "hidden",
-                border: "1px solid var(--color-border)",
-                height: 320,
-              }}
-            >
-              <MapSection polyline={polyline} />
-            </div>
-          ) : (
-            isStrava && sport !== "strength" && sport !== "mobility" && (
-              <div
-                style={{
-                  height: 200,
-                  borderRadius: 14,
-                  border: "1px dashed var(--color-border)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "column",
-                  gap: 6,
-                  color: "var(--color-ink-muted)",
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ fontSize: 24 }}>📍</span>
-                <span>No route data — re-sync to load map</span>
-              </div>
-            )
-          )}
-
-          {/* Detail stats grid */}
-          {hasRightStats && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {showHR && (
-                <StatCard title="Heart Rate">
-                  <StatBlock label="Avg" value={`${Math.round(avgHR!)} bpm`} />
-                  {maxHR != null && (
-                    <StatBlock label="Max" value={`${Math.round(maxHR)} bpm`} />
-                  )}
-                </StatCard>
-              )}
-              {showPower && (
-                <StatCard title="Power">
-                  <StatBlock label="Avg" value={`${Math.round(avgWatts!)} W`} />
-                </StatCard>
-              )}
-              {showElevation && (
-                <StatCard title="Elevation">
-                  <StatBlock label="Gain" value={`${Math.round(elevation!)} m`} />
-                </StatCard>
-              )}
-              {showStrokeRate && (
-                <StatCard title="Stroke Rate">
-                  <StatBlock label="Avg" value={`${Math.round(avgCadence!)} spm`} />
-                </StatCard>
-              )}
-              {showEffort && (
-                <StatCard title="Effort">
-                  <StatBlock label="Relative" value={String(Math.round(sufferScore!))} />
-                </StatCard>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Sync button — only for Strava workouts with a known activity ID */}
+        {isStrava && workout.strava_activity_id && (
+          <div style={{ flexShrink: 0, paddingTop: 4 }}>
+            <SyncButton workoutId={workout.id} />
+          </div>
+        )}
       </div>
 
-      {/* Overflow stats — full width below */}
+      {/* ── Stat strip ── */}
+      <div
+        style={{
+          background: "var(--color-paper)",
+          border: "1px solid var(--color-border)",
+          borderTop: "none",
+          borderRadius: "0 0 16px 16px",
+          padding: "18px 4px",
+          marginBottom: 16,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "14px 0",
+          overflow: "hidden",
+        }}
+      >
+        <Stat label="Duration" value={durationStr} />
+        {distanceStr && <Stat label="Distance" value={distanceStr} />}
+        {paceStr && <Stat label={sport === "bike" ? "Avg Speed" : "Avg Pace"} value={paceStr} />}
+        {avgHR != null && <Stat label="Avg HR" value={`${avgHR} bpm`} />}
+        {maxHR != null && <Stat label="Max HR" value={`${maxHR} bpm`} />}
+        {elevation != null && isGPSSport && <Stat label="Elevation" value={`${elevation} m`} />}
+        {avgWatts != null && <Stat label="Avg Power" value={`${avgWatts} W`} />}
+        {avgCadence != null && <Stat label={sport === "swim" ? "Stroke Rate" : "Cadence"} value={`${avgCadence} spm`} />}
+        {sufferScore != null && <Stat label="Effort" value={String(sufferScore)} accent />}
+        {/* Last item: remove the right border via a filler */}
+        <div style={{ flex: 1 }} />
+      </div>
+
+      {/* ── Map ── */}
+      {isGPSSport && (
+        polyline ? (
+          <div
+            style={{
+              borderRadius: 16,
+              overflow: "hidden",
+              border: "1px solid var(--color-border)",
+              height: 380,
+              marginBottom: 16,
+            }}
+          >
+            <MapSection polyline={polyline} />
+          </div>
+        ) : isStrava && (
+          <div
+            style={{
+              height: 160,
+              borderRadius: 16,
+              border: "1px dashed var(--color-border)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              gap: 10,
+              color: "var(--color-ink-muted)",
+              fontSize: 13,
+              marginBottom: 16,
+              background: "var(--color-canvas-soft)",
+            }}
+          >
+            <span style={{ fontSize: 28 }}>📍</span>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ margin: "0 0 2px", fontWeight: 500, color: "var(--color-ink)" }}>
+                No route map yet
+              </p>
+              <p style={{ margin: 0, fontSize: 12 }}>
+                Hit &ldquo;Sync from Strava&rdquo; above to pull the latest data
+              </p>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ── Manual entry nudge ── */}
+      {showStravaConnect && (
+        <div
+          style={{
+            padding: "14px 18px",
+            background: "var(--color-canvas-soft)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 12,
+            fontSize: 13,
+            color: "var(--color-ink-muted)",
+            marginBottom: 16,
+          }}
+        >
+          Logged manually —{" "}
+          <Link
+            href={"/athlete/settings" as Route}
+            style={{ color: "var(--color-ink)", textDecoration: "underline" }}
+          >
+            connect Strava
+          </Link>{" "}
+          to unlock detailed stats and route map.
+        </div>
+      )}
+
+      {/* ── Overflow stats ── */}
       {overflowEntries.length > 0 && (
-        <details style={{ marginTop: 24 }}>
+        <details>
           <summary
             style={{
               cursor: "pointer",
@@ -386,7 +346,29 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
             }}
           >
             {overflowEntries.map(([k, v]) => (
-              <StatBlock key={k} label={labelFor(k)} value={String(v)} />
+              <div key={k} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "var(--color-ink-muted)",
+                  }}
+                >
+                  {labelFor(k)}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: "var(--color-ink)",
+                  }}
+                >
+                  {String(v)}
+                </span>
+              </div>
             ))}
           </div>
         </details>

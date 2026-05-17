@@ -24,6 +24,7 @@ export const StravaActivitySchema = z.object({
   average_watts: z.number().nonnegative().optional(),
   total_elevation_gain: z.number().nonnegative().optional(),
   suffer_score: z.number().nonnegative().nullable().optional(),
+  average_cadence: z.number().nonnegative().optional(),
   // summary_polyline is a compressed route string (not stream samples).
   // It is safe to store and display per Strava ToS §2.
   map: z
