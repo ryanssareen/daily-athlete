@@ -259,18 +259,30 @@ export function OnboardingFlow({ initial }: { initial: InitialState }) {
     parseLocalDate(initial.eventDate)
   );
 
-  // Strava live state — `stravaState` is fed by polling /api/onboarding/strava-status.
+  // Strava live state — `stravaConnected` reflects the actual strava_tokens
+  // row (real OAuth state). `backfillStatus` is fed by polling
+  // /api/onboarding/strava-status once OAuth completes in this flow.
   const [stravaConnected, setStravaConnected] = useState(initial.stravaConnected);
   const [backfillStatus, setBackfillStatus] = useState<BackfillStatusColumn>(
     initial.backfillStatus ?? {}
   );
 
+  // "Did the user complete OAuth in THIS onboarding session?"
+  // Flipped on ONLY when /api/integrations/strava/callback redirects back
+  // with ?strava_connected=1 (server re-renders with initial.stravaJustConnected = true).
+  // A pre-existing strava_tokens row (from a prior session or the dashboard
+  // toggle) does NOT unlock the import UI — we require explicit consent in
+  // this flow so the user knows they're handing us a Strava authorization
+  // right now. No setter — the only transition path is a server re-render
+  // after OAuth callback.
+  const connectedInFlow = initial.stravaJustConnected;
+
   const stepIndex = STEPS.findIndex((s) => s.id === stepId);
 
-  // ── Strava status polling: runs while on the Strava step AND connected. ──
+  // ── Strava status polling: runs only after explicit in-flow OAuth. ──
   useEffect(() => {
     if (stepId !== "strava") return;
-    if (!stravaConnected) return;
+    if (!connectedInFlow) return;
     if (backfillStatus.state === "complete") return;
 
     let cancelled = false;
@@ -297,7 +309,7 @@ export function OnboardingFlow({ initial }: { initial: InitialState }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [stepId, stravaConnected, backfillStatus.state]);
+  }, [stepId, connectedInFlow, backfillStatus.state]);
 
   // ── Navigation ──
   const goto = useCallback((id: StepId) => {
@@ -410,7 +422,8 @@ export function OnboardingFlow({ initial }: { initial: InitialState }) {
       screen = (
         <StravaScreen
           email={initial.email}
-          connected={stravaConnected}
+          connectedInFlow={connectedInFlow}
+          alreadyConnected={stravaConnected}
           backfill={backfillStatus}
           error={initial.stravaError}
           onConnect={onConnectStrava}
@@ -459,7 +472,7 @@ export function OnboardingFlow({ initial }: { initial: InitialState }) {
               <button
                 type="button"
                 className="ghost-btn"
-                onClick={() => goto("welcome")}
+                onClick={() => { window.location.href = "/athlete"; }}
               >
                 Exit
               </button>
@@ -964,7 +977,8 @@ function stravaErrorMessage(code: string): string {
 
 function StravaScreen({
   email,
-  connected,
+  connectedInFlow,
+  alreadyConnected,
   backfill,
   error,
   onConnect,
@@ -973,7 +987,14 @@ function StravaScreen({
   onBack,
 }: {
   email: string;
-  connected: boolean;
+  // True ONLY if the user completed Strava OAuth during this onboarding
+  // session (callback redirected back with ?strava_connected=1). Drives
+  // the "Pulling your recent workouts" progress UI.
+  connectedInFlow: boolean;
+  // True if a strava_tokens row exists for this user (possibly from a
+  // prior session). Surfaced as a "Already connected" hint on the CTA
+  // view, but does NOT auto-skip the explicit consent gesture.
+  alreadyConnected: boolean;
   backfill: BackfillStatusColumn;
   error?: string;
   onConnect: () => void;
@@ -981,8 +1002,10 @@ function StravaScreen({
   onNext: () => void;
   onBack: () => void;
 }) {
-  // Show the import progress UI as soon as Strava is connected.
-  if (connected) {
+  // Show the import progress UI only after the user explicitly connected
+  // in this onboarding flow. A pre-existing token row is not enough —
+  // we want the user to actively confirm Strava access here.
+  if (connectedInFlow) {
     const total = backfill.estimated_total ?? 200;
     const done = backfill.completed ?? 0;
     const pct =
@@ -1051,10 +1074,15 @@ function StravaScreen({
   return (
     <div className="panel">
       <span className="eyebrow">04 · Connect</span>
-      <h1 className="display">Connect Strava so your plan can adapt.</h1>
+      <h1 className="display">
+        {alreadyConnected
+          ? "Re-authorize Strava to refresh your data."
+          : "Connect Strava so your plan can adapt."}
+      </h1>
       <p className="lead">
-        We&apos;ll import your last 200 workouts to set realistic zones, then
-        auto-sync new sessions as you complete them.
+        {alreadyConnected
+          ? "You're already linked from a previous session. Re-authorize to pull a fresh copy of your last 200 workouts and confirm we still have access — or skip to keep what we have."
+          : "We'll import your last 200 workouts to set realistic zones, then auto-sync new sessions as you complete them."}
       </p>
 
       <div className="strava-card">
@@ -1101,12 +1129,14 @@ function StravaScreen({
             <ArrowLeft /> Back
           </button>
           <button type="button" className="btn btn-strava" onClick={onConnect}>
-            Connect with Strava
+            {alreadyConnected ? "Re-authorize Strava" : "Connect with Strava"}
             <ArrowRight />
           </button>
         </div>
         <button type="button" className="text-link" onClick={onSkip}>
-          Connect later — I&apos;ll log workouts manually
+          {alreadyConnected
+            ? "Keep my existing connection and continue"
+            : "Connect later — I'll log workouts manually"}
         </button>
       </div>
     </div>
