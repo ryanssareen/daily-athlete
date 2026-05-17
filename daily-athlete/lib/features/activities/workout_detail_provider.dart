@@ -23,6 +23,6 @@ final workoutDetailProvider =
         .maybeSingle();
 
     if (data == null) return null;
-    return CompletedWorkoutRow.fromJson(data as Map<String, dynamic>);
+    return CompletedWorkoutRow.fromJson(data);
   },
 );
