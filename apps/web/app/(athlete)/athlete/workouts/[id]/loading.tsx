@@ -1,59 +1,53 @@
 export default function WorkoutDetailLoading() {
   return (
-    <div style={{ maxWidth: 640 }}>
-      {/* Back link */}
-      <div className="skeleton" style={{ width: 100, height: 14, marginBottom: 24 }} />
-
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <div className="skeleton" style={{ width: 36, height: 36, borderRadius: 8 }} />
-          <div className="skeleton" style={{ width: 200, height: 28 }} />
-        </div>
-        <div className="skeleton" style={{ width: 140, height: 14, marginBottom: 10 }} />
-        <div className="skeleton" style={{ width: 60, height: 22, borderRadius: 999 }} />
+    <div className="wd-container">
+      {/* Topbar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="skeleton" style={{ width: 100, height: 14 }} />
+        <div className="skeleton" style={{ width: 130, height: 32, borderRadius: 999 }} />
       </div>
 
-      {/* Primary stats row */}
+      {/* Eyebrow */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="skeleton" style={{ width: 60, height: 12 }} />
+        <div className="skeleton" style={{ width: 50, height: 12 }} />
+        <div className="skeleton" style={{ width: 180, height: 12 }} />
+      </div>
+
+      {/* Title */}
+      <div className="skeleton" style={{ width: "70%", height: 56, borderRadius: 8 }} />
+
+      {/* Headline grid */}
       <div
         style={{
-          background: "var(--color-paper)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 16,
-          padding: "20px 24px",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 24,
+          padding: "28px 0 24px",
+          borderTop: "1px solid var(--color-border)",
+          borderBottom: "1px solid var(--color-border)",
         }}
       >
-        <div style={{ display: "flex", gap: 32 }}>
-          {[80, 70, 80].map((w, i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div className="skeleton" style={{ width: 40, height: 10 }} />
-              <div className="skeleton" style={{ width: w, height: 20 }} />
-            </div>
-          ))}
-        </div>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="skeleton" style={{ width: 70, height: 10 }} />
+            <div className="skeleton" style={{ width: 120, height: 44, borderRadius: 6 }} />
+          </div>
+        ))}
       </div>
 
-      {/* Secondary section */}
-      <div style={{ marginTop: 16 }}>
-        <div className="skeleton" style={{ width: 70, height: 10, marginBottom: 8 }} />
-        <div
-          style={{
-            background: "var(--color-paper)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 16,
-            padding: "20px 24px",
-          }}
-        >
-          <div style={{ display: "flex", gap: 32 }}>
-            {[60, 60].map((w, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <div className="skeleton" style={{ width: 40, height: 10 }} />
-                <div className="skeleton" style={{ width: w, height: 20 }} />
-              </div>
-            ))}
+      {/* Secondary grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16 }}>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="skeleton" style={{ width: 60, height: 10 }} />
+            <div className="skeleton" style={{ width: 70, height: 18 }} />
           </div>
-        </div>
+        ))}
       </div>
+
+      {/* Map */}
+      <div className="skeleton" style={{ width: "100%", height: 380, borderRadius: 16 }} />
     </div>
   );
 }
