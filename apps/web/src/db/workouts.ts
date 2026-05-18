@@ -146,6 +146,29 @@ export async function getPlannedInRange(
 }
 
 /**
+ * Returns a single planned workout by ID for the given athlete.
+ * Returns null if not found or soft-deleted.
+ */
+export async function getPlannedById(
+  supabase: SupabaseClient,
+  athleteId: string,
+  id: string
+): Promise<PlannedRow | null> {
+  const { data, error } = await supabase
+    .from("planned_workouts")
+    .select("id, scheduled_date, sport, status, structure")
+    .eq("id", id)
+    .eq("athlete_id", athleteId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`getPlannedById failed: ${error.message}`);
+  }
+  return data as PlannedRow | null;
+}
+
+/**
  * Returns stats for the current calendar week (Mon–today) in UTC.
  */
 export async function getThisWeekStats(

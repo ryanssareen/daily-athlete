@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 
+import LogWorkoutDialog from "./LogWorkoutDialog";
+
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import {
@@ -232,21 +234,35 @@ export default async function AthleteDashboardPage() {
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: 600,
-            letterSpacing: "-0.02em",
-            color: "var(--color-ink)",
-            margin: 0,
-          }}
-        >
-          {greeting}, {firstName}.
-        </h1>
-        <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
-          Here&apos;s your training this week.
-        </p>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 28,
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              letterSpacing: "-0.02em",
+              color: "var(--color-ink)",
+              margin: 0,
+            }}
+          >
+            {greeting}, {firstName}.
+          </h1>
+          <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
+            Here&apos;s your training this week.
+          </p>
+        </div>
+        <div style={{ paddingTop: 4 }}>
+          <LogWorkoutDialog />
+        </div>
       </div>
 
       {/* Week stats — full width */}

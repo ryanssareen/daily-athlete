@@ -9,6 +9,8 @@ import {
   type PlannedRow,
   type WorkoutRow,
 } from "@/db/workouts";
+import LogWorkoutDialog from "../LogWorkoutDialog";
+import PlannedChipClient from "./PlannedChipClient";
 
 // ---------- Helpers -------------------------------------------------------
 
@@ -385,16 +387,19 @@ export default async function AthleteCalendarPage({
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Link href={`/athlete/calendar?week=${prevMonday}`} style={{ ...navButtonStyle, width: 32 }}>
-            ←
-          </Link>
-          <Link href="/athlete/calendar" style={{ ...navButtonStyle, padding: "0 14px" }}>
-            Today
-          </Link>
-          <Link href={`/athlete/calendar?week=${nextMonday}`} style={{ ...navButtonStyle, width: 32 }}>
-            →
-          </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <LogWorkoutDialog />
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Link href={`/athlete/calendar?week=${prevMonday}`} style={{ ...navButtonStyle, width: 32 }}>
+              ←
+            </Link>
+            <Link href="/athlete/calendar" style={{ ...navButtonStyle, padding: "0 14px" }}>
+              Today
+            </Link>
+            <Link href={`/athlete/calendar?week=${nextMonday}`} style={{ ...navButtonStyle, width: 32 }}>
+              →
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -501,7 +506,7 @@ export default async function AthleteCalendarPage({
                   </p>
                 )}
                 {day.planned.map((p) => (
-                  <PlannedChip key={p.id} p={p} />
+                  <PlannedChipClient key={p.id} id={p.id} status={p.status} sport={p.sport} />
                 ))}
                 {day.completed.map((w) => (
                   <CompletedChip key={w.id} w={w} />
