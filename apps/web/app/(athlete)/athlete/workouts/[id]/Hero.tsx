@@ -88,22 +88,27 @@ function buildHeadlineMetrics(
 
   // Sport-specific third slot
   const avgWatts = num(stats, "average_watts");
+  const isEstimatedPower = stats.device_watts === false;
   if (sport === "bike" || sport === "ride") {
     if (avgWatts != null) {
-      out.push({ label: "Avg Power", value: String(Math.round(avgWatts)), unit: "W" });
+      out.push({
+        label: "Avg Power",
+        value: String(Math.round(avgWatts)),
+        unit: isEstimatedPower ? "W est." : "W",
+      });
     } else if (workout.distance_m != null && workout.duration_s != null) {
       // Fall back to avg speed
       const pace = formatPace(workout.distance_m, workout.duration_s, sport);
       if (pace != null) {
-        const [num, unit] = pace.split(" ");
-        out.push({ label: "Avg Speed", value: num ?? "—", unit });
+        const [paceValue, unit] = pace.split(" ");
+        out.push({ label: "Avg Speed", value: paceValue ?? "—", unit });
       }
     }
   } else if (sport === "run" || sport === "swim") {
     const pace = formatPace(workout.distance_m, workout.duration_s, sport);
     if (pace != null) {
-      const [num, unit] = pace.split(" ");
-      out.push({ label: "Avg Pace", value: num ?? "—", unit });
+      const [paceValue, unit] = pace.split(" ");
+      out.push({ label: "Avg Pace", value: paceValue ?? "—", unit });
     }
   }
 
@@ -130,6 +135,7 @@ interface SecStat {
 
 function buildSecondaryStats(workout: HeroProps["workout"]): SecStat[] {
   const stats = workout.summary_stats;
+  const sport = workout.sport.toLowerCase();
   const out: SecStat[] = [];
 
   const avgHR = num(stats, "average_heartrate");
@@ -143,9 +149,40 @@ function buildSecondaryStats(workout: HeroProps["workout"]): SecStat[] {
     out.push({ label, value, sub: "bpm" });
   }
 
+  // Normalized Power (from /activities/{id} → weighted_average_watts)
+  const np = num(stats, "weighted_average_watts");
+  if (np != null) {
+    out.push({ label: "Normalized Power", value: String(Math.round(np)), sub: "W" });
+  }
+
+  // TSS + IF (snapshotted at hydration time from NP + FTP)
+  const tss = num(stats, "tss");
+  const intensityFactor = num(stats, "intensity_factor");
+  if (tss != null) {
+    const sub = intensityFactor != null ? `IF ${intensityFactor.toFixed(2)}` : "Training stress";
+    out.push({ label: "TSS", value: String(Math.round(tss)), sub });
+  }
+
+  // Energy (kJ)
+  const kj = num(stats, "kilojoules");
+  if (kj != null) {
+    out.push({ label: "Energy", value: String(Math.round(kj)), sub: "kJ" });
+  }
+
+  // Max Power
+  const maxW = num(stats, "max_watts");
+  if (maxW != null) {
+    out.push({ label: "Max Power", value: String(Math.round(maxW)), sub: "W" });
+  }
+
+  // Calories
+  const calories = num(stats, "calories");
+  if (calories != null) {
+    out.push({ label: "Calories", value: String(Math.round(calories)) });
+  }
+
+  // Avg Power (only for non-bike sports — bike has it in the headline)
   const avgWatts = num(stats, "average_watts");
-  // Skip Avg Power in the secondary if it's already in the headline (bike).
-  const sport = workout.sport.toLowerCase();
   if (avgWatts != null && sport !== "bike" && sport !== "ride") {
     out.push({ label: "Avg Power", value: String(Math.round(avgWatts)), sub: "W" });
   }
