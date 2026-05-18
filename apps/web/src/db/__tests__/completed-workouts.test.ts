@@ -8,6 +8,9 @@
 //   - RLS positive + negative
 //   - FK cascade from auth.users
 //   - CompletedWorkoutRowSchema Zod-roundtrip against real PostgREST data
+//   - getRecentWorkouts / getWorkoutsInRange / getAthleteWorkouts exclude superseded rows
+//   - getCoachRoster weekCount + lastActivityAt exclude superseded rows
+//   - getThisWeekStats excludes superseded rows (transitively via getWorkoutsInRange)
 //
 // Companion file: workout-matches.test.ts.
 
@@ -15,6 +18,8 @@ import { describe, expect, it } from "vitest";
 
 import { CompletedWorkoutRowSchema } from "@da2/shared";
 
+import { getAthleteWorkouts, getCoachRoster } from "../roster";
+import { getRecentWorkouts, getThisWeekStats, getWorkoutsInRange } from "../workouts";
 import { createTestUser, serviceClient } from "./setup";
 
 describe("completed_workouts table", () => {
@@ -434,5 +439,247 @@ describe("completed_workouts table", () => {
     expect(parsed.distance_m).toBe(10000.5);
     expect(parsed.duration_s).toBe(2700);
     expect((parsed.summary_stats as Record<string, unknown>).tss_equivalent).toBe(55);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit 1: canonical read helpers exclude superseded rows
+// ---------------------------------------------------------------------------
+
+describe("canonical read helpers exclude superseded rows", () => {
+  async function insertSupersededPair(athleteId: string) {
+    const admin = serviceClient();
+
+    // Insert manual row M (the old canonical row)
+    const { data: manual, error: manualErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athleteId,
+        source: "manual",
+        strava_activity_id: null,
+        started_at: "2026-05-13T07:00:00+00:00",
+        sport: "run",
+        duration_s: 1500,
+      })
+      .select("id")
+      .single();
+    if (manualErr || !manual) throw new Error(`manual insert failed: ${manualErr?.message}`);
+
+    // Insert Strava row S (the canonical replacement)
+    const { data: strava, error: stravaErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athleteId,
+        source: "strava",
+        strava_activity_id: 1111111111,
+        started_at: "2026-05-13T07:02:00+00:00",
+        sport: "run",
+        duration_s: 1508,
+      })
+      .select("id")
+      .single();
+    if (stravaErr || !strava) throw new Error(`strava insert failed: ${stravaErr?.message}`);
+
+    // Supersede M with S
+    await admin
+      .from("completed_workouts")
+      .update({ superseded_by_id: strava.id })
+      .eq("id", manual.id);
+
+    return { manualId: manual.id, stravaId: strava.id };
+  }
+
+  it("getRecentWorkouts excludes superseded row and still returns canonical row", async () => {
+    const user = await createTestUser();
+    const { stravaId } = await insertSupersededPair(user.id);
+
+    const rows = await getRecentWorkouts(user.client, user.id);
+
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(stravaId);
+    // Manual row is superseded — must not appear
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.source).toBe("strava");
+  });
+
+  it("getWorkoutsInRange excludes superseded row and still returns canonical row", async () => {
+    const user = await createTestUser();
+    const { stravaId } = await insertSupersededPair(user.id);
+
+    const rows = await getWorkoutsInRange(
+      user.client,
+      user.id,
+      "2026-05-13T00:00:00Z",
+      "2026-05-13T23:59:59Z",
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(stravaId);
+  });
+
+  it("getAthleteWorkouts excludes superseded row and still returns canonical row", async () => {
+    const admin = serviceClient();
+    const user = await createTestUser();
+    const { stravaId } = await insertSupersededPair(user.id);
+
+    const rows = await getAthleteWorkouts(admin, user.id);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(stravaId);
+  });
+
+  it("getThisWeekStats count excludes superseded rows (transitively via getWorkoutsInRange)", async () => {
+    const user = await createTestUser();
+    const admin = serviceClient();
+
+    // Insert two rows this week: canonical Strava + superseded manual
+    const { data: strava, error: stravaErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: user.id,
+        source: "strava",
+        strava_activity_id: 2222222222,
+        started_at: new Date().toISOString(),
+        sport: "run",
+        duration_s: 1800,
+      })
+      .select("id")
+      .single();
+    expect(stravaErr).toBeNull();
+
+    const { data: manual, error: manualErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: user.id,
+        source: "manual",
+        strava_activity_id: null,
+        started_at: new Date().toISOString(),
+        sport: "run",
+        duration_s: 1800,
+      })
+      .select("id")
+      .single();
+    expect(manualErr).toBeNull();
+
+    // Supersede manual with strava
+    await admin
+      .from("completed_workouts")
+      .update({ superseded_by_id: strava!.id })
+      .eq("id", manual!.id);
+
+    const stats = await getThisWeekStats(user.client, user.id);
+
+    // Only the Strava row counts; manual is superseded
+    expect(stats.count).toBe(1);
+    expect(stats.totalDurationS).toBe(1800);
+  });
+
+  it("getCoachRoster weekCount excludes superseded rows within the 7-day window", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+
+    // Link coach to athlete
+    await admin.from("coach_athlete_links").insert({
+      coach_user_id: coach.id,
+      athlete_user_id: athlete.id,
+      status: "active",
+    });
+
+    // Insert canonical Strava row within last 7 days
+    const { data: strava, error: stravaErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athlete.id,
+        source: "strava",
+        strava_activity_id: 3333333333,
+        started_at: new Date().toISOString(),
+        sport: "run",
+        duration_s: 1800,
+      })
+      .select("id")
+      .single();
+    expect(stravaErr).toBeNull();
+
+    // Insert superseded manual row (also within last 7 days)
+    const { data: manual, error: manualErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athlete.id,
+        source: "manual",
+        strava_activity_id: null,
+        started_at: new Date().toISOString(),
+        sport: "run",
+        duration_s: 1800,
+      })
+      .select("id")
+      .single();
+    expect(manualErr).toBeNull();
+
+    await admin
+      .from("completed_workouts")
+      .update({ superseded_by_id: strava!.id })
+      .eq("id", manual!.id);
+
+    const roster = await getCoachRoster(admin, coach.id);
+    const entry = roster.find((e) => e.athleteId === athlete.id);
+
+    expect(entry).toBeDefined();
+    // Superseded row must not inflate weekCount
+    expect(entry!.weekCount).toBe(1);
+  });
+
+  it("getCoachRoster lastActivityAt reflects canonical (non-superseded) row", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+
+    await admin.from("coach_athlete_links").insert({
+      coach_user_id: coach.id,
+      athlete_user_id: athlete.id,
+      status: "active",
+    });
+
+    // Older manual row M (will be superseded)
+    const olderDate = "2026-05-15T07:00:00+00:00";
+    const { data: manual, error: manualErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athlete.id,
+        source: "manual",
+        strava_activity_id: null,
+        started_at: olderDate,
+        sport: "run",
+      })
+      .select("id")
+      .single();
+    expect(manualErr).toBeNull();
+
+    // Newer Strava row S (canonical)
+    const newerDate = "2026-05-15T07:02:00+00:00";
+    const { data: strava, error: stravaErr } = await admin
+      .from("completed_workouts")
+      .insert({
+        athlete_id: athlete.id,
+        source: "strava",
+        strava_activity_id: 4444444444,
+        started_at: newerDate,
+        sport: "run",
+      })
+      .select("id")
+      .single();
+    expect(stravaErr).toBeNull();
+
+    await admin
+      .from("completed_workouts")
+      .update({ superseded_by_id: strava!.id })
+      .eq("id", manual!.id);
+
+    const roster = await getCoachRoster(admin, coach.id);
+    const entry = roster.find((e) => e.athleteId === athlete.id);
+
+    expect(entry).toBeDefined();
+    // lastActivityAt must come from the Strava row (canonical), not the manual row
+    expect(entry!.lastActivityAt).toBe(newerDate);
   });
 });

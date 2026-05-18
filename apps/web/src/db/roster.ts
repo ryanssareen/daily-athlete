@@ -73,6 +73,7 @@ export async function getCoachRoster(
     .select("athlete_id, started_at")
     .in("athlete_id", athleteIds)
     .is("deleted_at", null)
+    .is("superseded_by_id", null)
     .order("started_at", { ascending: false });
 
   if (actError) {
@@ -134,6 +135,7 @@ export async function getAthleteWorkouts(
     .select("id, started_at, sport, duration_s, distance_m, source")
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
+    .is("superseded_by_id", null)
     .order("started_at", { ascending: false })
     .limit(limit);
 

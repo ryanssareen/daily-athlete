@@ -79,7 +79,8 @@ export async function getRecentWorkouts(
     .from("completed_workouts")
     .select("id, started_at, sport, duration_s, distance_m, source, summary_stats")
     .eq("athlete_id", athleteId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .is("superseded_by_id", null);
 
   if (sport) query = query.eq("sport", sport);
 
@@ -108,6 +109,7 @@ export async function getWorkoutsInRange(
     .select("id, started_at, sport, duration_s, distance_m, source")
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
+    .is("superseded_by_id", null)
     .gte("started_at", from)
     .lte("started_at", to)
     .order("started_at", { ascending: true });
