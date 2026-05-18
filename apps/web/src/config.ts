@@ -37,6 +37,7 @@ interface RawEnv {
   STRAVA_CLIENT_SECRET?: string;
   STRAVA_TOKEN_KEYS?: string;
   STRAVA_WEBHOOK_VERIFY_TOKEN?: string;
+  STRAVA_WEBHOOK_SUBSCRIPTION_ID?: string;
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
@@ -54,6 +55,7 @@ export interface AppConfig {
     clientSecret: string | undefined;
     tokenKeysRaw: string | undefined;
     webhookVerifyToken: string | undefined;
+    webhookSubscriptionId: number | undefined;
     stateSigningKey: string | undefined;
   };
   inngest: {
@@ -187,6 +189,22 @@ function validateStravaTokenKeysProd(v: Validator): void {
   }
 }
 
+function validateWebhookSubscriptionIdProd(v: Validator): void {
+  const raw = v.raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+  if (!raw || isPlaceholder(raw)) {
+    v.errors.push(
+      "STRAVA_WEBHOOK_SUBSCRIPTION_ID is required in production (env: STRAVA_WEBHOOK_SUBSCRIPTION_ID)"
+    );
+    return;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+    v.errors.push(
+      "STRAVA_WEBHOOK_SUBSCRIPTION_ID must be a positive integer — Number(undefined) = NaN silently discards all webhook events"
+    );
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -203,6 +221,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       "STRAVA_WEBHOOK_VERIFY_TOKEN",
       "Strava webhook verify token"
     );
+    validateWebhookSubscriptionIdProd(v);
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
     // Inngest keys are optional — backfill runs via Next.js after() + Vercel
@@ -249,6 +268,9 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       clientSecret: raw.STRAVA_CLIENT_SECRET,
       tokenKeysRaw: raw.STRAVA_TOKEN_KEYS,
       webhookVerifyToken: raw.STRAVA_WEBHOOK_VERIFY_TOKEN,
+      webhookSubscriptionId: raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID
+        ? Number(raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID)
+        : undefined,
       stateSigningKey: raw.STRAVA_OAUTH_STATE_SIGNING_KEY,
     },
     inngest: {

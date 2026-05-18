@@ -8,6 +8,7 @@ import { updateBackfillStatus } from "@/db/backfill-status";
 import type { StravaClient } from "@/strava/client";
 import { normalizeSport } from "@/strava/sport-normalization";
 import { buildSummaryStats } from "@/strava/build-summary-stats";
+import { matchStravaToPlanned } from "@/strava/auto-match";
 import type { StravaActivity } from "@/strava/schemas";
 
 /** Returns true if the auth.users row still exists. */
@@ -67,8 +68,25 @@ export async function processActivityPage({
       duration_s: activity.moving_time ?? activity.elapsed_time ?? null,
       summary_stats: buildSummaryStats(activity),
     };
-    await insertOrUpdateStravaCompletedWorkout(admin, row);
+    const completedWorkoutId = await insertOrUpdateStravaCompletedWorkout(admin, row);
     await insertHydrationPayload(admin, { userId, activity });
+
+    // Non-fatal: a match failure must not abort the backfill loop.
+    try {
+      await matchStravaToPlanned(admin, {
+        athleteId: userId,
+        completedWorkoutId,
+        sport,
+        startedAt: activity.start_date,
+        durationS: row.duration_s,
+      });
+    } catch {
+      // Log structured context only — never log raw activity payload.
+      console.info(
+        "[backfill.match] failed",
+        JSON.stringify({ athlete_id: userId, strava_activity_id: activity.id })
+      );
+    }
   }
   return toProcess.length;
 }
