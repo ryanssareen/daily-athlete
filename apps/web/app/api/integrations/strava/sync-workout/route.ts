@@ -7,22 +7,7 @@ import { getWorkoutById } from "@/db/workouts";
 import { createStravaClient } from "@/strava/client";
 import { StravaReauthRequired, StravaRateLimited } from "@/strava/errors";
 import { StravaActivitySchema } from "@/strava/schemas";
-
-function buildStats(activity: ReturnType<typeof StravaActivitySchema.parse>): Record<string, unknown> {
-  const stats: Record<string, unknown> = {};
-  if (activity.name) stats.name = activity.name;
-  if (activity.average_speed != null) stats.average_speed = activity.average_speed;
-  if (activity.max_speed != null) stats.max_speed = activity.max_speed;
-  if (activity.average_heartrate != null) stats.average_heartrate = activity.average_heartrate;
-  if (activity.max_heartrate != null) stats.max_heartrate = activity.max_heartrate;
-  if (activity.average_watts != null) stats.average_watts = activity.average_watts;
-  if (activity.total_elevation_gain != null) stats.total_elevation_gain = activity.total_elevation_gain;
-  if (activity.suffer_score != null) stats.suffer_score = activity.suffer_score;
-  if (activity.average_cadence != null) stats.average_cadence = activity.average_cadence;
-  const poly = activity.map?.summary_polyline;
-  if (poly && poly.length > 0) stats.polyline = poly;
-  return stats;
-}
+import { buildSummaryStats } from "@/strava/build-summary-stats";
 
 export async function POST(req: Request) {
   const session = await getUserWithRoles();
@@ -76,7 +61,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Unexpected data from Strava" }, { status: 502 });
   }
-  const newStats = buildStats(activity);
+  const newStats = buildSummaryStats(activity);
 
   // service-role: explicit user filter required
   const { error } = await admin
