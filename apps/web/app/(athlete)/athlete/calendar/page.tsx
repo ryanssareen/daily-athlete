@@ -9,7 +9,6 @@ import {
   type PlannedRow,
   type WorkoutRow,
 } from "@/db/workouts";
-import LogWorkoutDialog from "../LogWorkoutDialog";
 import PlannedChipClient from "./PlannedChipClient";
 
 // ---------- Helpers -------------------------------------------------------
@@ -388,7 +387,23 @@ export default async function AthleteCalendarPage({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <LogWorkoutDialog />
+          <Link
+            href="/athlete/workouts/new"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "7px 16px",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: "none",
+              background: "var(--color-ink)",
+              color: "var(--color-canvas)",
+            }}
+          >
+            + Log workout
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Link href={`/athlete/calendar?week=${prevMonday}`} style={{ ...navButtonStyle, width: 32 }}>
               ←

@@ -154,12 +154,12 @@ export default function NewWorkoutPage() {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "0 0 48px" }}>
+    <div style={{ padding: "0 0 48px" }}>
 
       {/* Back nav */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <Link
-          href="/athlete/activities"
+          href="/athlete/calendar"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -171,7 +171,7 @@ export default function NewWorkoutPage() {
           }}
         >
           <ArrowLeft />
-          Activities
+          Calendar
         </Link>
       </div>
 
@@ -187,202 +187,207 @@ export default function NewWorkoutPage() {
 
       <form onSubmit={handleSubmit}>
 
-        {/* ── Card 1: Workout ── */}
+        {/* ── Sport picker (full width) ── */}
         <div style={cardStyle}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 20px" }}>
-            Workout
+          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 16px" }}>
+            Sport *
           </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+            {SPORTS.map((s) => {
+              const active = sport === s.value;
+              return (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setSport(s.value)}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "14px 8px",
+                    borderRadius: 10,
+                    border: `1.5px solid ${active ? s.accent : "var(--color-border)"}`,
+                    background: active
+                      ? `color-mix(in oklab, ${s.accent} 12%, var(--color-canvas-soft))`
+                      : "var(--color-canvas-soft)",
+                    color: active ? s.accent : "var(--color-ink-muted)",
+                    fontSize: 12,
+                    fontWeight: active ? 700 : 500,
+                    cursor: "pointer",
+                    transition: "all 0.12s",
+                  }}
+                >
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>{s.emoji}</span>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Sport picker */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={labelStyle}>Sport *</label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {SPORTS.map((s) => {
-                const active = sport === s.value;
-                return (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setSport(s.value)}
+        {/* ── Two-column layout for the rest ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+
+          {/* Left column: Name + Date + Duration + Distance */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Name + Date side by side */}
+            <div style={cardStyle}>
+              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 20px" }}>
+                Details
+              </p>
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>
+                  Name
+                  <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={`${selectedSport.emoji} ${selectedSport.label}`}
+                  maxLength={100}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Date *</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {/* Metrics */}
+            <div style={cardStyle}>
+              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 20px" }}>
+                Metrics
+              </p>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>Duration *</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={durationMin}
+                    onChange={(e) => setDurationMin(e.target.value)}
+                    placeholder="45"
+                    required
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <span style={{ fontSize: 14, color: "var(--color-ink-muted)", whiteSpace: "nowrap" }}>min</span>
+                </div>
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Distance
+                  <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={distanceVal}
+                    onChange={(e) => setDistanceVal(e.target.value)}
+                    placeholder="10"
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <select
+                    value={distanceUnit}
+                    onChange={(e) => setDistanceUnit(e.target.value as DistanceUnit)}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: `1.5px solid ${active ? s.accent : "var(--color-border)"}`,
-                      background: active
-                        ? `color-mix(in oklab, ${s.accent} 12%, var(--color-canvas-soft))`
-                        : "var(--color-canvas-soft)",
-                      color: active ? s.accent : "var(--color-ink-muted)",
-                      fontSize: 13,
-                      fontWeight: active ? 700 : 500,
+                      ...inputStyle,
+                      width: "auto",
+                      paddingRight: 32,
                       cursor: "pointer",
-                      transition: "all 0.12s",
-                      textAlign: "left",
+                      appearance: "none",
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 10px center",
                     }}
                   >
-                    <span style={{ fontSize: 16, lineHeight: 1 }}>{s.emoji}</span>
-                    <span>{s.label}</span>
-                  </button>
-                );
-              })}
+                    {DISTANCE_UNITS.map((u) => (
+                      <option key={u.value} value={u.value}>{u.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Name */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>
-              Name
-              <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={`${selectedSport.emoji} ${selectedSport.label}`}
-              maxLength={100}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* Date */}
-          <div>
-            <label style={labelStyle}>Date *</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
-        {/* ── Card 2: Metrics ── */}
-        <div style={cardStyle}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 20px" }}>
-            Metrics
-          </p>
-
-          {/* Duration */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={labelStyle}>Duration *</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input
-                type="number"
-                min="1"
-                max="1440"
-                value={durationMin}
-                onChange={(e) => setDurationMin(e.target.value)}
-                placeholder="45"
-                required
-                style={{ ...inputStyle, width: 120 }}
-              />
-              <span style={{ fontSize: 14, color: "var(--color-ink-muted)", whiteSpace: "nowrap" }}>minutes</span>
-            </div>
-          </div>
-
-          {/* Distance */}
-          <div>
-            <label style={labelStyle}>
-              Distance
-              <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
-            </label>
-            <div style={{ display: "flex", gap: 10 }}>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={distanceVal}
-                onChange={(e) => setDistanceVal(e.target.value)}
-                placeholder="10"
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <select
-                value={distanceUnit}
-                onChange={(e) => setDistanceUnit(e.target.value as DistanceUnit)}
+          {/* Right column: Notes + Submit */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ ...cardStyle, marginBottom: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 4px" }}>
+                Notes
+                <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
+              </p>
+              <p style={{ fontSize: 12, color: "var(--color-ink-subtle)", margin: "0 0 16px" }}>
+                How did it feel? Any goals, cues, or context.
+              </p>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Felt strong in the first half, faded a bit at the end…"
+                maxLength={2000}
+                rows={8}
                 style={{
                   ...inputStyle,
-                  width: "auto",
-                  paddingRight: 32,
-                  cursor: "pointer",
-                  appearance: "none",
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "right 10px center",
+                  resize: "vertical",
+                  lineHeight: 1.6,
+                  fontFamily: "inherit",
                 }}
-              >
-                {DISTANCE_UNITS.map((u) => (
-                  <option key={u.value} value={u.value}>{u.label}</option>
-                ))}
-              </select>
+              />
+              <div style={{ textAlign: "right", fontSize: 11, color: "var(--color-ink-subtle)", marginTop: 4 }}>
+                {notes.length} / 2000
+              </div>
             </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                fontSize: 13,
+                color: "var(--color-danger)",
+                background: "color-mix(in oklab, var(--color-danger) 10%, transparent)",
+                border: "1px solid color-mix(in oklab, var(--color-danger) 25%, transparent)",
+                borderRadius: 10,
+                padding: "10px 16px",
+              }}>
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: "100%",
+                padding: "13px 0",
+                borderRadius: 12,
+                border: "none",
+                background: submitting ? "var(--color-canvas-soft)" : selectedSport.accent,
+                color: submitting ? "var(--color-ink-muted)" : "#fff",
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: submitting ? "not-allowed" : "pointer",
+                letterSpacing: "0.01em",
+                transition: "background 0.15s",
+              }}
+            >
+              {submitting ? "Saving…" : `Log ${selectedSport.label}`}
+            </button>
           </div>
         </div>
-
-        {/* ── Card 3: Notes ── */}
-        <div style={cardStyle}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)", margin: "0 0 4px" }}>
-            Notes
-            <span style={{ fontSize: 10, fontWeight: 400, letterSpacing: 0, textTransform: "none", color: "var(--color-ink-subtle)", marginLeft: 6 }}>optional</span>
-          </p>
-          <p style={{ fontSize: 12, color: "var(--color-ink-subtle)", margin: "0 0 16px" }}>
-            How did it feel? Any goals, cues, or context.
-          </p>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="e.g. Felt strong in the first half, faded a bit at the end…"
-            maxLength={2000}
-            rows={4}
-            style={{
-              ...inputStyle,
-              resize: "vertical",
-              lineHeight: 1.6,
-              fontFamily: "inherit",
-            }}
-          />
-          <div style={{ textAlign: "right", fontSize: 11, color: "var(--color-ink-subtle)", marginTop: 4 }}>
-            {notes.length} / 2000
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div style={{
-            fontSize: 13,
-            color: "var(--color-danger)",
-            background: "color-mix(in oklab, var(--color-danger) 10%, transparent)",
-            border: "1px solid color-mix(in oklab, var(--color-danger) 25%, transparent)",
-            borderRadius: 10,
-            padding: "10px 16px",
-            marginBottom: 16,
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{
-            width: "100%",
-            padding: "13px 0",
-            borderRadius: 12,
-            border: "none",
-            background: submitting ? "var(--color-canvas-soft)" : selectedSport.accent,
-            color: submitting ? "var(--color-ink-muted)" : "#fff",
-            fontSize: 15,
-            fontWeight: 700,
-            cursor: submitting ? "not-allowed" : "pointer",
-            letterSpacing: "0.01em",
-            transition: "background 0.15s",
-          }}
-        >
-          {submitting ? "Saving…" : `Log ${selectedSport.label}`}
-        </button>
 
       </form>
     </div>

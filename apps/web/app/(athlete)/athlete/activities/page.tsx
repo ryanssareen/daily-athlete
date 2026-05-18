@@ -151,23 +151,6 @@ export default async function AthleteActivitiesPage({
         >
           Activities
         </h1>
-        <Link
-          href="/athlete/workouts/new"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "7px 16px",
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: "none",
-            background: "var(--color-ink)",
-            color: "var(--color-canvas)",
-          }}
-        >
-          + Log workout
-        </Link>
       </div>
 
       {/* Sport filter tabs */}
