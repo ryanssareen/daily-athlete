@@ -72,13 +72,6 @@ function formatDuration(s: number): string {
   return `${m}m`;
 }
 
-function formatDurationLong(s: number): string {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
-  return `${m}m`;
-}
-
 function formatDistance(m: number): string {
   return `${(m / 1000).toFixed(1)} km`;
 }
@@ -217,50 +210,6 @@ function CompletedChip({ w }: { w: WorkoutRow }) {
   );
 }
 
-// ---------- Panel helpers -------------------------------------------------
-
-function StatTile({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--color-paper)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 12,
-        padding: "14px 18px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        minHeight: 84,
-      }}
-    >
-      <span className="eyebrow">{label}</span>
-      <span
-        style={{
-          fontSize: 22,
-          fontWeight: 600,
-          color: "var(--color-ink)",
-          fontFamily: "var(--font-mono)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.2,
-        }}
-      >
-        {value}
-      </span>
-      {sub && (
-        <span style={{ fontSize: 11, color: "var(--color-ink-subtle)" }}>{sub}</span>
-      )}
-    </div>
-  );
-}
-
 // ---------- Page ----------------------------------------------------------
 
 export default async function AthleteCalendarPage({
@@ -317,29 +266,6 @@ export default async function AthleteCalendarPage({
   });
 
   const todayStr = toDateString(new Date());
-  const totalDurationS = completed.reduce((s, w) => s + (w.duration_s ?? 0), 0);
-  const totalDistanceM = completed.reduce((s, w) => s + (w.distance_m ?? 0), 0);
-
-  // Sport breakdown for the bottom rail
-  const sportCount = new Map<string, number>();
-  const sportDuration = new Map<string, number>();
-  for (const w of completed) {
-    sportCount.set(w.sport, (sportCount.get(w.sport) ?? 0) + 1);
-    sportDuration.set(w.sport, (sportDuration.get(w.sport) ?? 0) + (w.duration_s ?? 0));
-  }
-  const sportEntries = Array.from(sportCount.entries()).sort((a, b) => b[1] - a[1]);
-
-  // Highlights
-  const longestWorkout = completed.reduce<WorkoutRow | null>((best, w) => {
-    if (!best) return w;
-    return (w.duration_s ?? 0) > (best.duration_s ?? 0) ? w : best;
-  }, null);
-
-  const dayCounts = days.map((d) => ({ name: d.name, n: d.completed.length }));
-  const mostActiveDay = dayCounts.reduce((best, d) => (d.n > best.n ? d : best), {
-    name: "—",
-    n: 0,
-  });
 
   const navButtonStyle = {
     display: "inline-flex",
@@ -424,7 +350,6 @@ export default async function AthleteCalendarPage({
           border: "1px solid var(--color-border)",
           borderRadius: 14,
           overflow: "hidden",
-          marginBottom: 24,
           background: "var(--color-border)",
         }}
       >
@@ -529,153 +454,6 @@ export default async function AthleteCalendarPage({
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Bottom analytics rail: stats + sport breakdown + highlights */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-          gap: 20,
-          alignItems: "start",
-        }}
-      >
-        {/* Stats grid */}
-        <div>
-          <p className="eyebrow" style={{ marginBottom: 10 }}>
-            Week summary
-          </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 10,
-            }}
-          >
-            <StatTile
-              label="Completed"
-              value={completed.length.toString()}
-              sub="workouts"
-            />
-            <StatTile
-              label="Time"
-              value={totalDurationS > 0 ? formatDurationLong(totalDurationS) : "—"}
-              sub="total"
-            />
-            <StatTile
-              label="Distance"
-              value={totalDistanceM > 0 ? formatDistance(totalDistanceM) : "—"}
-              sub="total"
-            />
-            <StatTile
-              label="Planned"
-              value={planned.length.toString()}
-              sub="this week"
-            />
-            <StatTile
-              label="Most active"
-              value={mostActiveDay.n > 0 ? mostActiveDay.name : "—"}
-              sub={mostActiveDay.n > 0 ? `${mostActiveDay.n} workouts` : "no data"}
-            />
-            <StatTile
-              label="Longest"
-              value={
-                longestWorkout?.duration_s != null
-                  ? formatDurationLong(longestWorkout.duration_s)
-                  : "—"
-              }
-              sub={longestWorkout ? longestWorkout.sport : "no data"}
-            />
-          </div>
-        </div>
-
-        {/* Sport breakdown */}
-        <div>
-          <p className="eyebrow" style={{ marginBottom: 10 }}>
-            Sports
-          </p>
-          <div
-            style={{
-              background: "var(--color-paper)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 12,
-              padding: "16px 18px",
-              minHeight: 84,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
-          >
-            {sportEntries.length > 0 ? (
-              sportEntries.map(([sport, count]) => {
-                const dur = sportDuration.get(sport) ?? 0;
-                const maxCount = sportEntries[0][1];
-                const pct = (count / maxCount) * 100;
-                const color = getSportColor(sport);
-                return (
-                  <div key={sport}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                        marginBottom: 4,
-                        fontSize: 12,
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "var(--color-ink)",
-                          textTransform: "capitalize",
-                          fontWeight: 500,
-                        }}
-                      >
-                        {getSportEmoji(sport)} {sport}
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          color: "var(--color-ink-muted)",
-                        }}
-                      >
-                        {count} · {dur > 0 ? formatDuration(dur) : "—"}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: 6,
-                        background: "var(--color-canvas-soft)",
-                        borderRadius: 999,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${pct}%`,
-                          height: "100%",
-                          background: color,
-                          transition: "width 320ms ease",
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--color-ink-subtle)",
-                  margin: 0,
-                  textAlign: "center",
-                }}
-              >
-                No workouts logged this week.
-              </p>
-            )}
-          </div>
         </div>
       </div>
     </div>
