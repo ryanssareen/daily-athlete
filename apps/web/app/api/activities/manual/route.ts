@@ -35,6 +35,8 @@ const ManualActivityBodySchema = z.object({
   duration_s: z.number().int().positive("duration_s must be > 0"),
   // Optional distance in metres. Nullable/absent for strength/mobility.
   distance_m: z.number().positive().optional(),
+  // Human-readable workout name. Stored in summary_stats.name.
+  name: z.string().max(100).optional(),
   // Free-text notes. Stored in summary_stats.notes.
   notes: z.string().max(2000).optional(),
 });
@@ -112,9 +114,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   //    enforces this; setting it here also makes the row complete for the
   //    SELECT * return.
   const summaryStats: Record<string, unknown> = {};
-  if (body.notes) {
-    summaryStats["notes"] = body.notes;
-  }
+  if (body.name) summaryStats["name"] = body.name;
+  if (body.notes) summaryStats["notes"] = body.notes;
 
   const row = {
     athlete_id: user.id,
