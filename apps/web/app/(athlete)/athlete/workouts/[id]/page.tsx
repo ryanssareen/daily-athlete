@@ -14,6 +14,7 @@ import { Hero } from "./Hero";
 import { MapCard, MapEmpty } from "./MapCard";
 import { ZoneDistribution } from "./ZoneDistribution";
 import { LapSplits } from "./LapSplits";
+import { StatsDetail } from "./StatsDetail";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -38,23 +39,6 @@ function backLabelFor(from: string | undefined): string {
   return "Activities";
 }
 
-// ─── Overflow stats panel ─────────────────────────────────────────────────────
-
-// Allowlist of summary_stats keys that should appear in the collapsed
-// "More stats" panel. Inverted from the prior blocklist so that adding
-// a new field to buildSummaryStats does NOT silently double-display
-// in both the hero and the overflow (MAINT-6 fix). The default is "don't
-// show unless explicitly added here."
-const OVERFLOW_KEYS = new Set([
-  "average_temp",
-  "pr_count",
-  "achievement_count",
-  "description",
-]);
-
-function labelFor(key: string) {
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 // ─── Lazy auto-hydration ──────────────────────────────────────────────────────
 
@@ -222,8 +206,6 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
   const lapsValue = stats.laps;
   const laps = Array.isArray(lapsValue) && lapsValue.length > 0 ? lapsValue : null;
 
-  const overflowEntries = Object.entries(stats).filter(([k, v]) => OVERFLOW_KEYS.has(k) && v != null);
-
   return (
     <div className="wd-container">
       <Hero
@@ -250,41 +232,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
         </div>
       )}
 
-      {overflowEntries.length > 0 && (
-        <details>
-          <summary className="wd-overflow-summary">
-            More stats ({overflowEntries.length})
-          </summary>
-          <div className="wd-overflow-panel">
-            {overflowEntries.map(([k, v]) => (
-              <div key={k} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "var(--color-ink-muted)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  {labelFor(k)}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: "var(--color-ink)",
-                  }}
-                >
-                  {String(v)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      <StatsDetail stats={stats} />
 
       <footer className="wd-foot">
         <span>Workout · {workout.id.slice(0, 8)}</span>

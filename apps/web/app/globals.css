@@ -398,25 +398,72 @@ a {
   text-decoration: underline;
 }
 
-/* Overflow stats panel */
-.wd-overflow-summary {
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--color-ink-muted);
-  user-select: none;
-  margin-bottom: 10px;
-  font-family: var(--font-mono);
-  letter-spacing: 0.06em;
+/* Structured "Context & conditions" detail section */
+.wd-stats {
+  display: flex;
+  flex-direction: column;
 }
-.wd-overflow-summary:hover { color: var(--color-ink); }
-.wd-overflow-panel {
+.wd-stats-head { margin-bottom: 16px; }
+.wd-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+.wd-stats-card {
   background: var(--color-paper);
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  padding: 16px 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px 28px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wd-stats-card-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+  margin: 0;
+}
+.wd-stats-card-list {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wd-stats-card-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
+}
+.wd-stats-card-row:first-child { border-top: none; padding-top: 0; }
+.wd-stats-card-k {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+.wd-stats-card-v {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+  text-align: right;
+  margin: 0;
+}
+.wd-stats-description {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-ink);
+  margin: 0;
+  text-wrap: pretty;
 }
 
 /* Footer / metadata */
