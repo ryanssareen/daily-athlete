@@ -16,6 +16,7 @@ export default function MarkAsDoneButton({ id }: { id: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "completed" }),
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -24,7 +25,7 @@ export default function MarkAsDoneButton({ id }: { id: string }) {
         return;
       }
       router.refresh();
-      setState("idle");
+      // Stay in 'loading' until the server component re-renders and removes this button.
     } catch {
       setErrMsg("Network error");
       setState("error");

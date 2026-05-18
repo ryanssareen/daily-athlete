@@ -141,7 +141,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       success: false,
       code: insertErr.code ?? "unknown",
     });
-    return errorJson("insert_failed", 500, insertErr.message);
+    return errorJson("insert_failed", 500, "Unable to save workout. Please try again.");
   }
 
   logEvent({

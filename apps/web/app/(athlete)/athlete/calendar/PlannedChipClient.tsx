@@ -5,6 +5,9 @@ import type { Route } from "next";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { getSportEmoji } from "@/lib/sport-display";
+import type { PlannedStatus } from "@/db/workouts";
+
 const STATUS_CFG: Record<string, { border: string; bg: string; color: string; label: string }> = {
   planned: {
     border: "var(--color-pine)",
@@ -32,23 +35,13 @@ const STATUS_CFG: Record<string, { border: string; bg: string; color: string; la
   },
 };
 
-function getSportEmoji(sport: string): string {
-  const lower = sport.toLowerCase();
-  if (lower.includes("run")) return "🏃";
-  if (lower.includes("swim")) return "🏊";
-  if (lower.includes("bike") || lower.includes("ride")) return "🚴";
-  if (lower.includes("strength")) return "💪";
-  if (lower.includes("mobility")) return "🧘";
-  return "⚡";
-}
-
 export default function PlannedChipClient({
   id,
   status,
   sport,
 }: {
   id: string;
-  status: string;
+  status: PlannedStatus;
   sport: string;
 }) {
   const router = useRouter();
@@ -72,16 +65,17 @@ export default function PlannedChipClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "completed" }),
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setErrMsg((body as { error?: string }).error ?? "Failed");
-        setMarking(false);
         return;
       }
       router.refresh();
     } catch {
       setErrMsg("Network error");
+    } finally {
       setMarking(false);
     }
   }

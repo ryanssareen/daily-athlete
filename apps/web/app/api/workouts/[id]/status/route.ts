@@ -41,7 +41,7 @@ const StatusBodySchema = z.discriminatedUnion("status", [
     started_at: z.string().datetime().optional(),
     duration_s: z.number().int().positive().optional(),
     distance_m: z.number().positive().optional(),
-    notes: z.string().optional(),
+    notes: z.string().max(2000).optional(),
   }),
   z.object({
     status: z.literal("skipped"),
@@ -208,20 +208,15 @@ export async function POST(
       await _markMoved(admin, workoutId, body.scheduled_date);
     }
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "internal error";
     logEvent({
       name: "update_failed",
       user_id: user.id,
       workout_id: workoutId,
       status: body.status,
       success: false,
-      code: "internal",
+      code: err instanceof Error ? err.message : "internal",
     });
-    return NextResponse.json(
-      { error: "internal", message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 
   logEvent({

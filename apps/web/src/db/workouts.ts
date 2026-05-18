@@ -23,11 +23,13 @@ export interface WorkoutDetailRow {
   summary_stats: Record<string, unknown>;
 }
 
+export type PlannedStatus = "planned" | "completed" | "skipped" | "moved";
+
 export interface PlannedRow {
   id: string;
   scheduled_date: string;
   sport: string;
-  status: string;
+  status: PlannedStatus;
   structure: Record<string, unknown>;
 }
 
@@ -106,7 +108,7 @@ export async function getWorkoutsInRange(
 ): Promise<WorkoutRow[]> {
   const { data, error } = await supabase
     .from("completed_workouts")
-    .select("id, started_at, sport, duration_s, distance_m, source")
+    .select("id, started_at, sport, duration_s, distance_m, source, summary_stats")
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
     .is("superseded_by_id", null)

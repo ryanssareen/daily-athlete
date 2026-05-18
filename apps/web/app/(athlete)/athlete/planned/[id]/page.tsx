@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import { getPlannedById } from "@/db/workouts";
+import { getSportEmoji } from "@/lib/sport-display";
 import MarkAsDoneButton from "./MarkAsDoneButton";
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -31,16 +32,6 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string; bor
     border: "var(--color-border-strong)",
   },
 };
-
-function getSportEmoji(sport: string): string {
-  const lower = sport.toLowerCase();
-  if (lower.includes("run")) return "🏃";
-  if (lower.includes("swim")) return "🏊";
-  if (lower.includes("bike") || lower.includes("ride")) return "🚴";
-  if (lower.includes("strength")) return "💪";
-  if (lower.includes("mobility")) return "🧘";
-  return "⚡";
-}
 
 function formatScheduledDate(dateStr: string): string {
   return new Date(dateStr + "T00:00:00Z").toLocaleDateString("en-US", {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const SPORTS = ["run", "swim", "bike", "strength", "mobility", "other"] as const;
+type Sport = (typeof SPORTS)[number];
 
 const inputStyle = {
   padding: "8px 10px",
@@ -19,7 +20,7 @@ const inputStyle = {
 export default function LogWorkoutDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [sport, setSport] = useState("run");
+  const [sport, setSport] = useState<Sport>("run");
   const [date, setDate] = useState("");
   const [durationMin, setDurationMin] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,6 +40,11 @@ export default function LogWorkoutDialog() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const mins = parseInt(durationMin, 10);
+    if (!Number.isFinite(mins) || mins < 1) {
+      setErrorMsg("Enter a valid duration");
+      return;
+    }
     setSubmitting(true);
     setErrorMsg("");
     try {
@@ -48,8 +54,9 @@ export default function LogWorkoutDialog() {
         body: JSON.stringify({
           sport,
           started_at: `${date}T00:00:00+00:00`,
-          duration_s: parseInt(durationMin, 10) * 60,
+          duration_s: mins * 60,
         }),
+        signal: AbortSignal.timeout(15_000),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -144,7 +151,7 @@ export default function LogWorkoutDialog() {
                   <span className="eyebrow">Sport</span>
                   <select
                     value={sport}
-                    onChange={(e) => setSport(e.target.value)}
+                    onChange={(e) => setSport(e.target.value as Sport)}
                     required
                     style={inputStyle}
                   >
