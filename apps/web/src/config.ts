@@ -190,17 +190,26 @@ function validateStravaTokenKeysProd(v: Validator): void {
 }
 
 function validateWebhookSubscriptionIdProd(v: Validator): void {
+  // Demoted from fatal to warning: the webhook route at
+  // app/api/integrations/strava/webhook/route.ts already fails safe when
+  // the value is undefined (returns { ok: true } without processing), so
+  // a missing env var should NOT crash the whole app at boot. The right
+  // failure mode is "webhook is a no-op until the var is set," not
+  // "every server-rendered page returns 500."
   const raw = v.raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
   if (!raw || isPlaceholder(raw)) {
-    v.errors.push(
-      "STRAVA_WEBHOOK_SUBSCRIPTION_ID is required in production (env: STRAVA_WEBHOOK_SUBSCRIPTION_ID)"
+    v.warnings.push(
+      "STRAVA_WEBHOOK_SUBSCRIPTION_ID missing — Strava webhook events will be ignored until set"
     );
     return;
   }
   const n = Number(raw);
   if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+    // A non-numeric value is still a hard error — silently coercing to
+    // NaN would make every event match comparison return false and lose
+    // data without surfacing why.
     v.errors.push(
-      "STRAVA_WEBHOOK_SUBSCRIPTION_ID must be a positive integer — Number(undefined) = NaN silently discards all webhook events"
+      "STRAVA_WEBHOOK_SUBSCRIPTION_ID must be a positive integer when set (Number(\"bad\") = NaN silently discards all webhook events)"
     );
   }
 }
