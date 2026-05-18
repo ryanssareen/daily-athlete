@@ -4,12 +4,10 @@ import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { createClient } from "@/auth/server";
 import { getWorkoutById } from "@/db/workouts";
-import { hydrateStravaWorkout } from "@/strava/hydrate-workout";
+import { createStravaClient } from "@/strava/client";
 import { StravaReauthRequired, StravaRateLimited } from "@/strava/errors";
-
-// Thin wrapper around the shared `hydrateStravaWorkout` service. Same
-// service is also called from the auto-hydration server action on first
-// workout-detail view (Unit 4).
+import { StravaActivitySchema } from "@/strava/schemas";
+import { buildSummaryStats } from "@/strava/build-summary-stats";
 
 export async function POST(req: Request) {
   const session = await getUserWithRoles();
@@ -32,16 +30,11 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
+  const stravaClient = createStravaClient(session.user.id, admin);
 
+  let res: Response;
   try {
-    const { summary_stats } = await hydrateStravaWorkout({
-      admin,
-      userId: session.user.id,
-      workoutId,
-      stravaActivityId: workout.strava_activity_id,
-      durationSec: workout.duration_s,
-    });
-    return NextResponse.json({ ok: true, stats: summary_stats });
+    res = await stravaClient.fetch(`/activities/${workout.strava_activity_id}`);
   } catch (err) {
     if (err instanceof StravaReauthRequired) {
       return NextResponse.json(
@@ -55,7 +48,32 @@ export async function POST(req: Request) {
         { status: 429 }
       );
     }
-    console.error("[sync-workout] hydration failed", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Could not sync workout" }, { status: 502 });
+    return NextResponse.json({ error: "Could not reach Strava" }, { status: 502 });
   }
+
+  if (res.status === 429) return NextResponse.json({ error: "Strava rate limit reached, try again shortly" }, { status: 429 });
+  if (!res.ok) return NextResponse.json({ error: `Strava returned ${res.status}` }, { status: 502 });
+
+  const raw = await res.json();
+  let activity: ReturnType<typeof StravaActivitySchema.parse>;
+  try {
+    activity = StravaActivitySchema.parse(raw);
+  } catch {
+    return NextResponse.json({ error: "Unexpected data from Strava" }, { status: 502 });
+  }
+  const newStats = buildSummaryStats(activity);
+
+  // service-role: explicit user filter required
+  const { error } = await admin
+    .from("completed_workouts")
+    .update({ summary_stats: newStats })
+    .eq("id", workoutId)
+    .eq("athlete_id", session.user.id);
+
+  if (error) {
+    console.error("[sync-workout] update failed", error.message);
+    return NextResponse.json({ error: "DB update failed" }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, stats: newStats });
 }
