@@ -573,6 +573,62 @@ a {
 .wd-zone-legend-time { color: var(--color-ink); }
 .wd-zone-legend-pct { color: var(--color-ink-subtle); }
 
+/* ---------- Heart Rate section ------------------------------------ */
+.wd-hr {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 24px 28px;
+}
+.wd-hr-head { margin-bottom: 16px; }
+.wd-hr-metrics {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 20px;
+}
+.wd-hr-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  margin-bottom: 4px;
+}
+.wd-hr-metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.wd-hr-metric-num {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+.wd-hr-metric-unit {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+}
+.wd-hr-bar {
+  display: flex;
+  height: 16px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: var(--color-canvas-soft);
+}
+.wd-hr-bar-cell { transition: opacity 140ms; }
+.wd-hr-bar-cell:hover { opacity: 0.82; }
+.wd-hr-estimated {
+  font-size: 11px;
+  color: var(--color-ink-subtle);
+  margin: 10px 0 0;
+  font-style: italic;
+}
+
 /* ---------- Lap Splits section ------------------------------------ */
 .wd-laps {
   background: var(--color-paper);

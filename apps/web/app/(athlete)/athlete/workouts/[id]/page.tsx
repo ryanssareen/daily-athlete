@@ -12,6 +12,7 @@ import { StravaRateLimited, StravaReauthRequired } from "@/strava/errors";
 
 import { Hero } from "./Hero";
 import { MapCard, MapEmpty } from "./MapCard";
+import { HeartRateCard, isHrZoneEntry } from "./HeartRateCard";
 import { ZoneDistribution } from "./ZoneDistribution";
 import { LapSplits } from "./LapSplits";
 import { StatsDetail } from "./StatsDetail";
@@ -200,9 +201,19 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
     showStravaConnect = !(await hasStravaToken(admin, session.user.id));
   }
 
+  // Heart rate
+  const avgHr = typeof stats.average_heartrate === "number" && Number.isFinite(stats.average_heartrate)
+    ? stats.average_heartrate : null;
+  const maxHr = typeof stats.max_heartrate === "number" && Number.isFinite(stats.max_heartrate)
+    ? stats.max_heartrate : null;
+
   // Zones + laps section gating
+  // HR zone is surfaced by HeartRateCard; pass only power zones to ZoneDistribution.
   const zonesValue = stats.zones;
-  const zones = Array.isArray(zonesValue) && zonesValue.length > 0 ? zonesValue : null;
+  const allZones = Array.isArray(zonesValue) && zonesValue.length > 0 ? zonesValue : null;
+  const hrZone = allZones?.find(isHrZoneEntry) ?? null;
+  const powerZones = allZones?.filter((z) => !isHrZoneEntry(z)) ?? null;
+  const zones = powerZones && powerZones.length > 0 ? powerZones : null;
   const lapsValue = stats.laps;
   const laps = Array.isArray(lapsValue) && lapsValue.length > 0 ? lapsValue : null;
 
@@ -220,6 +231,8 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
           ? <MapCard polyline={polyline} />
           : isStrava && <MapEmpty isStrava />
       )}
+
+      <HeartRateCard avgHr={avgHr} maxHr={maxHr} hrZone={hrZone} />
 
       {zones && <ZoneDistribution zones={zones} />}
       {laps && <LapSplits laps={laps} sport={sport} />}
