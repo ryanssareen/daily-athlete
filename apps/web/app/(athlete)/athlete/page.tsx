@@ -2,8 +2,6 @@ import Link from "next/link";
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 
-import LogWorkoutDialog from "./LogWorkoutDialog";
-
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import {
@@ -261,7 +259,23 @@ export default async function AthleteDashboardPage() {
           </p>
         </div>
         <div style={{ paddingTop: 4 }}>
-          <LogWorkoutDialog />
+          <Link
+            href="/athlete/workouts/new"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "7px 16px",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: "none",
+              background: "var(--color-ink)",
+              color: "var(--color-canvas)",
+            }}
+          >
+            + Log workout
+          </Link>
         </div>
       </div>
 
