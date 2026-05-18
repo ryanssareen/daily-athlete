@@ -431,11 +431,220 @@ a {
   color: var(--color-ink-subtle);
 }
 
+/* ---------- Section heads (zones + laps share these) -------------- */
+.wd-section-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+  margin-bottom: 6px;
+}
+.wd-section-title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--color-ink);
+}
+
+/* ---------- Zone Distribution section ----------------------------- */
+.wd-zones {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 24px 28px;
+}
+.wd-zones-head { margin-bottom: 16px; }
+.wd-zones-grid {
+  display: grid;
+  gap: 32px;
+}
+.wd-zone-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.wd-zone-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.wd-zone-card-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-ink-subtle);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wd-zone-stacked {
+  display: flex;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: var(--color-canvas-soft);
+}
+.wd-zone-stacked-cell { transition: opacity 140ms; }
+.wd-zone-stacked-cell:hover { opacity: 0.85; }
+.wd-zone-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.wd-zone-legend-row {
+  display: grid;
+  grid-template-columns: 12px 28px 1fr 70px 44px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+}
+.wd-zone-legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.wd-zone-legend-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-ink);
+}
+.wd-zone-legend-label { color: var(--color-ink-muted); }
+.wd-zone-legend-time,
+.wd-zone-legend-pct {
+  font-family: var(--font-mono);
+  text-align: right;
+  font-feature-settings: "tnum";
+}
+.wd-zone-legend-time { color: var(--color-ink); }
+.wd-zone-legend-pct { color: var(--color-ink-subtle); }
+
+/* ---------- Lap Splits section ------------------------------------ */
+.wd-laps {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 20px 24px 12px;
+}
+.wd-laps-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+.wd-laps-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink-subtle);
+}
+.wd-laps-table {
+  display: flex;
+  flex-direction: column;
+}
+.wd-laps-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 90px 90px 110px 90px;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-ink);
+  transition: background 120ms;
+}
+.wd-laps-row:hover { background: var(--color-canvas-soft); }
+.wd-laps-row.is-work {
+  background: color-mix(in oklab, var(--color-pine) 4%, transparent);
+}
+.wd-laps-row.is-work:hover {
+  background: color-mix(in oklab, var(--color-pine) 8%, transparent);
+}
+.wd-laps-row-head {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+  cursor: default;
+  pointer-events: none;
+}
+.wd-laps-row-head:hover { background: transparent; }
+.wd-lap-num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-ink-subtle);
+}
+.wd-lap-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.wd-lap-kind {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--color-ink-subtle);
+}
+.wd-lap-kind.kind-work     { background: #2d6b44; }
+.wd-lap-kind.kind-recover  { background: var(--color-border-strong); }
+.wd-lap-kind.kind-warmup,
+.wd-lap-kind.kind-cooldown { background: color-mix(in oklab, var(--color-clay) 70%, transparent); }
+.wd-lap-kind.kind-steady   { background: var(--color-ink-subtle); }
+.wd-lap-val {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  text-align: right;
+}
+.wd-lap-expand {
+  padding: 12px 12px 18px 56px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-canvas-soft);
+}
+.wd-lap-expand-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.wd-lap-detail { display: flex; flex-direction: column; gap: 2px; }
+.wd-lap-detail-k {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+.wd-lap-detail-v {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .wd-secondary-grid { grid-template-columns: repeat(3, 1fr) !important; }
   .wd-sec-stat:nth-child(3n) { border-right: none; padding-right: 0; }
   .wd-sec-stat:nth-child(3n+1) { padding-left: 0; }
+}
+@media (max-width: 880px) {
+  .wd-zones-grid { grid-template-columns: 1fr !important; gap: 24px; }
 }
 @media (max-width: 720px) {
   .wd-headline-grid { grid-template-columns: repeat(2, 1fr); gap: 12px 0; }
@@ -445,6 +654,13 @@ a {
   .wd-sec-stat:nth-child(odd) { padding-left: 0; }
   .wd-sec-stat:nth-child(even) { border-right: none; padding-right: 0; }
   .wd-map-card { height: 280px; }
+  .wd-laps-row {
+    grid-template-columns: 20px 1fr 70px 70px 80px;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .wd-laps-row > :nth-last-child(1) { display: none; }
+  .wd-lap-expand-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ---------- Misc animations ------------------------------------------ */
