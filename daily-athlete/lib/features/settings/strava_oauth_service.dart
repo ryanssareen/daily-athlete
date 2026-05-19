@@ -29,8 +29,23 @@ import '../../features/auth/deep_link_handler.dart';
 // Strava OAuth scopes required for full activity sync.
 const _stravaScopes = 'activity:read,activity:read_all,profile:read_all';
 
-// The redirect URI registered in the Strava application settings.
-const _redirectUri = 'da2://strava-oauth';
+// Mobile redirect URI for the Strava OAuth hop.
+//
+// Strava allows only ONE Authorization Callback Domain per app, and the
+// DA2 OAuth app's domain is `da2-one.vercel.app` (the web hostname). We
+// therefore route the OAuth response through a stateless bounce on that
+// domain, which 302s back to the `da2://strava-oauth` deep link the
+// Flutter app already listens for via DeepLinkHandler.
+//
+//   Strava authorize → ${API_BASE_URL}/api/integrations/strava/mobile-bounce
+//                    → 302 da2://strava-oauth?code=…&state=…
+//                    → app_links → StravaDeepLinkBridge
+//
+// This is sent verbatim as `redirect_uri` to both Strava's authorize
+// endpoint AND POST /api/integrations/strava/connect — Strava verifies
+// they match on the token exchange. See docs/solutions/strava-oauth.md.
+final _redirectUri =
+    '${Env.apiBaseUrl}/api/integrations/strava/mobile-bounce';
 
 // ---------------------------------------------------------------------------
 // PKCE helpers

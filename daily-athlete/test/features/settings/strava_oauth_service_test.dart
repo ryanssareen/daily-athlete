@@ -192,7 +192,13 @@ void main() {
           if (path.contains('/connect')) {
             capturedVerifier = body?['code_verifier'] as String?;
             capturedCode = body?['code'] as String?;
-            expect(body?['redirect_uri'], 'da2://strava-oauth');
+            // redirect_uri is now the mobile-bounce URL on the registered
+            // Strava callback domain (Env.apiBaseUrl + path). The exact host
+            // depends on --dart-define at build time; assert the path.
+            expect(
+              body?['redirect_uri'],
+              endsWith('/api/integrations/strava/mobile-bounce'),
+            );
             return (status: 202, body: {'status': 'connected'});
           }
           return (status: 500, body: null);

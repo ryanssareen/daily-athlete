@@ -17,6 +17,7 @@ and service-role supabase-js clients.
 - Mobile UI: `apps/mobile/src/integrations/strava.tsx` + the pure state machine `apps/mobile/src/integrations/strava-machine.ts`.
 - Server connect route: `apps/web/app/api/integrations/strava/connect/route.ts`.
 - Server init route (mints the signed state nonce): `apps/web/app/api/integrations/strava/init/route.ts`.
+- Server mobile-bounce route (302 → `da2://` for the Flutter app): `apps/web/app/api/integrations/strava/mobile-bounce/route.ts`.
 - Server-side state-nonce sign/verify: `apps/web/src/strava/state-nonce.ts`.
 - Server-side code-for-token exchange: `apps/web/src/strava/oauth.ts`.
 - Per-user API client (refresh-on-401, rate-limit headers): `apps/web/src/strava/client.ts`.
@@ -25,19 +26,50 @@ and service-role supabase-js clients.
 - Bearer-token-aware auth resolution: `apps/web/src/auth/bearer.ts`.
 - Token encryption (AES-256-GCM, versioned keys): `apps/web/src/security/token-crypto.ts` — companion doc `docs/solutions/strava-token-crypto.md`.
 
+## Single OAuth app, two callback hops
+
+Strava registers exactly **one** Authorization Callback Domain per OAuth
+application. The DA2 app's domain is `da2-one.vercel.app` (the
+production web host). Both web and mobile share the same Strava OAuth
+app (client_id 189893) and therefore must route their OAuth responses
+through that domain:
+
+- **Web** authorize hop sends `redirect_uri = https://da2-one.vercel.app/api/integrations/strava/callback`.
+  The callback route reads the PKCE verifier from an HttpOnly cookie set
+  by `/authorize`, then delegates to `/connect`.
+- **Mobile (Flutter)** authorize hop sends
+  `redirect_uri = https://da2-one.vercel.app/api/integrations/strava/mobile-bounce`.
+  The bounce route is a stateless 302 to `da2://strava-oauth?code=…&state=…`
+  which `app_links` delivers to the Flutter app. The Flutter app then
+  POSTs `/connect` with the same `redirect_uri` it used on the authorize
+  hop — Strava verifies the two match when exchanging the code for
+  tokens.
+
+The bounce route holds no state, makes no DB writes, performs no code
+exchange, and never logs `code` or `state`. It accepts only Strava's
+documented success/error params (`code`, `state`, `scope`, `error`) and
+forwards them verbatim; everything else is dropped to prevent injection
+into the deep link.
+
+The `da2://` deep link itself is unchanged from the original direct
+design — only the redirect path changed. PKCE and the server-signed
+state nonce remain the load-bearing defenses; see the next two sections.
+
 ## PKCE end-to-end
 
-The mobile client uses `expo-auth-session` with `usePKCE: true` and
-`responseType: ResponseType.Code`. The library generates a random
-`code_verifier`, hashes it to a `code_challenge`, and includes the
-challenge in the authorize URL.
+The mobile client uses `expo-auth-session` (Expo, retired) or
+`crypto`-based PKCE generation (Flutter) with `responseType=code`.
+A random `code_verifier` is generated on-device, hashed to a
+`code_challenge`, and included in the authorize URL.
 
-After Strava redirects back to `da2://strava-oauth` with the `code`, the
-mobile screen POSTs `{ code, code_verifier, redirect_uri, state }` to
+After Strava redirects to the mobile-bounce URL and the bounce 302s to
+`da2://strava-oauth`, the Flutter app extracts `code` + `state` from the
+deep-link URI and POSTs `{ code, code_verifier, redirect_uri, state }` to
 `/api/integrations/strava/connect`. The server then calls Strava's
 `/oauth/token` with both `code` and `code_verifier`; Strava verifies the
 SHA256 of the verifier matches the challenge it recorded on the authorize
-hop.
+hop, AND that `redirect_uri` matches the value sent at authorize time
+(which is why mobile passes the same bounce URL on both hops).
 
 **Why this matters on Android.** The `da2://` URL scheme is hijackable —
 a hostile app on the same device can register the same scheme and
