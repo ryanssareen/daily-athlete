@@ -26,7 +26,7 @@ class DayView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final displayDate = date ?? ref.watch(selectedDateProvider);
+    final DateTime displayDate = date ?? ref.watch(selectedDateProvider);
     // Ensure the week range covers the display date so weekDataProvider
     // fetches the right data.
     _ensureWeekCovers(ref, displayDate);

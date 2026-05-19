@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../models/user.dart';
 import '../shell/role_notifier.dart';
 import 'calendar_providers.dart';
 import 'day_view.dart';

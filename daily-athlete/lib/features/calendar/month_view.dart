@@ -31,29 +31,6 @@ class _MonthViewState extends ConsumerState<MonthView> {
     super.initState();
     _focusedDay = DateTime.now();
     _selectedDay = _dateOnly(DateTime.now());
-  }
-
-  DateTime _dateOnly(DateTime dt) =>
-      DateTime.utc(dt.year, dt.month, dt.day);
-
-  void _onPageChanged(DateTime focusedDay) {
-    setState(() => _focusedDay = focusedDay);
-    // Shift the week-range provider to cover the new month so the data fetch
-    // encompasses the visible range (first day → last day of month).
-    final firstDay =
-        DateTime.utc(focusedDay.year, focusedDay.month, 1);
-    final lastDay =
-        DateTime.utc(focusedDay.year, focusedDay.month + 1, 0);
-    ref.read(calendarWeekRangeProvider.notifier).state =
-        (start: firstDay, end: lastDay);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // Expand the week range to cover the whole initial month.
-    // Done in a post-frame callback to avoid modifying provider state
-    // during the first build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final firstDay =
@@ -63,6 +40,19 @@ class _MonthViewState extends ConsumerState<MonthView> {
       ref.read(calendarWeekRangeProvider.notifier).state =
           (start: firstDay, end: lastDay);
     });
+  }
+
+  DateTime _dateOnly(DateTime dt) =>
+      DateTime.utc(dt.year, dt.month, dt.day);
+
+  void _onPageChanged(DateTime focusedDay) {
+    setState(() => _focusedDay = focusedDay);
+    final firstDay =
+        DateTime.utc(focusedDay.year, focusedDay.month, 1);
+    final lastDay =
+        DateTime.utc(focusedDay.year, focusedDay.month + 1, 0);
+    ref.read(calendarWeekRangeProvider.notifier).state =
+        (start: firstDay, end: lastDay);
   }
 
   @override

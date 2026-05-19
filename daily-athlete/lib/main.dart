@@ -23,8 +23,8 @@ Future<void> main() async {
   );
 
   // Listen for incoming deep links before the widget tree builds.
-  // DeepLinkHandler dispatches by URI path:
-  //   da2://auth/callback   → supabase.auth.exchangeCodeForSession
+  // DeepLinkHandler dispatches by URI host:
+  //   da2://auth/callback   → supabase.auth.exchangeCodeForSession (Google/Apple OAuth)
   //   da2://strava-oauth    → StravaOAuthService
   final appLinks = AppLinks();
   DeepLinkHandler.initialize(appLinks);

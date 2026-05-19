@@ -43,11 +43,29 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     );
   }
 
-  Future<void> signInWithOtp(String email) async {
+  Future<void> signInWithPassword(String email, String password) async {
     final supabase = Supabase.instance.client;
-    await supabase.auth.signInWithOtp(
-      email: email,
-      emailRedirectTo: 'da2://auth/callback',
+    await supabase.auth.signInWithPassword(email: email, password: password);
+  }
+
+  Future<void> signUpWithPassword(String email, String password) async {
+    final supabase = Supabase.instance.client;
+    await supabase.auth.signUp(email: email, password: password);
+  }
+
+  Future<void> signInWithGoogle() async {
+    final supabase = Supabase.instance.client;
+    await supabase.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'da2://auth/callback',
+    );
+  }
+
+  Future<void> signInWithApple() async {
+    final supabase = Supabase.instance.client;
+    await supabase.auth.signInWithOAuth(
+      OAuthProvider.apple,
+      redirectTo: 'da2://auth/callback',
     );
   }
 

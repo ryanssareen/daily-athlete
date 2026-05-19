@@ -6,14 +6,14 @@ import '../../router/routes.dart';
 import 'auth_notifier.dart';
 import 'oauth_buttons.dart';
 
-class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key});
+class SignUpScreen extends ConsumerStatefulWidget {
+  const SignUpScreen({super.key});
 
   @override
-  ConsumerState<SignInScreen> createState() => _SignInScreenState();
+  ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _SignInScreenState extends ConsumerState<SignInScreen> {
+class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
@@ -33,12 +33,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       setState(() => _error = 'Enter email and password.');
       return;
     }
+    if (password.length < 6) {
+      setState(() => _error = 'Password must be at least 6 characters.');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await ref.read(authNotifierProvider.notifier).signInWithPassword(email, password);
+      await ref.read(authNotifierProvider.notifier).signUpWithPassword(email, password);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -63,7 +67,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Sign in to continue',
+                'Create your account',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -86,7 +90,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 autocorrect: false,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
-                  labelText: 'Password',
+                  labelText: 'Password (min 6 chars)',
                   border: OutlineInputBorder(),
                 ),
                 onSubmitted: (_) => _submit(),
@@ -107,14 +111,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Sign in'),
+                    : const Text('Create account'),
               ),
               const SizedBox(height: 20),
               OAuthButtons(disabled: _loading),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: _loading ? null : () => context.go(Routes.signUp),
-                child: const Text("Don't have an account? Sign up"),
+                onPressed: _loading ? null : () => context.go(Routes.signIn),
+                child: const Text('Already have an account? Sign in'),
               ),
               const Spacer(flex: 2),
             ],

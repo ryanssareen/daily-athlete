@@ -2,10 +2,10 @@ import 'package:app_links/app_links.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Single deep-link listener for the da2:// scheme.
-/// Dispatches by URI path — never assumes all incoming links are the same type.
+/// Dispatches by URI host.
 ///
-///   da2://auth/callback?code=...  → supabase.auth.exchangeCodeForSession
-///   da2://strava-oauth?code=...   → StravaOAuthService (see strava_oauth_service.dart)
+///   da2://auth/callback?code=...  → supabase.auth.exchangeCodeForSession (OAuth return)
+///   da2://strava-oauth?code=...   → StravaOAuthService
 abstract final class DeepLinkHandler {
   static void initialize(AppLinks appLinks) {
     appLinks.uriLinkStream.listen(_handleUri, onError: (_) {});
@@ -21,11 +21,9 @@ abstract final class DeepLinkHandler {
           await Supabase.instance.client.auth.exchangeCodeForSession(code);
         } catch (_) {
           // Session exchange failed; auth state remains unauthenticated.
-          // AuthNotifier's onAuthStateChange stream will emit the error state.
         }
       }
     } else if (uri.host == 'strava-oauth') {
-      // Delegate to StravaOAuthService via its pending-callback mechanism.
       StravaDeepLinkBridge.handleCallback(uri);
     }
   }

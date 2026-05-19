@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/sign_in_screen.dart';
+import '../features/auth/sign_up_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
@@ -28,11 +29,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         error: (_, __) => Routes.signIn,
         data: (auth) {
           final isSignIn = state.matchedLocation == Routes.signIn;
+          final isSignUp = state.matchedLocation == Routes.signUp;
           final isLoading = state.matchedLocation == Routes.loading;
+          final isAuthRoute = isSignIn || isSignUp;
 
           if (auth.isLoading) return Routes.loading;
-          if (!auth.isAuthenticated) return isSignIn ? null : Routes.signIn;
-          if (isSignIn || isLoading) return Routes.dashboard;
+          if (!auth.isAuthenticated) return isAuthRoute ? null : Routes.signIn;
+          if (isAuthRoute || isLoading) return Routes.dashboard;
           return null;
         },
       );
@@ -45,6 +48,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.signIn,
         builder: (_, __) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: Routes.signUp,
+        builder: (_, __) => const SignUpScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

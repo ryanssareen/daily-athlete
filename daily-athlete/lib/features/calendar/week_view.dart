@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/activity_summary.dart';
+import '../../models/user.dart';
 import '../shell/role_notifier.dart';
 import 'calendar_providers.dart';
 import 'assign_workout_sheet.dart';

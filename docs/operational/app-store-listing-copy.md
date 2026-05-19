@@ -160,10 +160,10 @@ Email: rsareen@gmail.com
 ### Notes to App Review (private to Apple)
 
 ```
-Daily Athlete is an endurance training companion app. Sign-in is via email
-magic link only — no passwords, no third-party social sign-in. The Strava
-integration is optional; the app's core features (calendar, manual logging,
-planned workouts) work without it.
+Daily Athlete is an endurance training companion app. Sign-in options:
+email + password (Supabase Auth), Continue with Google, or Continue with
+Apple. The Strava integration is optional; the app's core features
+(calendar, manual logging, planned workouts) work without it.
 
 Demo account credentials are below. Magic-link emails arrive within ~60
 seconds; please check spam if delayed.
@@ -173,7 +173,9 @@ The app uses a custom URL scheme (da2://) for two redirects:
   - da2://strava-oauth — handled by Strava OAuth callback
 
 Both schemes are registered in Info.plist and pre-allowlisted in our
-production Supabase project and Strava OAuth application.
+production Supabase project and Strava OAuth application. The auth
+callback scheme also returns the user to the app after Google or Apple
+sign-in (handled by Supabase Auth → da2://auth/callback).
 
 No tracking, no advertising SDKs, no analytics. The Privacy Manifest
 declares only the data we store on the user's behalf (email, name,

@@ -40,6 +40,12 @@ __pycache__/
 *.swp
 *.pem
 
+# Secrets — never commit
+*.p8
+secrets/AuthKey_*
+secrets/*.key
+secrets/.env*
+
 # Supabase
 supabase/.branches
 supabase/.temp
