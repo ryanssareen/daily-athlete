@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/user.dart';
+import '../activities/manual_log_sheet.dart';
 import '../shell/role_notifier.dart';
 import 'calendar_providers.dart';
 import 'day_view.dart';
@@ -107,6 +108,15 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
               ]
             : null,
       ),
+      // Athletes log their own workouts; a coach viewing athletes' calendars
+      // has no personal workout to log here.
+      floatingActionButton: isCoach
+          ? null
+          : FloatingActionButton(
+              onPressed: () => showManualLogSheet(context),
+              tooltip: 'Log activity',
+              child: const Icon(Icons.add),
+            ),
       body: _buildBody(),
     );
   }

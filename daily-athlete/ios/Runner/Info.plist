@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Deep links (da2://) are handled by the app_links package: supabase_flutter
+	     auto-detects da2://auth/callback for Google/Apple OAuth, and DeepLinkHandler
+	     dispatches da2://strava-oauth. Flutter's automatic deep linking must stay OFF,
+	     otherwise the engine forwards these URIs to GoRouter, which has no matching
+	     route and throws "GoException: no routes for location: da2://...". -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

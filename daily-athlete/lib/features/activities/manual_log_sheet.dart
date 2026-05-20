@@ -9,6 +9,7 @@ import '../../core/env.dart';
 import '../../models/sport.dart';
 import '../auth/auth_notifier.dart';
 import '../activities/activities_providers.dart';
+import '../settings/units_notifier.dart';
 
 /// Bottom sheet for manually logging an activity (R8).
 ///
@@ -56,10 +57,10 @@ class _ManualLogSheetState extends ConsumerState<ManualLogSheet> {
     return h * 3600 + m * 60;
   }
 
-  double? get _distanceM {
-    final km = double.tryParse(_distanceController.text);
-    if (km == null || km <= 0) return null;
-    return km * 1000;
+  double? _distanceMeters(UnitsPrefs prefs) {
+    final value = double.tryParse(_distanceController.text);
+    if (value == null || value <= 0) return null;
+    return prefs.distance == 'miles' ? value * 1609.344 : value * 1000;
   }
 
   Future<void> _pickDate() async {
@@ -88,11 +89,14 @@ class _ManualLogSheetState extends ConsumerState<ManualLogSheet> {
     });
 
     try {
+      final prefs =
+          ref.read(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
+      final distanceM = _distanceMeters(prefs);
       final body = <String, dynamic>{
         'sport': _sport.name,
         'started_at': _date.toUtc().toIso8601String(),
         'duration_s': _durationSeconds,
-        if (_distanceM != null) 'distance_m': _distanceM,
+        'distance_m': ?distanceM,
         if (_notesController.text.trim().isNotEmpty)
           'notes': _notesController.text.trim(),
       };
@@ -128,6 +132,9 @@ class _ManualLogSheetState extends ConsumerState<ManualLogSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final prefs =
+        ref.watch(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
+    final distUnit = prefs.distance == 'miles' ? 'mi' : 'km';
 
     return Padding(
       padding: EdgeInsets.only(
@@ -242,9 +249,9 @@ class _ManualLogSheetState extends ConsumerState<ManualLogSheet> {
             // Distance (optional)
             TextFormField(
               controller: _distanceController,
-              decoration: const InputDecoration(
-                labelText: 'Distance (km) — optional',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: 'Distance ($distUnit) — optional',
+                border: const OutlineInputBorder(),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: (v) {

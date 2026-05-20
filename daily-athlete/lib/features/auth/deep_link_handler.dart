@@ -1,11 +1,15 @@
 import 'package:app_links/app_links.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Single deep-link listener for the da2:// scheme.
-/// Dispatches by URI host.
+/// Single deep-link listener for the da2:// scheme — Strava only.
 ///
-///   da2://auth/callback?code=...  → supabase.auth.exchangeCodeForSession (OAuth return)
 ///   da2://strava-oauth?code=...   → StravaOAuthService
+///
+/// NOTE: da2://auth/callback (Google/Apple OAuth return) is intentionally NOT
+/// handled here. supabase_flutter v2 auto-detects the OAuth redirect on the
+/// registered URL scheme and exchanges the code itself. Exchanging it a second
+/// time here races the SDK: whichever runs first consumes the single-use code
+/// and clears the PKCE verifier, so the other fails with "code verifier not
+/// found in storage" and the session is left flaky.
 abstract final class DeepLinkHandler {
   static void initialize(AppLinks appLinks) {
     appLinks.uriLinkStream.listen(_handleUri, onError: (_) {});
@@ -14,16 +18,7 @@ abstract final class DeepLinkHandler {
   static Future<void> _handleUri(Uri uri) async {
     if (uri.scheme != 'da2') return;
 
-    if (uri.host == 'auth' && uri.path == '/callback') {
-      final code = uri.queryParameters['code'];
-      if (code != null && code.isNotEmpty) {
-        try {
-          await Supabase.instance.client.auth.exchangeCodeForSession(code);
-        } catch (_) {
-          // Session exchange failed; auth state remains unauthenticated.
-        }
-      }
-    } else if (uri.host == 'strava-oauth') {
+    if (uri.host == 'strava-oauth') {
       StravaDeepLinkBridge.handleCallback(uri);
     }
   }

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/user.dart';
 import '../activities/activity_feed.dart';
-import '../activities/manual_log_sheet.dart';
 import '../activities/activities_providers.dart';
 import '../shared/athlete_selector.dart';
 import '../shell/role_notifier.dart';
@@ -47,11 +46,6 @@ class ActivitiesTab extends ConsumerWidget {
             : null,
       ),
       body: const ActivityFeed(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showManualLogSheet(context),
-        tooltip: 'Log activity',
-        child: const Icon(Icons.add),
-      ),
     );
   }
 

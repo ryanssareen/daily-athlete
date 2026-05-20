@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/units.dart';
 import '../../models/completed_workout.dart';
 import '../../models/planned_workout.dart';
 import '../../models/sport.dart';
+import '../activities/manual_log_sheet.dart';
+import '../settings/units_notifier.dart';
 import 'dashboard_providers.dart';
 
 /// Athlete-facing dashboard. When [athleteId] is provided, fetches data for
@@ -27,6 +30,15 @@ class AthleteDashboard extends ConsumerWidget {
         title: Text(athleteId != null ? 'Athlete Dashboard' : 'Dashboard'),
         centerTitle: false,
       ),
+      // Own dashboard only — a coach drilling into an athlete (athleteId != null)
+      // should not get a "log my workout" button.
+      floatingActionButton: athleteId == null
+          ? FloatingActionButton(
+              onPressed: () => showManualLogSheet(context),
+              tooltip: 'Log activity',
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: dataAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(
@@ -52,10 +64,12 @@ class AthleteDashboard extends ConsumerWidget {
             }
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
+              const _DashboardHeader(),
+              const SizedBox(height: 16),
               _StreakBanner(streakDays: data.streakDays),
-              const SizedBox(height: 12),
+              if (data.streakDays > 0) const SizedBox(height: 12),
               _WeeklySummaryCard(stats: data.weeklyStats),
               const SizedBox(height: 12),
               _WeekScheduleCard(
@@ -71,6 +85,50 @@ class AthleteDashboard extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Header — weekday eyebrow + date
+// ---------------------------------------------------------------------------
+
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    const weekdays = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+      'Friday', 'Saturday', 'Sunday',
+    ];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          weekdays[now.weekday - 1].toUpperCase(),
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${months[now.month - 1]} ${now.day}',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -183,10 +241,10 @@ class _StatChip extends StatelessWidget {
     final theme = Theme.of(context);
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,14 +252,16 @@ class _StatChip extends StatelessWidget {
             Row(
               children: [
                 Icon(icon, size: 16, color: theme.colorScheme.primary),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Text(label,
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    style: theme.textTheme.labelMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant)),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(value, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(value,
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700)),
           ],
         ),
       ),
@@ -209,22 +269,23 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _DistanceRow extends StatelessWidget {
+class _DistanceRow extends ConsumerWidget {
   const _DistanceRow({required this.sport, required this.meters});
 
   final Sport sport;
   final double meters;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final km = meters / 1000;
+    final prefs =
+        ref.watch(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
     return Row(
       children: [
         Text(sport.displayName,
             style: theme.textTheme.bodyMedium),
         const Spacer(),
-        Text('${km.toStringAsFixed(1)} km',
+        Text(formatDistance(meters, prefs, sport),
             style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600)),
       ],
@@ -391,10 +452,12 @@ class _NoUpcomingCard extends StatelessWidget {
             Icon(Icons.calendar_today_outlined,
                 color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 12),
-            Text(
-              'No upcoming workouts scheduled.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            Expanded(
+              child: Text(
+                'No upcoming workouts scheduled.',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
           ],
         ),

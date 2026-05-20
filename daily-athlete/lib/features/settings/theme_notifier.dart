@@ -3,8 +3,8 @@
 // Storage key: 'da2.theme' in flutter_secure_storage.
 // Values: 'system' | 'light' | 'dark'
 //
-// On first launch (no stored value) defaults to ThemeMode.system.
-// MaterialApp reads themeMode from this notifier via Watch.
+// On first launch (no stored value) defaults to ThemeMode.light.
+// MaterialApp (app.dart) reads themeMode from this notifier via ref.watch.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +18,11 @@ ThemeMode _decode(String? value) {
       return ThemeMode.light;
     case 'dark':
       return ThemeMode.dark;
-    default:
+    case 'system':
       return ThemeMode.system;
+    default:
+      // First launch / unknown value → light is the product default.
+      return ThemeMode.light;
   }
 }
 
@@ -60,8 +63,8 @@ class ThemeNotifier extends AsyncNotifier<ThemeMode> {
       final stored = await storage.read(key: _kThemeKey);
       return _decode(stored);
     } catch (_) {
-      // Storage read failure → fall back to system default.
-      return ThemeMode.system;
+      // Storage read failure → fall back to the light default.
+      return ThemeMode.light;
     }
   }
 

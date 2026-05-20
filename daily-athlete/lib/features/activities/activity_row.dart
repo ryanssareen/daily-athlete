@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/units.dart';
 import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
+import '../settings/units_notifier.dart';
 
 /// Returns the Material icon for a given [Sport].
 IconData sportIcon(Sport sport) {
@@ -24,7 +27,7 @@ IconData sportIcon(Sport sport) {
 /// Single row in the activities feed (R6).
 /// Displays: sport icon, formatted date, activity name/title, key metric,
 /// total duration.
-class ActivityRow extends StatelessWidget {
+class ActivityRow extends ConsumerWidget {
   const ActivityRow({
     super.key,
     required this.workout,
@@ -35,10 +38,13 @@ class ActivityRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
+    final prefs =
+        ref.watch(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
+    final metric = keyMetricFor(workout, prefs);
 
     return ListTile(
       leading: CircleAvatar(
@@ -65,9 +71,9 @@ class ActivityRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (_keyMetric(workout).isNotEmpty)
+          if (metric.isNotEmpty)
             Text(
-              _keyMetric(workout),
+              metric,
               style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           if (workout.durationS != null)
@@ -91,18 +97,6 @@ class ActivityRow extends StatelessWidget {
     final name = w.name;
     if (name != null && name.isNotEmpty) return name;
     return w.sport.displayName;
-  }
-
-  /// R6: distance for run/ride/swim; duration for strength/other.
-  static String _keyMetric(CompletedWorkoutRow w) {
-    if (w.distanceM != null && w.distanceM! > 0) {
-      final km = w.distanceM! / 1000;
-      return '${km.toStringAsFixed(1)} km';
-    }
-    if (w.durationS != null) {
-      return formatDuration(w.durationS!);
-    }
-    return '';
   }
 
   static String _formattedDate(DateTime dt) {
@@ -137,10 +131,10 @@ String formatDuration(int seconds) {
 /// Run/bike/swim with distance → "X.X km".
 /// Strength/other (or no distance) → formatted duration.
 /// Exported for unit tests.
-String keyMetricFor(CompletedWorkoutRow w) {
+String keyMetricFor(CompletedWorkoutRow w,
+    [UnitsPrefs prefs = const UnitsPrefs()]) {
   if (w.distanceM != null && w.distanceM! > 0) {
-    final km = w.distanceM! / 1000;
-    return '${km.toStringAsFixed(1)} km';
+    return formatDistance(w.distanceM!, prefs, w.sport);
   }
   if (w.durationS != null) {
     return formatDuration(w.durationS!);

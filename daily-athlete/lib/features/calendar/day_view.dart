@@ -8,8 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/units.dart';
 import '../../models/activity_summary.dart';
 import '../../models/planned_workout.dart';
+import '../../models/sport.dart';
+import '../activities/activity_row.dart';
+import '../settings/units_notifier.dart';
 import 'calendar_providers.dart';
 import 'workout_action_sheet.dart';
 import 'workout_chip.dart';
@@ -103,16 +107,19 @@ class _DayContent extends StatelessWidget {
 // _WorkoutCard — full-detail card for a single workout in Day view
 // ---------------------------------------------------------------------------
 
-class _WorkoutCard extends StatelessWidget {
+class _WorkoutCard extends ConsumerWidget {
   const _WorkoutCard({required this.summary});
 
   final ActivitySummary summary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final prefs =
+        ref.watch(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
     final pw = summary.planned;
     final cw = summary.completed;
+    final metric = cw != null ? keyMetricFor(cw, prefs) : '';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -146,17 +153,21 @@ class _WorkoutCard extends StatelessWidget {
               ),
               if (pw != null) ...[
                 const SizedBox(height: 8),
-                _PlannedDetails(workout: pw),
+                _PlannedDetails(workout: pw, prefs: prefs),
               ],
               if (cw != null) ...[
                 const SizedBox(height: 8),
                 _CompletedDetails(
-                    distanceM: cw.distanceM, durationS: cw.durationS),
+                  distanceM: cw.distanceM,
+                  durationS: cw.durationS,
+                  sport: cw.sport,
+                  prefs: prefs,
+                ),
               ],
-              if (summary.keyMetric.isNotEmpty) ...[
+              if (metric.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  summary.keyMetric,
+                  metric,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.secondary,
                   ),
@@ -179,9 +190,10 @@ class _WorkoutCard extends StatelessWidget {
 }
 
 class _PlannedDetails extends StatelessWidget {
-  const _PlannedDetails({required this.workout});
+  const _PlannedDetails({required this.workout, required this.prefs});
 
   final PlannedWorkoutRow workout;
+  final UnitsPrefs prefs;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +209,7 @@ class _PlannedDetails extends StatelessWidget {
     }
     if (structure['distance_m'] != null) {
       final m = (structure['distance_m'] as num).toDouble();
-      items.add('Distance: ${(m / 1000).toStringAsFixed(1)} km');
+      items.add('Distance: ${formatDistance(m, prefs, workout.sport)}');
     }
     if (workout.rationale != null) {
       items.add(workout.rationale!);
@@ -230,10 +242,17 @@ class _PlannedDetails extends StatelessWidget {
 }
 
 class _CompletedDetails extends StatelessWidget {
-  const _CompletedDetails({this.distanceM, this.durationS});
+  const _CompletedDetails({
+    this.distanceM,
+    this.durationS,
+    required this.sport,
+    required this.prefs,
+  });
 
   final double? distanceM;
   final int? durationS;
+  final Sport sport;
+  final UnitsPrefs prefs;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +261,7 @@ class _CompletedDetails extends StatelessWidget {
       parts.add(_formatDuration(durationS!));
     }
     if (distanceM != null && distanceM! > 0) {
-      parts.add('${(distanceM! / 1000).toStringAsFixed(2)} km');
+      parts.add(formatDistance(distanceM!, prefs, sport));
     }
     if (parts.isEmpty) return const SizedBox.shrink();
 

@@ -26,8 +26,14 @@ class RoleNotifier extends AsyncNotifier<RoleFlag> {
         .eq('id', userId)
         .single();
 
-    final row = UserRow.fromJson(response);
-    return row.primaryRole;
+    // The query selects only role_flags, so parse that field directly.
+    // Do NOT use UserRow.fromJson here — it requires id/email, which this
+    // projection omits, and would cast null → String.
+    final flags = (response['role_flags'] as List<dynamic>?)
+            ?.map((f) => RoleFlag.fromString(f as String))
+            .toList() ??
+        const <RoleFlag>[];
+    return flags.isNotEmpty ? flags.first : RoleFlag.athlete;
   }
 }
 

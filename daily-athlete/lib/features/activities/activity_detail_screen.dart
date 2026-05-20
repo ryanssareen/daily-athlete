@@ -2,24 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/units.dart';
 import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activity_row.dart';
 import '../activities/workout_detail_provider.dart';
+import '../settings/units_notifier.dart';
 
-// Keys that appear in named sections — excluded from the overflow card.
-const _namedKeys = {
-  'name',
-  'average_speed',
-  'max_speed',
-  'average_heartrate',
-  'max_heartrate',
-  'average_watts',
-  'max_watts',
-  'total_elevation_gain',
-  'suffer_score',
-  'average_cadence',
-  'map_polyline',
+// Curated extra stats worth surfacing beyond the named sections, mapped to
+// display labels. Everything else in summaryStats (internal flags, ids,
+// timestamps like manual/commute/utc_offset/start_date_local) is hidden so the
+// detail screen stays clean instead of dumping the raw Strava payload.
+const _overflowLabels = <String, String>{
+  'moving_time': 'Moving Time',
+  'elapsed_time': 'Elapsed Time',
+  'calories': 'Calories',
+  'kilojoules': 'Energy (kJ)',
+  'average_temp': 'Avg Temp',
 };
 
 // ---------------------------------------------------------------------------
@@ -276,42 +275,48 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Widget _buildOverflow(BuildContext context) {
-    final overflowEntries = workout.summaryStats.entries
-        .where((e) => !_namedKeys.contains(e.key) && e.value != null)
-        .toList();
+    final stats = workout.summaryStats;
+    final rows = <Widget>[];
+    for (final entry in _overflowLabels.entries) {
+      final value = _formatOverflow(entry.key, stats[entry.key]);
+      if (value == null) continue;
+      rows.add(_StatRow(label: entry.value, value: value));
+    }
 
-    if (overflowEntries.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
         const SizedBox(height: 16),
-        _SectionCard(
-          title: 'More stats',
-          children: overflowEntries
-              .map(
-                (e) => _StatRow(
-                  label: _labelFor(e.key),
-                  value: _valueFor(e.value),
-                ),
-              )
-              .toList(),
-        ),
+        _SectionCard(title: 'More stats', children: rows),
       ],
     );
   }
 
-  static String _labelFor(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
+  static String? _formatOverflow(String key, dynamic value) {
+    if (value == null) return null;
+    final num? n = value is num ? value : num.tryParse(value.toString());
+    switch (key) {
+      case 'moving_time':
+      case 'elapsed_time':
+        return n == null ? null : _formatHms(n.round());
+      case 'average_temp':
+        return n == null ? null : '${n.round()}°C';
+      case 'calories':
+      case 'kilojoules':
+        return n?.round().toString();
+      default:
+        return value.toString();
+    }
   }
 
-  static String _valueFor(dynamic value) {
-    if (value == null) return '—';
-    if (value is double) return value.toStringAsFixed(1);
-    return value.toString();
+  static String _formatHms(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    final sPad = s.toString().padLeft(2, '0');
+    if (h > 0) return '$h:${m.toString().padLeft(2, '0')}:$sPad';
+    return '$m:$sPad';
   }
 
   static String _formatDateTime(DateTime localDt) {
@@ -344,46 +349,35 @@ extension on CompletedWorkoutRow {
 // Primary stats card
 // ---------------------------------------------------------------------------
 
-class _PrimaryStatsCard extends StatelessWidget {
+class _PrimaryStatsCard extends ConsumerWidget {
   const _PrimaryStatsCard({required this.workout});
   final CompletedWorkoutRow workout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final sport = workout.sport;
+    final prefs =
+        ref.watch(unitsNotifierProvider).valueOrNull ?? const UnitsPrefs();
     final durationStr = workout.durationS != null
         ? _detailDuration(workout.durationS!)
         : '—';
 
-    // Distance: hidden for strength; meters for swim; km otherwise
+    // Distance: hidden for strength; unit-formatted otherwise.
     String? distanceStr;
     if (sport != Sport.strength) {
       final m = workout.distanceM;
-      if (m != null && m > 0) {
-        distanceStr =
-            sport == Sport.swim ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1)} km';
-      } else {
-        distanceStr = '—';
-      }
+      distanceStr =
+          (m != null && m > 0) ? formatDistance(m, prefs, sport) : '—';
     }
 
-    // Pace / speed
+    // Pace / speed.
     String? paceStr;
     if (sport != Sport.strength && sport != Sport.mobility) {
       final m = workout.distanceM;
       final s = workout.durationS;
       if (m != null && m > 0 && s != null && s > 0) {
-        if (sport == Sport.bike) {
-          final kmh = (m / 1000) / (s / 3600);
-          paceStr = '${kmh.toStringAsFixed(1)} km/h';
-        } else {
-          final unit = sport == Sport.swim ? 100.0 : 1000.0;
-          final ps = (s / m) * unit;
-          final pm = ps ~/ 60;
-          final ps2 = (ps % 60).round().toString().padLeft(2, '0');
-          final label = sport == Sport.swim ? '/100m' : '/km';
-          paceStr = '$pm:$ps2 $label';
-        }
+        final formatted = formatPaceOrSpeed(m, s, prefs, sport);
+        if (formatted.isNotEmpty) paceStr = formatted;
       }
     }
 
@@ -483,6 +477,7 @@ class _StatRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -490,10 +485,14 @@ class _StatRow extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.w500),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
