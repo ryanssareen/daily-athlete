@@ -48,10 +48,7 @@ import { StravaConnectRequestSchema } from "@da2/shared";
 import { resolveAuth } from "@/auth/bearer";
 import { createClient as createServerClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
-import {
-  findUserByAthleteStravaId,
-  upsertStravaToken,
-} from "@/db/strava-tokens";
+import { upsertStravaToken } from "@/db/strava-tokens";
 import { encrypt } from "@/security/token-crypto";
 import { runBackfillForUser } from "@/strava/run-backfill";
 import {
@@ -175,63 +172,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     return errorJson("internal_error", 500);
   }
 
-  // 5. Re-connect collision check. If another user already owns this
-  //    athlete_strava_id, reject with 409. Same-user reconnect proceeds.
-  //    If the lookup itself fails, surface 500 with a logged event --
-  //    don't let a plain DB error escape as an unstructured Next.js 500.
+  // 5. Persist the token. Multiple app users may link the SAME Strava
+  //    account (migration 0014 dropped the athlete_strava_id unique index),
+  //    so there is no cross-user collision check: each user gets its own row
+  //    keyed by user_id, and the webhook resolver fans out activity events
+  //    to every linked user.
   const admin = createAdminClient();
-  let owner;
-  try {
-    owner = await findUserByAthleteStravaId(admin, exchange.athleteStravaId);
-  } catch (err) {
-    logEvent({
-      name: "owner_lookup_failed",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: false,
-      code: "internal_error",
-      extra: { err: err instanceof Error ? err.message : String(err) },
-    });
-    return errorJson("internal_error", 500);
-  }
-  if (owner && owner.user_id !== user.id) {
-    logEvent({
-      name: "account_collision",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: false,
-      code: "strava_account_already_linked",
-    });
-    return errorJson("strava_account_already_linked", 409);
-  }
 
-  // 5b. Same-user reconnect with a DIFFERENT athlete_strava_id is a
-  //     policy decision we defer to Phase C (does that orphan the prior
-  //     athlete's workout_matches? do we cascade-delete? do we prompt?).
-  //     For Phase B, log the event so we can monitor frequency and
-  //     decide before C ships. Behavior unchanged today (the upsert
-  //     proceeds and overwrites athlete_strava_id).
-  if (owner && owner.user_id === user.id) {
-    // We don't have the previous athlete_strava_id from a single SELECT
-    // (the helper returns only user_id). For the log signal, indicate
-    // the owner check matched same-user; the new athlete_strava_id is
-    // the post-upsert state. If a future operator wants the old value
-    // they should add it to the lookup helper.
-    logEvent({
-      name: "same_user_reconnect",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: true,
-    });
-  }
-
-  // 6. Encrypt + persist via service-role. The pre-check above means the
-  //    user_id-unique upsert will not collide with the
-  //    athlete_strava_id unique index in the sequential case. In the
-  //    concurrent case (two users connecting the same Strava account
-  //    simultaneously, both passing the pre-check), the upsert's
-  //    unique-constraint violation is caught as
-  //    StravaAccountCollisionError -> 409.
+  // 6. Encrypt + persist via service-role. Upsert is keyed on user_id, so a
+  //    same-user reconnect replaces that user's row in place. The
+  //    StravaAccountCollisionError branch below is retained as defense in
+  //    depth in case a unique constraint is ever reintroduced.
   const encAccess = encrypt(new TextEncoder().encode(exchange.accessToken));
   const encRefresh = encrypt(new TextEncoder().encode(exchange.refreshToken));
   try {

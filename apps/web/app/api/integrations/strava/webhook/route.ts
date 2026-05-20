@@ -117,15 +117,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   after(async () => {
     const admin = createAdminClient();
     try {
-      // Resolve Strava athlete ID → internal user ID
+      // Resolve Strava athlete ID → ALL linked internal user IDs. One Strava
+      // account can be linked to multiple app accounts (migration 0014), so
+      // every linked user receives the activity.
       // service-role: explicit user filter required
-      const { data: tokenRow } = await admin
+      const { data: tokenRows } = await admin
         .from("strava_tokens")
         .select("user_id")
-        .eq("athlete_strava_id", owner_id)
-        .maybeSingle();
+        .eq("athlete_strava_id", owner_id);
 
-      if (!tokenRow) {
+      if (!tokenRows || tokenRows.length === 0) {
         // Expected when an athlete has disconnected Strava before the event arrives
         console.info(
           "[strava.webhook] owner_not_found",
@@ -134,12 +135,28 @@ export async function POST(request: Request): Promise<NextResponse> {
         return;
       }
 
-      const userId = tokenRow.user_id as string;
-
-      if (aspect_type === "create") {
-        await handleCreate(admin, userId, object_id);
-      } else if (aspect_type === "delete") {
-        await handleDelete(admin, userId, object_id);
+      // Fan out to every linked user. One user's failure (reauth, rate limit)
+      // must not block the others, so each is isolated in its own try/catch.
+      for (const { user_id: userId } of tokenRows as { user_id: string }[]) {
+        try {
+          if (aspect_type === "create") {
+            await handleCreate(admin, userId, object_id);
+          } else if (aspect_type === "delete") {
+            await handleDelete(admin, userId, object_id);
+          }
+        } catch (err) {
+          const errorCode = classifyError(err);
+          console.info(
+            "[strava.webhook] fanout_error",
+            JSON.stringify({
+              athlete_strava_id: owner_id,
+              user_id: userId,
+              strava_activity_id: object_id,
+              aspect_type,
+              error_code: errorCode,
+            })
+          );
+        }
       }
     } catch (err) {
       const errorCode = classifyError(err);

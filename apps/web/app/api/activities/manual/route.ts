@@ -18,7 +18,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { resolveAuth } from "@/auth/bearer";
+import { extractBearer, resolveAuth } from "@/auth/bearer";
 import { createClient } from "@/auth/server";
 
 // ---------------------------------------------------------------------------
@@ -81,8 +81,10 @@ function logEvent(event: {
 
 export async function POST(request: Request): Promise<NextResponse> {
   // 1. Authenticate: Bearer header (mobile) or SSR cookie (browser).
-  //    createClient() uses the user's session (anon key), not service-role.
-  const supabase = await createClient();
+  //    Pass the Bearer token into createClient so the INSERT below runs AS the
+  //    user (RLS auth.uid()); without it the DB call is anon and RLS 42501s.
+  const accessToken = extractBearer(request);
+  const supabase = await createClient(accessToken);
   const { user, error: authErr } = await resolveAuth(supabase, request);
   if (authErr || !user) {
     return errorJson("unauthorized", 401);

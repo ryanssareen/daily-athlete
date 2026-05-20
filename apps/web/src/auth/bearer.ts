@@ -23,7 +23,7 @@ interface ResolvedAuth {
   error: unknown;
 }
 
-function extractBearer(request: Request): string | undefined {
+export function extractBearer(request: Request): string | undefined {
   const header = request.headers.get("Authorization");
   if (!header) return undefined;
   // Per RFC 6750 the scheme matches case-insensitively.
