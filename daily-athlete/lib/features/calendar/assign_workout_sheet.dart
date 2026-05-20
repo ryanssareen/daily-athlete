@@ -7,6 +7,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -27,22 +28,41 @@ class AssignWorkoutSheet extends ConsumerStatefulWidget {
 }
 
 class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
-  Sport _sport = Sport.run;
-  int _durationMinutes = 60;
+  // Start empty — the coach picks the sport and enters the duration. No
+  // prefilled defaults (issue #82).
+  Sport? _sport;
+  final _durationController = TextEditingController();
   final _notesController = TextEditingController();
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
+    _durationController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    // Single-flight guard: ignore taps while a submit is already in flight so
+    // Create does exactly one upload (issue #81).
+    if (_loading) return;
+
     final athleteId = ref.read(calendarAthleteIdProvider);
     if (athleteId == null) {
       setState(() => _error = 'Please select an athlete first.');
+      return;
+    }
+
+    final sport = _sport;
+    if (sport == null) {
+      setState(() => _error = 'Please choose a sport.');
+      return;
+    }
+
+    final durationMinutes = int.tryParse(_durationController.text.trim());
+    if (durationMinutes == null || durationMinutes <= 0) {
+      setState(() => _error = 'Please enter a duration in minutes.');
       return;
     }
 
@@ -59,9 +79,9 @@ class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
         'athlete_id': athleteId,
         'scheduled_date':
             widget.date.toIso8601String().substring(0, 10),
-        'sport': _sport.name,
+        'sport': sport.name,
         'structure': {
-          'duration_s': _durationMinutes * 60,
+          'duration_s': durationMinutes * 60,
         },
         if (_notesController.text.trim().isNotEmpty)
           'rationale': _notesController.text.trim(),
@@ -78,13 +98,16 @@ class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
         body: jsonEncode(body),
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 201 || response.statusCode == 200) {
-        if (mounted) Navigator.of(context).pop();
+        Navigator.of(context).pop();
       } else {
         final msg = _parseError(response.body);
         setState(() => _error = msg);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -137,13 +160,14 @@ class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Sport picker
+          // Sport picker — starts empty (no default selection).
           DropdownButtonFormField<Sport>(
-            value: _sport,
+            initialValue: _sport,
             decoration: const InputDecoration(
               labelText: 'Sport',
               border: OutlineInputBorder(),
             ),
+            hint: const Text('Select a sport'),
             items: Sport.values
                 .map((s) => DropdownMenuItem(
                       value: s,
@@ -156,25 +180,15 @@ class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
           ),
           const SizedBox(height: 12),
 
-          // Duration picker
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Duration: $_durationMinutes min',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-              Slider(
-                value: _durationMinutes.toDouble(),
-                min: 10,
-                max: 300,
-                divisions: 29,
-                label: '$_durationMinutes min',
-                onChanged: (v) =>
-                    setState(() => _durationMinutes = v.round()),
-              ),
-            ],
+          // Duration — starts empty.
+          TextField(
+            controller: _durationController,
+            decoration: const InputDecoration(
+              labelText: 'Duration (minutes)',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           const SizedBox(height: 12),
 
@@ -199,12 +213,17 @@ class _AssignWorkoutSheetState extends ConsumerState<AssignWorkoutSheet> {
             const SizedBox(height: 8),
           ],
 
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : FilledButton(
-                  onPressed: _submit,
-                  child: const Text('Assign Workout'),
-                ),
+          // Disabled while a submit is in flight so Create can only fire once.
+          FilledButton(
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Assign Workout'),
+          ),
         ],
       ),
     );

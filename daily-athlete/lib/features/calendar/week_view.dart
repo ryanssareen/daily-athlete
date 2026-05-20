@@ -1,6 +1,7 @@
 // lib/features/calendar/week_view.dart
 //
-// Week view (default): 7-column grid showing sport-colored chips per day.
+// Two-week view (default): two stacked 7-column rows (14 days total) showing
+// sport-colored chips per day.
 // Planned workouts use a lighter shade; completed use the full sport color.
 // Long-press a planned workout chip → WorkoutActionSheet.
 // Tapping an empty cell (coach) → opens AssignWorkoutSheet.
@@ -30,11 +31,14 @@ class WeekView extends ConsumerWidget {
     final weekDataAsync = ref.watch(calendarWeekDataProvider);
     final roleAsync = ref.watch(roleNotifierProvider);
 
-    // Build the 7 days for the current week range.
+    // Build the 14 days for the current two-week range.
     final days = List.generate(
-      7,
+      14,
       (i) => range.start.add(Duration(days: i)),
     );
+    final firstWeek = days.sublist(0, 7);
+    final secondWeek = days.sublist(7, 14);
+    final isCoach = roleAsync.valueOrNull == RoleFlag.coach;
 
     return Column(
       children: [
@@ -44,11 +48,24 @@ class WeekView extends ConsumerWidget {
           child: weekDataAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (err, _) => Center(child: Text('Error: $err')),
-            data: (weekMap) => _WeekGrid(
-              days: days,
-              weekMap: weekMap,
-              isCoach: roleAsync.valueOrNull == RoleFlag.coach,
-              onDayTapped: onDayTapped,
+            data: (weekMap) => SingleChildScrollView(
+              child: Column(
+                children: [
+                  _WeekGrid(
+                    days: firstWeek,
+                    weekMap: weekMap,
+                    isCoach: isCoach,
+                    onDayTapped: onDayTapped,
+                  ),
+                  const Divider(height: 1),
+                  _WeekGrid(
+                    days: secondWeek,
+                    weekMap: weekMap,
+                    isCoach: isCoach,
+                    onDayTapped: onDayTapped,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -75,8 +92,8 @@ class _WeekNavigation extends ConsumerWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            tooltip: 'Previous week',
-            onPressed: () => _shiftWeek(ref, -7),
+            tooltip: 'Previous 2 weeks',
+            onPressed: () => _shiftWeek(ref, -14),
           ),
           Expanded(
             child: Text(
@@ -87,8 +104,8 @@ class _WeekNavigation extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            tooltip: 'Next week',
-            onPressed: () => _shiftWeek(ref, 7),
+            tooltip: 'Next 2 weeks',
+            onPressed: () => _shiftWeek(ref, 14),
           ),
         ],
       ),

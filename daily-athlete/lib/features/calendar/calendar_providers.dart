@@ -78,12 +78,12 @@ Map<DateTime, List<ActivitySummary>> _mergeIntoWeekMap(
 
 final calendarWeekRangeProvider =
     StateProvider<({DateTime start, DateTime end})>((ref) {
-  // Default: current ISO week (Mon–Sun).
+  // Default: current ISO week's Monday plus the following week (14 days).
   final now = DateTime.now();
   final weekday = now.weekday; // 1=Mon … 7=Sun
   final monday = now.subtract(Duration(days: weekday - 1));
   final start = _dateOnly(monday);
-  final end = _dateOnly(monday.add(const Duration(days: 6)));
+  final end = _dateOnly(monday.add(const Duration(days: 13)));
   return (start: start, end: end);
 });
 
@@ -101,6 +101,7 @@ final calendarWeekRangeProvider =
 class CalendarWeekNotifier
     extends AutoDisposeAsyncNotifier<Map<DateTime, List<ActivitySummary>>> {
   RealtimeChannel? _channel;
+  bool _refetching = false;
 
   @override
   Future<Map<DateTime, List<ActivitySummary>>> build() async {
@@ -145,11 +146,20 @@ class CalendarWeekNotifier
 
   void _refetch(
       String athleteId, ({DateTime start, DateTime end}) range) {
-    state = const AsyncLoading();
+    // Single-flight: a burst of realtime events (e.g. right after a coach
+    // creates a workout) must not stack overlapping refetches or flip the UI
+    // into a loading/rebuild loop. Keep showing the current data while the
+    // refresh runs instead of flashing a full-screen spinner.
+    if (_refetching) return;
+    _refetching = true;
+    state = const AsyncLoading<Map<DateTime, List<ActivitySummary>>>()
+        .copyWithPrevious(state);
     _fetchWeekData(athleteId, range).then((data) {
       state = AsyncData(data);
     }).catchError((Object err, StackTrace st) {
       state = AsyncError(err, st);
+    }).whenComplete(() {
+      _refetching = false;
     });
   }
 

@@ -47,11 +47,12 @@ class DayView extends ConsumerWidget {
   void _ensureWeekCovers(WidgetRef ref, DateTime date) {
     final range = ref.read(calendarWeekRangeProvider);
     if (!date.isBefore(range.start) && !date.isAfter(range.end)) return;
-    // Shift week range so the date is within Mon–Sun of its week.
+    // Shift the two-week range so it starts on the Monday of the date's week
+    // and spans 14 days, keeping it consistent with the 2 Weeks view.
     final weekday = date.weekday;
     final monday = date.subtract(Duration(days: weekday - 1));
     final start = DateTime.utc(monday.year, monday.month, monday.day);
-    final end = start.add(const Duration(days: 6));
+    final end = start.add(const Duration(days: 13));
     ref.read(calendarWeekRangeProvider.notifier).state =
         (start: start, end: end);
   }

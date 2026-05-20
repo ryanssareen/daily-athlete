@@ -1,7 +1,7 @@
 // lib/features/calendar/calendar_tab.dart
 //
 // Calendar tab root widget.
-// - Segmented control: Day | Week (default) | Month | Year
+// - Segmented control: Day | 2 Weeks (default) | Month | Year
 // - Coach: athlete selector at top (reads/writes calendarAthleteIdProvider)
 // - Delegates to DayView, WeekView, MonthView, YearHeatmapView
 
@@ -72,11 +72,12 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
     final normalised = DateTime.utc(date.year, date.month, date.day);
     ref.read(selectedDateProvider.notifier).state = normalised;
 
-    // Ensure week range covers the selected date.
+    // Ensure the two-week range covers the selected date (starts on the
+    // Monday of the selected date's week, spanning 14 days).
     final weekday = date.weekday;
     final monday = date.subtract(Duration(days: weekday - 1));
     final start = DateTime.utc(monday.year, monday.month, monday.day);
-    final end = start.add(const Duration(days: 6));
+    final end = start.add(const Duration(days: 13));
     ref.read(calendarWeekRangeProvider.notifier).state =
         (start: start, end: end);
 
@@ -194,7 +195,7 @@ class _ViewSwitcher extends StatelessWidget {
   final _CalendarView current;
   final void Function(_CalendarView) onChanged;
 
-  static const _labels = ['Day', 'Week', 'Month', 'Year'];
+  static const _labels = ['Day', '2 Weeks', 'Month', 'Year'];
   static const _views = [
     _CalendarView.day,
     _CalendarView.week,
