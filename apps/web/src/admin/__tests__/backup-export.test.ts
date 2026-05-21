@@ -113,6 +113,15 @@ describe("runExport", () => {
     expect(last?.status).toBe("success");
     expect(last?.storage_path).toBe(backupStoragePath("backup-123"));
     expect(last?.key_version).toBe(result.keyVersion);
+
+    // Return contract: counts/ids only — never rows/PII/paths-with-PII
+    // (Inngest stores step returns unencrypted).
+    expect(Object.keys(result).sort()).toEqual([
+      "backupId",
+      "keyVersion",
+      "sizeBytes",
+      "tableCounts",
+    ]);
   });
 
   it("marks the row failed and rethrows when the upload fails", async () => {

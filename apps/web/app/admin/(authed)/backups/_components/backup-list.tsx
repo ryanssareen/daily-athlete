@@ -67,15 +67,18 @@ export function BackupList() {
     void load();
   }, [load]);
 
-  // Poll while an export is in flight so it visibly resolves.
+  const anyInFlight = backups.some(
+    (b) => b.status === "pending" || b.status === "running"
+  );
+
+  // Poll while an export is in flight so it visibly resolves. Depend on the
+  // boolean, not the array, so the interval isn't torn down/recreated on every
+  // poll tick (each fetch returns a fresh array reference).
   useEffect(() => {
-    const inFlight = backups.some(
-      (b) => b.status === "pending" || b.status === "running"
-    );
-    if (!inFlight) return;
+    if (!anyInFlight) return;
     const timer = setInterval(() => void load(), 4000);
     return () => clearInterval(timer);
-  }, [backups, load]);
+  }, [anyInFlight, load]);
 
   async function runExport() {
     setBusy(true);
@@ -106,10 +109,6 @@ export function BackupList() {
       void load();
     }
   }
-
-  const anyInFlight = backups.some(
-    (b) => b.status === "pending" || b.status === "running"
-  );
 
   return (
     <section

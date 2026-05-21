@@ -64,7 +64,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     await admin
       .from("admin_backups")
       .update({ status: "failed", error: "dispatch failed" })
-      .eq("id", backupId);
+      .eq("id", backupId)
+      .neq("status", "success");
     return NextResponse.json({ error: "dispatch_failed" }, { status: 502 });
   }
 

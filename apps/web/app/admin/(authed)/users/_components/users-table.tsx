@@ -22,32 +22,48 @@ export function UsersTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (q: string, p: number) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(p),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (q) params.set("q", q);
-      const res = await fetch(`/api/admin/users?${params.toString()}`);
-      if (!res.ok) throw new Error("load failed");
-      const json = (await res.json()) as { users: Row[]; total: number };
-      setRows(json.users ?? []);
-      setTotal(json.total ?? 0);
-      setError(null);
-    } catch {
-      setError("Couldn't load users.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (q: string, p: number, signal?: AbortSignal) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(p),
+          pageSize: String(PAGE_SIZE),
+        });
+        if (q) params.set("q", q);
+        const res = await fetch(`/api/admin/users?${params.toString()}`, {
+          signal,
+        });
+        if (!res.ok) throw new Error("load failed");
+        const json = (await res.json()) as { users: Row[]; total: number };
+        setRows(json.users ?? []);
+        setTotal(json.total ?? 0);
+        setError(null);
+      } catch (e) {
+        // A superseded request was aborted by the cleanup — ignore it so a
+        // slow earlier response can't overwrite a newer one (last-wins race).
+        if ((e as Error)?.name === "AbortError") return;
+        setError("Couldn't load users.");
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    []
+  );
 
   // Debounce search; any [search, page] change reloads. Searching resets to
-  // page 0 via the input handler so we never query a stale offset.
+  // page 0 via the input handler so we never query a stale offset. The
+  // AbortController cancels an in-flight request when a newer one supersedes it.
   useEffect(() => {
-    const t = setTimeout(() => void load(search, page), search ? 350 : 0);
-    return () => clearTimeout(t);
+    const ctrl = new AbortController();
+    const t = setTimeout(
+      () => void load(search, page, ctrl.signal),
+      search ? 350 : 0
+    );
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
   }, [search, page, load]);
 
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);

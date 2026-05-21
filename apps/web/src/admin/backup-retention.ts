@@ -44,14 +44,32 @@ export async function pruneBackups(): Promise<PruneResult> {
     const path = row.storage_path as string | null;
     if (path) {
       const { error } = await admin.storage.from(bucket).remove([path]);
-      if (!error) result.deletedObjects++;
+      if (!error) {
+        result.deletedObjects++;
+      } else if (!/not.?found|does not exist/i.test(error.message)) {
+        // Object removal genuinely failed — leave the row so a later run
+        // retries; deleting it now would strand the object as an orphan.
+        continue;
+      }
     }
     await admin.from("admin_backups").delete().eq("id", row.id);
     result.deletedRows++;
   }
 
   // --- 2. Orphan sweep ---------------------------------------------------
-  const { data: objects } = await admin.storage.from(bucket).list();
+  // Storage list() caps at 100 objects per call — page through ALL of them,
+  // else orphans (and live-row object lookups) past the first 100 are missed.
+  const LIST_PAGE = 1000;
+  const objects: { name: string; created_at?: string }[] = [];
+  for (let offset = 0; ; offset += LIST_PAGE) {
+    const { data, error } = await admin.storage
+      .from(bucket)
+      .list("", { limit: LIST_PAGE, offset });
+    if (error) break;
+    const batch = (data ?? []) as { name: string; created_at?: string }[];
+    objects.push(...batch);
+    if (batch.length < LIST_PAGE) break;
+  }
   // service-role: admin_backups is a service-role-only table.
   const { data: liveRows } = await admin
     .from("admin_backups")
@@ -63,7 +81,7 @@ export async function pruneBackups(): Promise<PruneResult> {
   );
   const graceCutoff = Date.now() - ORPHAN_GRACE_HOURS * 60 * 60 * 1000;
 
-  for (const obj of objects ?? []) {
+  for (const obj of objects) {
     if (livePaths.has(obj.name)) continue;
     const created = obj.created_at ? new Date(obj.created_at).getTime() : 0;
     if (created && created > graceCutoff) continue; // still within grace
@@ -71,7 +89,7 @@ export async function pruneBackups(): Promise<PruneResult> {
     if (!error) result.orphanObjectsRemoved++;
   }
 
-  const objectNames = new Set((objects ?? []).map((o) => o.name));
+  const objectNames = new Set(objects.map((o) => o.name));
   for (const r of liveRows ?? []) {
     const path = r.storage_path as string | null;
     if (path && !objectNames.has(path)) {

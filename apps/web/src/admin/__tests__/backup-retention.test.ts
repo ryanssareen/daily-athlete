@@ -12,6 +12,7 @@ interface FakeOpts {
   oldRows: { id: string; storage_path: string | null }[];
   liveRows: { id: string; storage_path: string | null }[];
   objects: { name: string; created_at: string }[];
+  removeError?: { message: string } | null;
 }
 
 function makeFake(opts: FakeOpts) {
@@ -42,7 +43,9 @@ function makeFake(opts: FakeOpts) {
         return {
           remove: (paths: string[]) => {
             removed.push(...paths);
-            return Promise.resolve({ error: null });
+            return Promise.resolve(
+              opts.removeError ? { error: opts.removeError } : { error: null }
+            );
           },
           list: () => Promise.resolve({ data: opts.objects, error: null }),
         };
@@ -98,6 +101,19 @@ describe("pruneBackups", () => {
     const result = await pruneBackups();
     expect(result.orphanObjectsRemoved).toBe(0);
     expect(h.removed).not.toContain("fresh.ndjson.gz.enc");
+  });
+
+  it("keeps the row when object removal genuinely fails (no stranded orphan)", async () => {
+    const h = makeFake({
+      oldRows: [{ id: "r9", storage_path: "r9.ndjson.gz.enc" }],
+      liveRows: [],
+      objects: [],
+      removeError: { message: "storage 500" },
+    });
+    mocks.client = h.client;
+    const result = await pruneBackups();
+    expect(result.deletedRows).toBe(0);
+    expect(h.deletedIds).not.toContain("r9");
   });
 
   it("flags live rows whose Storage object is missing", async () => {
