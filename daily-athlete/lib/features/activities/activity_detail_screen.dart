@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/units.dart';
 import '../../models/completed_workout.dart';
@@ -124,6 +126,7 @@ class _DetailScaffold extends StatelessWidget {
           _buildHeader(context),
           const SizedBox(height: 20),
           _PrimaryStatsCard(workout: workout),
+          _buildMap(),
           ..._buildSportSections(context),
           _buildOverflow(context),
           if (!workout.isStrava) _StravaConnectNote(),
@@ -272,6 +275,19 @@ class _DetailScaffold extends StatelessWidget {
     }
 
     return widgets;
+  }
+
+  /// Renders the Strava route on an OpenStreetMap map when a summary polyline
+  /// is present (outdoor GPS activities). Hidden for manual/indoor workouts.
+  Widget _buildMap() {
+    final raw = workout.summaryStats['polyline'];
+    if (raw is! String || raw.isEmpty) return const SizedBox.shrink();
+    final points = _decodePolyline(raw);
+    if (points.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: _RouteMap(points: points),
+    );
   }
 
   Widget _buildOverflow(BuildContext context) {
@@ -527,4 +543,82 @@ class _StravaConnectNote extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Route map (Strava summary polyline -> OpenStreetMap)
+// ---------------------------------------------------------------------------
+
+class _RouteMap extends StatelessWidget {
+  const _RouteMap({required this.points});
+
+  final List<LatLng> points;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: SizedBox(
+        height: 220,
+        child: FlutterMap(
+          options: MapOptions(
+            initialCameraFit: CameraFit.bounds(
+              bounds: LatLngBounds.fromPoints(points),
+              padding: const EdgeInsets.all(28),
+            ),
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+            ),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.da2.dailyAthlete',
+            ),
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: points,
+                  strokeWidth: 4,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Decodes a Google/Strava encoded polyline (precision 5) into lat/lng points.
+List<LatLng> _decodePolyline(String encoded) {
+  final points = <LatLng>[];
+  int index = 0;
+  int lat = 0;
+  int lng = 0;
+
+  while (index < encoded.length) {
+    int shift = 0;
+    int result = 0;
+    int b;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+
+    points.add(LatLng(lat / 1e5, lng / 1e5));
+  }
+  return points;
 }
