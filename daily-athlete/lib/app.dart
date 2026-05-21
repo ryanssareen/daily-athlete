@@ -34,7 +34,7 @@ class DA2App extends ConsumerWidget {
 /// corner radii and left-aligned app bars.
 ThemeData _buildTheme(Brightness brightness) {
   final colorScheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFFE50914), // brand red
+    seedColor: const Color(0xFFFF0D17), // brand red (brighter / more saturated)
     brightness: brightness,
     dynamicSchemeVariant: DynamicSchemeVariant.vibrant,
   );
