@@ -27,12 +27,16 @@ class DA2App extends ConsumerWidget {
   }
 }
 
-/// Shared theme for light + dark. Modern Material 3 styling: flat tonal cards
-/// with large corner radii and left-aligned app bars.
+/// Shared theme for light + dark. Brand palette: a vivid red accent (matching
+/// the DA logo's red-to-black mark) over clean black/white surfaces. The
+/// `vibrant` scheme variant keeps the red saturated as an accent while surfaces
+/// stay near-neutral. Modern Material 3 styling: flat tonal cards with large
+/// corner radii and left-aligned app bars.
 ThemeData _buildTheme(Brightness brightness) {
   final colorScheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFFD35400), // clay
+    seedColor: const Color(0xFFE50914), // brand red
     brightness: brightness,
+    dynamicSchemeVariant: DynamicSchemeVariant.vibrant,
   );
   return ThemeData(
     colorScheme: colorScheme,
