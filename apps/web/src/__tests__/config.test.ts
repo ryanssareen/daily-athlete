@@ -26,6 +26,7 @@ const baseProdEnv: Record<string, string> = {
   INNGEST_SIGNING_KEY: "inngest-signing-key",
   ADMIN_PASSWORD: "admin-password-stub-secret",
   ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
+  BACKUP_ENCRYPTION_KEYS: `1:${VALID_KEY}`,
 };
 
 async function importFresh(env: Record<string, string | undefined>) {
@@ -45,6 +46,10 @@ async function importFresh(env: Record<string, string | undefined>) {
     "INNGEST_SIGNING_KEY",
     "ADMIN_PASSWORD",
     "ADMIN_SESSION_SIGNING_KEY",
+    "BACKUP_ENCRYPTION_KEYS",
+    "SUPABASE_MANAGEMENT_TOKEN",
+    "SUPABASE_PROJECT_REF",
+    "ADMIN_BACKUP_BUCKET",
   ];
   for (const k of wipe)
     delete (process.env as Record<string, string | undefined>)[k];
@@ -215,33 +220,33 @@ describe("config validator -- production failure modes", () => {
   });
 });
 
-describe("config validator -- production warnings (do not block boot)", () => {
-  it("warns when INNGEST_EVENT_KEY is missing in production", async () => {
+describe("config validator -- inngest + backup secrets (production)", () => {
+  it("rejects when INNGEST_EVENT_KEY is missing (first live Inngest fn)", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_EVENT_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_EVENT_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest event key|INNGEST_EVENT_KEY/
+    );
   });
 
-  it("warns when INNGEST_SIGNING_KEY is missing in production", async () => {
+  it("rejects when INNGEST_SIGNING_KEY is missing", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_SIGNING_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_SIGNING_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest signing key|INNGEST_SIGNING_KEY/
+    );
+  });
+
+  it("rejects when BACKUP_ENCRYPTION_KEYS is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.BACKUP_ENCRYPTION_KEYS;
+    await expect(importFresh(env)).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
+  });
+
+  it("rejects when BACKUP_ENCRYPTION_KEYS is malformed", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, BACKUP_ENCRYPTION_KEYS: "1:nothex" })
+    ).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
   });
 });
 
@@ -371,6 +376,7 @@ describe("config validator -- build-time safety (Vercel bundler / Next build)", 
       "INNGEST_SIGNING_KEY",
       "ADMIN_PASSWORD",
       "ADMIN_SESSION_SIGNING_KEY",
+      "BACKUP_ENCRYPTION_KEYS",
     ];
     for (const k of wipe)
       delete (process.env as Record<string, string | undefined>)[k];

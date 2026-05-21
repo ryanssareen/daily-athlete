@@ -45,6 +45,8 @@ interface RawEnv {
   ADMIN_SESSION_SIGNING_KEY?: string;
   SUPABASE_MANAGEMENT_TOKEN?: string;
   SUPABASE_PROJECT_REF?: string;
+  BACKUP_ENCRYPTION_KEYS?: string;
+  ADMIN_BACKUP_BUCKET?: string;
 }
 
 export interface AppConfig {
@@ -73,6 +75,12 @@ export interface AppConfig {
     // API). Absent => the panel renders an "unconfigured" note, not an error.
     managementToken: string | undefined;
     projectRef: string | undefined;
+  };
+  backups: {
+    // AES-256-GCM versioned keys for the on-demand export artifact. Format:
+    // `1:<64-hex>,2:<64-hex>,...` (same shape as STRAVA_TOKEN_KEYS).
+    encryptionKeysRaw: string | undefined;
+    bucket: string;
   };
 }
 
@@ -276,6 +284,35 @@ function validateAdminSessionSigningKeyProd(v: Validator): void {
   }
 }
 
+function validateBackupEncryptionKeysProd(v: Validator): void {
+  // Versioned AES-256-GCM keys for the export artifact. Fail-fast on
+  // missing/placeholder/misshaped here; the authoritative strict parse (dup
+  // versions etc.) lives in src/admin/backup-crypto.ts at first use.
+  const raw = v.raw.BACKUP_ENCRYPTION_KEYS;
+  if (!raw) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS contains placeholder value");
+    return;
+  }
+  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (entries.length === 0) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS parsed to zero entries");
+    return;
+  }
+  for (const entry of entries) {
+    if (!/^\d+:[0-9a-fA-F]{64}$/.test(entry)) {
+      v.errors.push(
+        `BACKUP_ENCRYPTION_KEYS entry "${entry}" must be "version:64-hex"`
+      );
+    } else if (isAllZeroHex(entry.slice(entry.indexOf(":") + 1))) {
+      v.errors.push("BACKUP_ENCRYPTION_KEYS contains an all-zero (placeholder) key");
+    }
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -297,15 +334,13 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateStateSigningKeyProd(v);
     validateAdminPasswordProd(v);
     validateAdminSessionSigningKeyProd(v);
-    // Inngest keys are optional — backfill runs via Next.js after() + Vercel
-    // cron. The /api/inngest route still exists for future use; warn so any
-    // accidental production misconfiguration surfaces in deploy logs.
-    if (!raw.INNGEST_EVENT_KEY) {
-      v.warnings.push("INNGEST_EVENT_KEY missing in production");
-    }
-    if (!raw.INNGEST_SIGNING_KEY) {
-      v.warnings.push("INNGEST_SIGNING_KEY missing in production");
-    }
+    // The admin backup export is the first LIVE Inngest function, so both keys
+    // are now mandatory in prod: EVENT_KEY to dispatch the export, SIGNING_KEY
+    // so the served /api/inngest verifies inbound invocations (an unsigned
+    // endpoint would be an open trigger for the PII-dumping export worker).
+    requireProd(v, "INNGEST_EVENT_KEY", "Inngest event key");
+    requireProd(v, "INNGEST_SIGNING_KEY", "Inngest signing key");
+    validateBackupEncryptionKeysProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
@@ -355,6 +390,10 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       sessionSigningKey: raw.ADMIN_SESSION_SIGNING_KEY,
       managementToken: raw.SUPABASE_MANAGEMENT_TOKEN,
       projectRef: raw.SUPABASE_PROJECT_REF,
+    },
+    backups: {
+      encryptionKeysRaw: raw.BACKUP_ENCRYPTION_KEYS,
+      bucket: raw.ADMIN_BACKUP_BUCKET ?? "admin-backups",
     },
   };
 }
