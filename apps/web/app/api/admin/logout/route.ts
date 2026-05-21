@@ -8,10 +8,12 @@ import { NextResponse } from "next/server";
 
 import { ADMIN_COOKIE_NAME, adminCookieAttrs } from "@/auth/admin-cookie";
 import {
+  clientIp,
   isSameOriginRequest,
   parseSessionToken,
   revokeAdminSession,
 } from "@/auth/admin-session";
+import { writeAudit } from "@/db/admin-audit";
 
 export async function POST(request: Request): Promise<NextResponse> {
   if (!isSameOriginRequest(request.headers)) {
@@ -23,6 +25,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (parsed) {
     await revokeAdminSession(parsed.sessionId);
   }
+  await writeAudit({
+    action: "admin.logout",
+    ip: clientIp(request.headers),
+    sessionId: parsed?.sessionId ?? null,
+  });
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set(ADMIN_COOKIE_NAME, "", adminCookieAttrs(0));

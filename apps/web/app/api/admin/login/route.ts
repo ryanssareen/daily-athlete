@@ -15,9 +15,11 @@ import {
   createAdminSession,
   evaluateLockout,
   isSameOriginRequest,
+  parseSessionToken,
   recordLoginAttempt,
   verifyAdminPassword,
 } from "@/auth/admin-session";
+import { writeAudit } from "@/db/admin-audit";
 
 interface LoginBody {
   password?: unknown;
@@ -31,6 +33,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const ip = clientIp(request.headers);
   const lock = await evaluateLockout(ip);
   if (!lock.allowed) {
+    await writeAudit({ action: "admin.login.locked", ip });
     return NextResponse.json(
       { error: "locked" },
       {
@@ -50,12 +53,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   if (!verifyAdminPassword(password)) {
     await recordLoginAttempt(ip, false);
+    await writeAudit({ action: "admin.login.failure", ip });
     return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
   }
 
   await recordLoginAttempt(ip, true);
   await clearLoginAttempts(ip);
   const { token, maxAgeSeconds } = await createAdminSession();
+  await writeAudit({
+    action: "admin.login.success",
+    ip,
+    sessionId: parseSessionToken(token)?.sessionId ?? null,
+  });
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set(ADMIN_COOKIE_NAME, token, adminCookieAttrs(maxAgeSeconds));

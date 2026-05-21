@@ -23,6 +23,8 @@ vi.mock("@/auth/admin-session", async (importOriginal) => {
   };
 });
 
+vi.mock("@/db/admin-audit", () => ({ writeAudit: vi.fn() }));
+
 import {
   clearLoginAttempts,
   createAdminSession,
