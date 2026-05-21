@@ -26,8 +26,9 @@ posture.
   session (httpOnly/Secure/SameSite, idle + absolute expiry), and failure lockout
   beyond rate-limiting. Secret via `config.ts` validator / env, rotatable without a
   deploy.
-- R2. Append-only audit log (action, target, timestamp, source) of every destructive
-  op, on a path the dashboard's own flows cannot tamper with.
+- R2. Append-only audit log (action, target, timestamp, source) of **every admin
+  operation** — reads/views, exports, and destructive actions alike — on a path the
+  dashboard's own flows cannot tamper with.
 
 **Backups — wrap the managed platform, don't reinvent**
 - R3. Surface Supabase managed backup + PITR status (last good backup, recovery
