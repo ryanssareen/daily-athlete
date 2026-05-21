@@ -41,6 +41,8 @@ interface RawEnv {
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
+  ADMIN_PASSWORD?: string;
+  ADMIN_SESSION_SIGNING_KEY?: string;
 }
 
 export interface AppConfig {
@@ -61,6 +63,10 @@ export interface AppConfig {
   inngest: {
     eventKey: string | undefined;
     signingKey: string | undefined;
+  };
+  admin: {
+    password: string | undefined;
+    sessionSigningKey: string | undefined;
   };
 }
 
@@ -214,6 +220,56 @@ function validateWebhookSubscriptionIdProd(v: Validator): void {
   }
 }
 
+const ADMIN_PASSWORD_MIN_LENGTH = 16;
+
+function validateAdminPasswordProd(v: Validator): void {
+  // Shared operator password gating destructive, cross-user, PII-bearing
+  // admin surfaces. Required in prod; a short password here is the whole
+  // ballgame, so enforce a floor length.
+  const raw = v.raw.ADMIN_PASSWORD;
+  if (!raw) {
+    v.errors.push("ADMIN_PASSWORD is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("ADMIN_PASSWORD contains placeholder value");
+    return;
+  }
+  if (raw.length < ADMIN_PASSWORD_MIN_LENGTH) {
+    v.errors.push(
+      `ADMIN_PASSWORD must be at least ${ADMIN_PASSWORD_MIN_LENGTH} characters`
+    );
+  }
+}
+
+function validateAdminSessionSigningKeyProd(v: Validator): void {
+  // 32-byte HMAC-SHA256 key for the admin session cookie
+  // (apps/web/src/auth/admin-session.ts). Format: 64 hex chars (= 32 bytes),
+  // same shape as STRAVA_OAUTH_STATE_SIGNING_KEY.
+  const raw = v.raw.ADMIN_SESSION_SIGNING_KEY;
+  if (!raw) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY contains placeholder value");
+    return;
+  }
+  if (isAllZeroHex(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY is all-zero (placeholder)");
+    return;
+  }
+  if (!/^[0-9a-fA-F]+$/.test(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY contains non-hex characters");
+    return;
+  }
+  if (raw.length !== 64) {
+    v.errors.push(
+      `ADMIN_SESSION_SIGNING_KEY must be 64 hex chars (32 bytes); got ${raw.length}`
+    );
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -233,6 +289,8 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateWebhookSubscriptionIdProd(v);
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
+    validateAdminPasswordProd(v);
+    validateAdminSessionSigningKeyProd(v);
     // Inngest keys are optional — backfill runs via Next.js after() + Vercel
     // cron. The /api/inngest route still exists for future use; warn so any
     // accidental production misconfiguration surfaces in deploy logs.
@@ -285,6 +343,10 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     inngest: {
       eventKey: raw.INNGEST_EVENT_KEY,
       signingKey: raw.INNGEST_SIGNING_KEY,
+    },
+    admin: {
+      password: raw.ADMIN_PASSWORD,
+      sessionSigningKey: raw.ADMIN_SESSION_SIGNING_KEY,
     },
   };
 }

@@ -24,6 +24,8 @@ const baseProdEnv: Record<string, string> = {
   STRAVA_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
   INNGEST_EVENT_KEY: "inngest-event-key",
   INNGEST_SIGNING_KEY: "inngest-signing-key",
+  ADMIN_PASSWORD: "admin-password-stub-secret",
+  ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
 };
 
 async function importFresh(env: Record<string, string | undefined>) {
@@ -41,6 +43,8 @@ async function importFresh(env: Record<string, string | undefined>) {
     "STRAVA_OAUTH_STATE_SIGNING_KEY",
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
+    "ADMIN_PASSWORD",
+    "ADMIN_SESSION_SIGNING_KEY",
   ];
   for (const k of wipe)
     delete (process.env as Record<string, string | undefined>)[k];
@@ -296,6 +300,54 @@ describe("config validator -- non-production", () => {
   });
 });
 
+describe("config validator -- admin secrets (production)", () => {
+  it("rejects when ADMIN_PASSWORD is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.ADMIN_PASSWORD;
+    await expect(importFresh(env)).rejects.toThrow(
+      /ADMIN_PASSWORD.*required in production/
+    );
+  });
+
+  it("rejects when ADMIN_PASSWORD is shorter than 16 chars", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_PASSWORD: "short" })
+    ).rejects.toThrow(/ADMIN_PASSWORD.*at least 16/);
+  });
+
+  it("rejects when ADMIN_PASSWORD is the placeholder 'xxx'", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_PASSWORD: "xxx" })
+    ).rejects.toThrow(/ADMIN_PASSWORD|placeholder/i);
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.ADMIN_SESSION_SIGNING_KEY;
+    await expect(importFresh(env)).rejects.toThrow(
+      /ADMIN_SESSION_SIGNING_KEY/
+    );
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is the wrong length", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SESSION_SIGNING_KEY: "deadbeef" })
+    ).rejects.toThrow(/ADMIN_SESSION_SIGNING_KEY.*64 hex chars/i);
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is all-zero", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SESSION_SIGNING_KEY: "0".repeat(64) })
+    ).rejects.toThrow(/ADMIN_SESSION_SIGNING_KEY|all-zero/i);
+  });
+
+  it("accepts a valid admin config in production", async () => {
+    const mod = await importFresh(baseProdEnv);
+    expect(mod.config.admin.password).toBe("admin-password-stub-secret");
+    expect(mod.config.admin.sessionSigningKey).toBe(VALID_KEY);
+  });
+});
+
 describe("config validator -- build-time safety (Vercel bundler / Next build)", () => {
   // Regression test for the build failure on PR #62: Vercel's Next.js build
   // bundles route handlers, which evaluates module-top-level code. If
@@ -317,6 +369,8 @@ describe("config validator -- build-time safety (Vercel bundler / Next build)", 
       "STRAVA_OAUTH_STATE_SIGNING_KEY",
       "INNGEST_EVENT_KEY",
       "INNGEST_SIGNING_KEY",
+      "ADMIN_PASSWORD",
+      "ADMIN_SESSION_SIGNING_KEY",
     ];
     for (const k of wipe)
       delete (process.env as Record<string, string | undefined>)[k];
