@@ -12,6 +12,8 @@ import { ADMIN_COOKIE_NAME } from "@/auth/admin-cookie";
 import { clientIp, parseSessionToken } from "@/auth/admin-session";
 import { writeAudit } from "@/db/admin-audit";
 
+import { BackupList } from "./_components/backup-list";
+
 // Always reflect live status + record the view per request; never static.
 export const dynamic = "force-dynamic";
 
@@ -119,6 +121,15 @@ export default async function BackupsPage() {
         Backups
       </h1>
       <ManagedStatusCard status={status} />
+
+      <section style={{ marginTop: 28 }}>
+        <h2
+          style={{ margin: "0 0 12px", fontSize: 16, color: "var(--color-ink)" }}
+        >
+          On-demand exports
+        </h2>
+        <BackupList />
+      </section>
     </div>
   );
 }
