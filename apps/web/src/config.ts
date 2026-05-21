@@ -41,7 +41,7 @@ interface RawEnv {
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
-  ADMIN_PASSWORD?: string;
+  ADMIN_SECRET?: string;
   ADMIN_SESSION_SIGNING_KEY?: string;
   SUPABASE_MANAGEMENT_TOKEN?: string;
   SUPABASE_PROJECT_REF?: string;
@@ -234,24 +234,24 @@ function validateWebhookSubscriptionIdProd(v: Validator): void {
   }
 }
 
-const ADMIN_PASSWORD_MIN_LENGTH = 16;
+const ADMIN_SECRET_MIN_LENGTH = 16;
 
-function validateAdminPasswordProd(v: Validator): void {
+function validateAdminSecretProd(v: Validator): void {
   // Shared operator password gating destructive, cross-user, PII-bearing
   // admin surfaces. Required in prod; a short password here is the whole
   // ballgame, so enforce a floor length.
-  const raw = v.raw.ADMIN_PASSWORD;
+  const raw = v.raw.ADMIN_SECRET;
   if (!raw) {
-    v.errors.push("ADMIN_PASSWORD is required in production");
+    v.errors.push("ADMIN_SECRET is required in production");
     return;
   }
   if (isPlaceholder(raw)) {
-    v.errors.push("ADMIN_PASSWORD contains placeholder value");
+    v.errors.push("ADMIN_SECRET contains placeholder value");
     return;
   }
-  if (raw.length < ADMIN_PASSWORD_MIN_LENGTH) {
+  if (raw.length < ADMIN_SECRET_MIN_LENGTH) {
     v.errors.push(
-      `ADMIN_PASSWORD must be at least ${ADMIN_PASSWORD_MIN_LENGTH} characters`
+      `ADMIN_SECRET must be at least ${ADMIN_SECRET_MIN_LENGTH} characters`
     );
   }
 }
@@ -332,7 +332,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateWebhookSubscriptionIdProd(v);
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
-    validateAdminPasswordProd(v);
+    validateAdminSecretProd(v);
     validateAdminSessionSigningKeyProd(v);
     // The admin backup export is the first LIVE Inngest function, so both keys
     // are now mandatory in prod: EVENT_KEY to dispatch the export, SIGNING_KEY
@@ -386,7 +386,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       signingKey: raw.INNGEST_SIGNING_KEY,
     },
     admin: {
-      password: raw.ADMIN_PASSWORD,
+      password: raw.ADMIN_SECRET,
       sessionSigningKey: raw.ADMIN_SESSION_SIGNING_KEY,
       managementToken: raw.SUPABASE_MANAGEMENT_TOKEN,
       projectRef: raw.SUPABASE_PROJECT_REF,

@@ -24,7 +24,7 @@ const baseProdEnv: Record<string, string> = {
   STRAVA_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
   INNGEST_EVENT_KEY: "inngest-event-key",
   INNGEST_SIGNING_KEY: "inngest-signing-key",
-  ADMIN_PASSWORD: "admin-password-stub-secret",
+  ADMIN_SECRET: "admin-password-stub-secret",
   ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
   BACKUP_ENCRYPTION_KEYS: `1:${VALID_KEY}`,
 };
@@ -44,7 +44,7 @@ async function importFresh(env: Record<string, string | undefined>) {
     "STRAVA_OAUTH_STATE_SIGNING_KEY",
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
-    "ADMIN_PASSWORD",
+    "ADMIN_SECRET",
     "ADMIN_SESSION_SIGNING_KEY",
     "BACKUP_ENCRYPTION_KEYS",
     "SUPABASE_MANAGEMENT_TOKEN",
@@ -306,24 +306,24 @@ describe("config validator -- non-production", () => {
 });
 
 describe("config validator -- admin secrets (production)", () => {
-  it("rejects when ADMIN_PASSWORD is missing", async () => {
+  it("rejects when ADMIN_SECRET is missing", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
-    delete env.ADMIN_PASSWORD;
+    delete env.ADMIN_SECRET;
     await expect(importFresh(env)).rejects.toThrow(
-      /ADMIN_PASSWORD.*required in production/
+      /ADMIN_SECRET.*required in production/
     );
   });
 
-  it("rejects when ADMIN_PASSWORD is shorter than 16 chars", async () => {
+  it("rejects when ADMIN_SECRET is shorter than 16 chars", async () => {
     await expect(
-      importFresh({ ...baseProdEnv, ADMIN_PASSWORD: "short" })
-    ).rejects.toThrow(/ADMIN_PASSWORD.*at least 16/);
+      importFresh({ ...baseProdEnv, ADMIN_SECRET: "short" })
+    ).rejects.toThrow(/ADMIN_SECRET.*at least 16/);
   });
 
-  it("rejects when ADMIN_PASSWORD is the placeholder 'xxx'", async () => {
+  it("rejects when ADMIN_SECRET is the placeholder 'xxx'", async () => {
     await expect(
-      importFresh({ ...baseProdEnv, ADMIN_PASSWORD: "xxx" })
-    ).rejects.toThrow(/ADMIN_PASSWORD|placeholder/i);
+      importFresh({ ...baseProdEnv, ADMIN_SECRET: "xxx" })
+    ).rejects.toThrow(/ADMIN_SECRET|placeholder/i);
   });
 
   it("rejects when ADMIN_SESSION_SIGNING_KEY is missing", async () => {
@@ -374,7 +374,7 @@ describe("config validator -- build-time safety (Vercel bundler / Next build)", 
       "STRAVA_OAUTH_STATE_SIGNING_KEY",
       "INNGEST_EVENT_KEY",
       "INNGEST_SIGNING_KEY",
-      "ADMIN_PASSWORD",
+      "ADMIN_SECRET",
       "ADMIN_SESSION_SIGNING_KEY",
       "BACKUP_ENCRYPTION_KEYS",
     ];

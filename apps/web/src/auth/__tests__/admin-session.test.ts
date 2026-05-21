@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
-  process.env.ADMIN_PASSWORD = "correct-horse-battery-staple";
+  process.env.ADMIN_SECRET = "correct-horse-battery-staple";
   process.env.ADMIN_SESSION_SIGNING_KEY =
     "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 });

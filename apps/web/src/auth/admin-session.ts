@@ -15,7 +15,7 @@ import "server-only";
 //
 // verifyAdminSession() requires BOTH a valid HMAC (crypto) AND a live row
 // (exists, not revoked, within idle + absolute expiry). Logout revokes the
-// row; rotating ADMIN_PASSWORD revokes all rows. The DB row is the source of
+// row; rotating ADMIN_SECRET revokes all rows. The DB row is the source of
 // truth for revocation; the cookie HMAC stops forgery without a DB hit in the
 // common reject case.
 //
@@ -265,7 +265,7 @@ export async function revokeAdminSession(sessionId: string): Promise<void> {
     .is("revoked_at", null);
 }
 
-/** Revoke all live sessions (e.g. after ADMIN_PASSWORD rotation). */
+/** Revoke all live sessions (e.g. after ADMIN_SECRET rotation). */
 export async function revokeAllAdminSessions(): Promise<void> {
   const admin = createAdminClient();
   // service-role: admin_sessions is a service-role-only table.
