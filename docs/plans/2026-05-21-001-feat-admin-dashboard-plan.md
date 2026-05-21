@@ -1,7 +1,7 @@
 ---
 title: "feat: Admin dashboard v1 — access gate, backups, read-only user list"
 type: feat
-status: active
+status: completed
 date: 2026-05-21
 deepened: 2026-05-21
 origin: docs/brainstorms/2026-05-21-admin-dashboard-requirements.md
@@ -133,7 +133,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 ## Implementation Units
 
-- [ ] **Unit 1: Admin access foundation — config secrets, session, lockout, gate, shell**
+- [x] **Unit 1: Admin access foundation — config secrets, session, lockout, gate, shell**
 
 **Goal:** A working server-enforced shared-password gate with a signed session, failure lockout, and the `(admin)` shell.
 
@@ -169,7 +169,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** Visiting any `/admin` route or calling any `/api/admin` route without a valid session is blocked at the server; correct login grants access; lockout triggers after the configured failures.
 
-- [ ] **Unit 2: Append-only audit log of all admin operations**
+- [x] **Unit 2: Append-only audit log of all admin operations**
 
 **Goal:** Build the audit *capability* — an immutable table + a `writeAudit` util — and wire it into the routes that exist now (login). Each later unit wires `writeAudit` into its own routes as they're created, so "every admin op is audited" is satisfied incrementally rather than by editing not-yet-existent routes here.
 
@@ -196,7 +196,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** Every admin action produces an immutable audit row; the realtime-publication test passes.
 
-- [ ] **Unit 3: Surface managed backup + PITR status**
+- [x] **Unit 3: Surface managed backup + PITR status**
 
 **Goal:** Show Supabase managed-backup/PITR status in the dashboard (read-only).
 
@@ -221,7 +221,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** The backups page shows accurate managed-backup status (or a clean empty/error state) without exposing the token.
 
-- [ ] **Unit 4: On-demand encrypted logical export (first live Inngest function)**
+- [x] **Unit 4: On-demand encrypted logical export (first live Inngest function)**
 
 **Goal:** Produce an owned, encrypted backup artifact in private Storage.
 
@@ -257,7 +257,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** An operator-triggered export yields a downloadable, decryptable, complete artifact, and failures are recorded as failed.
 
-- [ ] **Unit 5: Backup list / signed-URL download / delete / age-prune**
+- [x] **Unit 5: Backup list / signed-URL download / delete / age-prune**
 
 **Goal:** Manage export artifacts from the dashboard.
 
@@ -287,7 +287,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** Operator can list, download (signed, expiring), delete, and auto-prune exports; cross-site requests are rejected.
 
-- [ ] **Unit 6: Guarded restore runbook**
+- [x] **Unit 6: Guarded restore runbook**
 
 **Goal:** A documented, guard-railed restore path surfaced in the dashboard.
 
@@ -311,7 +311,7 @@ prune: scheduled (cron/Inngest) → delete artifacts + rows older than retention
 
 **Verification:** An operator can follow a complete, correct restore procedure from the dashboard without guessing.
 
-- [ ] **Unit 7: Read-only user list (search + pagination)**
+- [x] **Unit 7: Read-only user list (search + pagination)**
 
 **Goal:** Cross-user, read-only visibility of name + email.
 
