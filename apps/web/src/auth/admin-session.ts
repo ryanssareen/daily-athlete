@@ -146,6 +146,9 @@ export function parseSessionToken(
 
 // --- client IP ----------------------------------------------------------
 
+/** Minimal header reader satisfied by both `Headers` and Next's ReadonlyHeaders. */
+type HeaderReader = { get(name: string): string | null };
+
 /**
  * The client IP as Vercel reports it. `x-vercel-forwarded-for` is set by
  * Vercel's edge and is the trustworthy source; the raw `x-forwarded-for` chain
@@ -154,7 +157,7 @@ export function parseSessionToken(
  * nothing is present (e.g. local dev) — all such requests share one lockout
  * bucket, which is fine for a single-operator tool.
  */
-export function clientIp(headers: Headers): string {
+export function clientIp(headers: HeaderReader): string {
   const vercel = headers.get("x-vercel-forwarded-for");
   if (vercel) return vercel.split(",")[0]!.trim();
   const real = headers.get("x-real-ip");

@@ -43,6 +43,8 @@ interface RawEnv {
   INNGEST_SIGNING_KEY?: string;
   ADMIN_PASSWORD?: string;
   ADMIN_SESSION_SIGNING_KEY?: string;
+  SUPABASE_MANAGEMENT_TOKEN?: string;
+  SUPABASE_PROJECT_REF?: string;
 }
 
 export interface AppConfig {
@@ -67,6 +69,10 @@ export interface AppConfig {
   admin: {
     password: string | undefined;
     sessionSigningKey: string | undefined;
+    // Optional: enables the managed-backup status panel (read-only Management
+    // API). Absent => the panel renders an "unconfigured" note, not an error.
+    managementToken: string | undefined;
+    projectRef: string | undefined;
   };
 }
 
@@ -347,6 +353,8 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     admin: {
       password: raw.ADMIN_PASSWORD,
       sessionSigningKey: raw.ADMIN_SESSION_SIGNING_KEY,
+      managementToken: raw.SUPABASE_MANAGEMENT_TOKEN,
+      projectRef: raw.SUPABASE_PROJECT_REF,
     },
   };
 }
