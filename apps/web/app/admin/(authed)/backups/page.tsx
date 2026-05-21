@@ -130,6 +130,61 @@ export default async function BackupsPage() {
         </h2>
         <BackupList />
       </section>
+
+      <RestoreSection pitrEnabled={status.state === "ok" && status.pitrEnabled} />
     </div>
+  );
+}
+
+function RestoreSection({ pitrEnabled }: { pitrEnabled: boolean }) {
+  return (
+    <section style={{ marginTop: 28 }}>
+      <h2 style={{ margin: "0 0 12px", fontSize: 16, color: "var(--color-ink)" }}>
+        Restore
+      </h2>
+      <div
+        style={{
+          border: "1px solid var(--color-border)",
+          background: "var(--color-paper)",
+          borderRadius: 12,
+          padding: 20,
+        }}
+      >
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--color-ink-muted)" }}>
+          Restore is destructive, so it is a deliberate manual runbook — there is
+          no in-place button. Current path:{" "}
+          <strong style={{ color: "var(--color-ink)" }}>
+            {pitrEnabled
+              ? "PITR (point-in-time, in place)"
+              : "logical restore from an export"}
+          </strong>
+          .
+        </p>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--color-ink)" }}>
+          Before restoring:
+        </p>
+        <ul
+          style={{
+            margin: 0,
+            paddingLeft: 18,
+            fontSize: 13,
+            color: "var(--color-ink-muted)",
+            lineHeight: 1.7,
+          }}
+        >
+          <li>Stop writes / enter maintenance if the incident is ongoing.</li>
+          <li>Take a safety snapshot first (Run export) so you can roll forward.</li>
+          <li>Confirm the exact target project/database and the timestamp or artifact.</li>
+          <li>
+            Note: <code>strava_tokens</code> is excluded — Strava connections
+            must be re-linked after a logical restore.
+          </li>
+        </ul>
+        <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--color-ink-muted)" }}>
+          Full steps:{" "}
+          <code>docs/operational/backup-restore-runbook.md</code>
+        </p>
+      </div>
+    </section>
   );
 }
