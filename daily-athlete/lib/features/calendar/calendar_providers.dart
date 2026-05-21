@@ -246,12 +246,19 @@ final yearHeatmapProvider =
       .gte('started_at', cutoff)
       .isFilter('deleted_at', null);
 
-  final workouts = (raw as List<dynamic>)
-      .map((r) =>
-          CompletedWorkoutRow.fromJson(r as Map<String, dynamic>))
-      .toList();
-
-  return aggregateYearHeatmap(workouts);
+  // The projection above is intentionally narrow (started_at, duration_s),
+  // so aggregate those fields directly. CompletedWorkoutRow.fromJson would
+  // require id/athlete_id/source and null-cast on this subset (the
+  // "type 'Null' is not a subtype of type 'String'" year-view crash).
+  final result = <DateTime, int>{};
+  for (final r in raw as List<dynamic>) {
+    final m = r as Map<String, dynamic>;
+    final startedAt = DateTime.parse(m['started_at'] as String);
+    final durationS = (m['duration_s'] as num?)?.toInt() ?? 0;
+    final key = _dateOnly(startedAt);
+    result[key] = (result[key] ?? 0) + durationS;
+  }
+  return result;
 });
 
 // ---------------------------------------------------------------------------

@@ -41,7 +41,13 @@ ThemeData _buildTheme(Brightness brightness) {
   return ThemeData(
     colorScheme: colorScheme,
     useMaterial3: true,
-    appBarTheme: const AppBarTheme(centerTitle: false),
+    // Brand-red app bar with white content — puts red on every screen's top
+    // bar, not just in accents.
+    appBarTheme: const AppBarTheme(
+      centerTitle: false,
+      backgroundColor: Color(0xFFE00812),
+      foregroundColor: Colors.white,
+    ),
     cardTheme: CardThemeData(
       elevation: 0,
       color: colorScheme.surfaceContainerLow,
