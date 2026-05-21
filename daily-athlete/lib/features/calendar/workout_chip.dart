@@ -39,6 +39,24 @@ Color plannedSportColor(Sport sport) {
   return sportColor(sport).withValues(alpha: 0.30);
 }
 
+/// Compact glyph representing a sport, used as a chip/leading icon.
+IconData sportIcon(Sport sport) {
+  switch (sport) {
+    case Sport.run:
+      return Icons.directions_run;
+    case Sport.bike:
+      return Icons.directions_bike;
+    case Sport.swim:
+      return Icons.pool;
+    case Sport.strength:
+      return Icons.fitness_center;
+    case Sport.mobility:
+      return Icons.self_improvement;
+    case Sport.other:
+      return Icons.bolt;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // WorkoutChip widget
 // ---------------------------------------------------------------------------
@@ -84,38 +102,60 @@ class WorkoutChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isCompleted ? sportColor(sport) : plannedSportColor(sport);
-    final textColor = isCompleted ? Colors.white : sportColor(sport);
+    final base = sportColor(sport);
+
+    // Completed → solid sport fill with white content (reads as "done").
+    // Planned → soft tinted fill + hairline border + sport-colored content
+    // (far more legible than low-opacity colored text on a tonal card).
+    final Color fill = isCompleted ? base : base.withValues(alpha: 0.12);
+    final Color contentColor = isCompleted ? Colors.white : base;
+    final Border? border = isCompleted
+        ? null
+        : Border.all(color: base.withValues(alpha: 0.28), width: 1);
 
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        margin: const EdgeInsets.symmetric(vertical: 1.5),
+        padding: EdgeInsets.fromLTRB(label != null ? 5 : 6, 3, 6, 3),
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
+          color: fill,
+          border: border,
+          borderRadius: BorderRadius.circular(7),
         ),
         child: label != null
-            ? Text(
-                label!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight:
-                      isCompleted ? FontWeight.w600 : FontWeight.w400,
-                  color: textColor,
-                ),
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isCompleted ? Icons.check_rounded : sportIcon(sport),
+                    size: 11,
+                    color: contentColor,
+                  ),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      label!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.1,
+                        fontWeight:
+                            isCompleted ? FontWeight.w600 : FontWeight.w500,
+                        color: contentColor,
+                      ),
+                    ),
+                  ),
+                ],
               )
             : SizedBox(
                 width: 8,
                 height: 8,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: isCompleted ? Colors.white : sportColor(sport),
+                    color: isCompleted ? Colors.white : base,
                     shape: BoxShape.circle,
                   ),
                 ),

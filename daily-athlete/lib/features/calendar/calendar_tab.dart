@@ -206,9 +206,17 @@ class _ViewSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The app bar is brand red with white foreground, so the default
+    // SegmentedButton (dark outline / dark text) would be near-invisible.
+    // Style it for the red surface: white selected fill with red text, and
+    // a translucent white track for the unselected segments.
+    final onRed = theme.appBarTheme.foregroundColor ?? Colors.white;
+    final redFill = theme.appBarTheme.backgroundColor ?? theme.colorScheme.primary;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       child: SegmentedButton<_CalendarView>(
+        showSelectedIcon: false,
         segments: List.generate(
           _views.length,
           (i) => ButtonSegment<_CalendarView>(
@@ -220,8 +228,32 @@ class _ViewSwitcher extends StatelessWidget {
         onSelectionChanged: (Set<_CalendarView> selected) {
           if (selected.isNotEmpty) onChanged(selected.first);
         },
-        style: SegmentedButton.styleFrom(
-          textStyle: theme.textTheme.labelSmall,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          textStyle: WidgetStatePropertyAll(
+            theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          // Translucent white track behind unselected; solid white when picked.
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return onRed;
+            return onRed.withValues(alpha: 0.14);
+          }),
+          // Selected text uses the red, unselected stays white.
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) return redFill;
+            return onRed;
+          }),
+          overlayColor: WidgetStatePropertyAll(
+            onRed.withValues(alpha: 0.12),
+          ),
+          side: WidgetStatePropertyAll(
+            BorderSide(color: onRed.withValues(alpha: 0.30)),
+          ),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+            ),
+          ),
         ),
       ),
     );
