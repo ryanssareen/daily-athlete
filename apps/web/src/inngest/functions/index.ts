@@ -1,7 +1,9 @@
 // Registry of Inngest functions served by apps/web.
-// Backfill runs via Next.js after() + Vercel cron (Phase C); no Inngest
-// functions are active. The /api/inngest route is retained for future use.
+// The admin backup export (Unit 4) is the first live function; it runs the
+// on-demand encrypted export off the request path.
 
 import type { InngestFunction } from "inngest";
 
-export const functions: InngestFunction.Any[] = [];
+import { adminBackupExport } from "./admin-backup-export";
+
+export const functions: InngestFunction.Any[] = [adminBackupExport];

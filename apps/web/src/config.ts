@@ -41,6 +41,12 @@ interface RawEnv {
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
+  ADMIN_SECRET?: string;
+  ADMIN_SESSION_SIGNING_KEY?: string;
+  SUPABASE_MANAGEMENT_TOKEN?: string;
+  SUPABASE_PROJECT_REF?: string;
+  BACKUP_ENCRYPTION_KEYS?: string;
+  ADMIN_BACKUP_BUCKET?: string;
 }
 
 export interface AppConfig {
@@ -61,6 +67,20 @@ export interface AppConfig {
   inngest: {
     eventKey: string | undefined;
     signingKey: string | undefined;
+  };
+  admin: {
+    password: string | undefined;
+    sessionSigningKey: string | undefined;
+    // Optional: enables the managed-backup status panel (read-only Management
+    // API). Absent => the panel renders an "unconfigured" note, not an error.
+    managementToken: string | undefined;
+    projectRef: string | undefined;
+  };
+  backups: {
+    // AES-256-GCM versioned keys for the on-demand export artifact. Format:
+    // `1:<64-hex>,2:<64-hex>,...` (same shape as STRAVA_TOKEN_KEYS).
+    encryptionKeysRaw: string | undefined;
+    bucket: string;
   };
 }
 
@@ -214,6 +234,85 @@ function validateWebhookSubscriptionIdProd(v: Validator): void {
   }
 }
 
+const ADMIN_SECRET_MIN_LENGTH = 16;
+
+function validateAdminSecretProd(v: Validator): void {
+  // Shared operator password gating destructive, cross-user, PII-bearing
+  // admin surfaces. Required in prod; a short password here is the whole
+  // ballgame, so enforce a floor length.
+  const raw = v.raw.ADMIN_SECRET;
+  if (!raw) {
+    v.errors.push("ADMIN_SECRET is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("ADMIN_SECRET contains placeholder value");
+    return;
+  }
+  if (raw.length < ADMIN_SECRET_MIN_LENGTH) {
+    v.errors.push(
+      `ADMIN_SECRET must be at least ${ADMIN_SECRET_MIN_LENGTH} characters`
+    );
+  }
+}
+
+function validateAdminSessionSigningKeyProd(v: Validator): void {
+  // 32-byte HMAC-SHA256 key for the admin session cookie
+  // (apps/web/src/auth/admin-session.ts). Format: 64 hex chars (= 32 bytes),
+  // same shape as STRAVA_OAUTH_STATE_SIGNING_KEY.
+  const raw = v.raw.ADMIN_SESSION_SIGNING_KEY;
+  if (!raw) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY contains placeholder value");
+    return;
+  }
+  if (isAllZeroHex(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY is all-zero (placeholder)");
+    return;
+  }
+  if (!/^[0-9a-fA-F]+$/.test(raw)) {
+    v.errors.push("ADMIN_SESSION_SIGNING_KEY contains non-hex characters");
+    return;
+  }
+  if (raw.length !== 64) {
+    v.errors.push(
+      `ADMIN_SESSION_SIGNING_KEY must be 64 hex chars (32 bytes); got ${raw.length}`
+    );
+  }
+}
+
+function validateBackupEncryptionKeysProd(v: Validator): void {
+  // Versioned AES-256-GCM keys for the export artifact. Fail-fast on
+  // missing/placeholder/misshaped here; the authoritative strict parse (dup
+  // versions etc.) lives in src/admin/backup-crypto.ts at first use.
+  const raw = v.raw.BACKUP_ENCRYPTION_KEYS;
+  if (!raw) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS contains placeholder value");
+    return;
+  }
+  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (entries.length === 0) {
+    v.errors.push("BACKUP_ENCRYPTION_KEYS parsed to zero entries");
+    return;
+  }
+  for (const entry of entries) {
+    if (!/^\d+:[0-9a-fA-F]{64}$/.test(entry)) {
+      v.errors.push(
+        `BACKUP_ENCRYPTION_KEYS entry "${entry}" must be "version:64-hex"`
+      );
+    } else if (isAllZeroHex(entry.slice(entry.indexOf(":") + 1))) {
+      v.errors.push("BACKUP_ENCRYPTION_KEYS contains an all-zero (placeholder) key");
+    }
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -233,15 +332,15 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateWebhookSubscriptionIdProd(v);
     validateStravaTokenKeysProd(v);
     validateStateSigningKeyProd(v);
-    // Inngest keys are optional — backfill runs via Next.js after() + Vercel
-    // cron. The /api/inngest route still exists for future use; warn so any
-    // accidental production misconfiguration surfaces in deploy logs.
-    if (!raw.INNGEST_EVENT_KEY) {
-      v.warnings.push("INNGEST_EVENT_KEY missing in production");
-    }
-    if (!raw.INNGEST_SIGNING_KEY) {
-      v.warnings.push("INNGEST_SIGNING_KEY missing in production");
-    }
+    validateAdminSecretProd(v);
+    validateAdminSessionSigningKeyProd(v);
+    // The admin backup export is the first LIVE Inngest function, so both keys
+    // are now mandatory in prod: EVENT_KEY to dispatch the export, SIGNING_KEY
+    // so the served /api/inngest verifies inbound invocations (an unsigned
+    // endpoint would be an open trigger for the PII-dumping export worker).
+    requireProd(v, "INNGEST_EVENT_KEY", "Inngest event key");
+    requireProd(v, "INNGEST_SIGNING_KEY", "Inngest signing key");
+    validateBackupEncryptionKeysProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
@@ -285,6 +384,16 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     inngest: {
       eventKey: raw.INNGEST_EVENT_KEY,
       signingKey: raw.INNGEST_SIGNING_KEY,
+    },
+    admin: {
+      password: raw.ADMIN_SECRET,
+      sessionSigningKey: raw.ADMIN_SESSION_SIGNING_KEY,
+      managementToken: raw.SUPABASE_MANAGEMENT_TOKEN,
+      projectRef: raw.SUPABASE_PROJECT_REF,
+    },
+    backups: {
+      encryptionKeysRaw: raw.BACKUP_ENCRYPTION_KEYS,
+      bucket: raw.ADMIN_BACKUP_BUCKET ?? "admin-backups",
     },
   };
 }

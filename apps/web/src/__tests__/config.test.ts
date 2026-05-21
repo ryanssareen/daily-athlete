@@ -24,6 +24,9 @@ const baseProdEnv: Record<string, string> = {
   STRAVA_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
   INNGEST_EVENT_KEY: "inngest-event-key",
   INNGEST_SIGNING_KEY: "inngest-signing-key",
+  ADMIN_SECRET: "admin-password-stub-secret",
+  ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
+  BACKUP_ENCRYPTION_KEYS: `1:${VALID_KEY}`,
 };
 
 async function importFresh(env: Record<string, string | undefined>) {
@@ -41,6 +44,12 @@ async function importFresh(env: Record<string, string | undefined>) {
     "STRAVA_OAUTH_STATE_SIGNING_KEY",
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
+    "ADMIN_SECRET",
+    "ADMIN_SESSION_SIGNING_KEY",
+    "BACKUP_ENCRYPTION_KEYS",
+    "SUPABASE_MANAGEMENT_TOKEN",
+    "SUPABASE_PROJECT_REF",
+    "ADMIN_BACKUP_BUCKET",
   ];
   for (const k of wipe)
     delete (process.env as Record<string, string | undefined>)[k];
@@ -211,33 +220,33 @@ describe("config validator -- production failure modes", () => {
   });
 });
 
-describe("config validator -- production warnings (do not block boot)", () => {
-  it("warns when INNGEST_EVENT_KEY is missing in production", async () => {
+describe("config validator -- inngest + backup secrets (production)", () => {
+  it("rejects when INNGEST_EVENT_KEY is missing (first live Inngest fn)", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_EVENT_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_EVENT_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest event key|INNGEST_EVENT_KEY/
+    );
   });
 
-  it("warns when INNGEST_SIGNING_KEY is missing in production", async () => {
+  it("rejects when INNGEST_SIGNING_KEY is missing", async () => {
     const env: Record<string, string | undefined> = { ...baseProdEnv };
     delete env.INNGEST_SIGNING_KEY;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      await expect(importFresh(env)).resolves.toBeTruthy();
-      expect(warn).toHaveBeenCalledWith(
-        expect.stringContaining("INNGEST_SIGNING_KEY missing in production")
-      );
-    } finally {
-      warn.mockRestore();
-    }
+    await expect(importFresh(env)).rejects.toThrow(
+      /Inngest signing key|INNGEST_SIGNING_KEY/
+    );
+  });
+
+  it("rejects when BACKUP_ENCRYPTION_KEYS is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.BACKUP_ENCRYPTION_KEYS;
+    await expect(importFresh(env)).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
+  });
+
+  it("rejects when BACKUP_ENCRYPTION_KEYS is malformed", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, BACKUP_ENCRYPTION_KEYS: "1:nothex" })
+    ).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
   });
 });
 
@@ -296,6 +305,54 @@ describe("config validator -- non-production", () => {
   });
 });
 
+describe("config validator -- admin secrets (production)", () => {
+  it("rejects when ADMIN_SECRET is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.ADMIN_SECRET;
+    await expect(importFresh(env)).rejects.toThrow(
+      /ADMIN_SECRET.*required in production/
+    );
+  });
+
+  it("rejects when ADMIN_SECRET is shorter than 16 chars", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SECRET: "short" })
+    ).rejects.toThrow(/ADMIN_SECRET.*at least 16/);
+  });
+
+  it("rejects when ADMIN_SECRET is the placeholder 'xxx'", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SECRET: "xxx" })
+    ).rejects.toThrow(/ADMIN_SECRET|placeholder/i);
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is missing", async () => {
+    const env: Record<string, string | undefined> = { ...baseProdEnv };
+    delete env.ADMIN_SESSION_SIGNING_KEY;
+    await expect(importFresh(env)).rejects.toThrow(
+      /ADMIN_SESSION_SIGNING_KEY/
+    );
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is the wrong length", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SESSION_SIGNING_KEY: "deadbeef" })
+    ).rejects.toThrow(/ADMIN_SESSION_SIGNING_KEY.*64 hex chars/i);
+  });
+
+  it("rejects when ADMIN_SESSION_SIGNING_KEY is all-zero", async () => {
+    await expect(
+      importFresh({ ...baseProdEnv, ADMIN_SESSION_SIGNING_KEY: "0".repeat(64) })
+    ).rejects.toThrow(/ADMIN_SESSION_SIGNING_KEY|all-zero/i);
+  });
+
+  it("accepts a valid admin config in production", async () => {
+    const mod = await importFresh(baseProdEnv);
+    expect(mod.config.admin.password).toBe("admin-password-stub-secret");
+    expect(mod.config.admin.sessionSigningKey).toBe(VALID_KEY);
+  });
+});
+
 describe("config validator -- build-time safety (Vercel bundler / Next build)", () => {
   // Regression test for the build failure on PR #62: Vercel's Next.js build
   // bundles route handlers, which evaluates module-top-level code. If
@@ -317,6 +374,9 @@ describe("config validator -- build-time safety (Vercel bundler / Next build)", 
       "STRAVA_OAUTH_STATE_SIGNING_KEY",
       "INNGEST_EVENT_KEY",
       "INNGEST_SIGNING_KEY",
+      "ADMIN_SECRET",
+      "ADMIN_SESSION_SIGNING_KEY",
+      "BACKUP_ENCRYPTION_KEYS",
     ];
     for (const k of wipe)
       delete (process.env as Record<string, string | undefined>)[k];
