@@ -55,12 +55,14 @@ describe("buildQuery", () => {
 });
 
 describe("publicEndpoints", () => {
-  it("projects id/label/description/params for the client (no internal path)", () => {
+  it("projects display metadata (method/path/group/auth/params) for the catalog UI", () => {
     const pub = publicEndpoints();
     expect(pub.map((e) => e.id)).toEqual(PLAYGROUND_ENDPOINTS.map((e) => e.id));
     for (const e of pub) {
-      expect(e).not.toHaveProperty("path");
-      expect(e).not.toHaveProperty("method");
+      expect(e.method).toBe("GET");
+      expect(e.path.startsWith("/api/admin/")).toBe(true);
+      expect(e.group).toBeTruthy();
+      expect(e.auth).toBeTruthy();
     }
   });
 });

@@ -28,6 +28,10 @@ export interface PlaygroundEndpoint {
   method: "GET";
   /** Fixed canonical path. NEVER built from client input. */
   path: string;
+  /** Display grouping for the catalog UI. */
+  group: string;
+  /** Auth requirement label for the catalog UI (display-only). */
+  auth: string;
   params: ParamSpec[];
 }
 
@@ -41,6 +45,8 @@ export const PLAYGROUND_ENDPOINTS: readonly PlaygroundEndpoint[] = [
     description: "Read-only user directory (name + email), searchable + paginated.",
     method: "GET",
     path: "/api/admin/users",
+    group: "Admin",
+    auth: "admin",
     params: [
       { name: "q", type: "string", label: "Search (name or email)", placeholder: "alice" },
       { name: "page", type: "int", label: "Page", placeholder: "0", min: 0 },
@@ -53,6 +59,8 @@ export const PLAYGROUND_ENDPOINTS: readonly PlaygroundEndpoint[] = [
     description: "Export artifacts, newest first.",
     method: "GET",
     path: "/api/admin/backups",
+    group: "Admin",
+    auth: "admin",
     params: [],
   },
   {
@@ -61,6 +69,8 @@ export const PLAYGROUND_ENDPOINTS: readonly PlaygroundEndpoint[] = [
     description: "Managed Supabase backup + PITR status.",
     method: "GET",
     path: "/api/admin/backups/status",
+    group: "Admin",
+    auth: "admin",
     params: [],
   },
 ] as const;
@@ -102,19 +112,33 @@ export function buildQuery(
   return qs ? `?${qs}` : "";
 }
 
-/** Client-safe projection passed to the panel (no internal path/method). */
+/**
+ * Client-safe projection passed to the panel. Includes method/path/group/auth
+ * for display (the path is not secret -- it is already visible in the network
+ * tab); the client still only ever sends the endpoint `id` back to the server.
+ */
 export interface PublicEndpoint {
   id: string;
   label: string;
   description: string;
+  method: "GET";
+  path: string;
+  group: string;
+  auth: string;
   params: ParamSpec[];
 }
 
 export function publicEndpoints(): PublicEndpoint[] {
-  return PLAYGROUND_ENDPOINTS.map(({ id, label, description, params }) => ({
-    id,
-    label,
-    description,
-    params: params.map((p) => ({ ...p })),
-  }));
+  return PLAYGROUND_ENDPOINTS.map(
+    ({ id, label, description, method, path, group, auth, params }) => ({
+      id,
+      label,
+      description,
+      method,
+      path,
+      group,
+      auth,
+      params: params.map((p) => ({ ...p })),
+    })
+  );
 }
