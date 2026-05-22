@@ -133,9 +133,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       ip,
       metadata: { phase, code },
     });
-    return NextResponse.json({
-      error: "internal_error",
-      debug: { phase, message: err instanceof Error ? err.message : String(err) },
-    }, { status: 500 });
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
