@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/backups", label: "Backups" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/api-playground", label: "API Playground" },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
