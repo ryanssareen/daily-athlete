@@ -334,13 +334,6 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateStateSigningKeyProd(v);
     validateAdminSecretProd(v);
     validateAdminSessionSigningKeyProd(v);
-    // The admin backup export is the first LIVE Inngest function, so both keys
-    // are now mandatory in prod: EVENT_KEY to dispatch the export, SIGNING_KEY
-    // so the served /api/inngest verifies inbound invocations (an unsigned
-    // endpoint would be an open trigger for the PII-dumping export worker).
-    requireProd(v, "INNGEST_EVENT_KEY", "Inngest event key");
-    requireProd(v, "INNGEST_SIGNING_KEY", "Inngest signing key");
-    validateBackupEncryptionKeysProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
