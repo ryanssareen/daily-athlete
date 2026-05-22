@@ -24,6 +24,8 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
+      const body = await res.json().catch(() => null);
+      console.log("[admin-login] response", res.status, body);
       if (res.ok) {
         router.replace("/admin");
         router.refresh();
@@ -31,11 +33,16 @@ export default function AdminLoginPage() {
       }
       if (res.status === 429) {
         setError("Too many attempts. Try again in a few minutes.");
-      } else {
+      } else if (res.status === 401) {
         setError("Incorrect password.");
+      } else if (body?.debug) {
+        setError(`[${body.debug.phase}] ${body.debug.message}`);
+      } else {
+        setError(`Error ${res.status}: ${JSON.stringify(body)}`);
       }
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      console.error("[admin-login] request failed", err);
+      setError(`Request failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
