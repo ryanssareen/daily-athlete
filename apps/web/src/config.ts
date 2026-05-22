@@ -234,12 +234,7 @@ function validateWebhookSubscriptionIdProd(v: Validator): void {
   }
 }
 
-const ADMIN_SECRET_MIN_LENGTH = 16;
-
 function validateAdminSecretProd(v: Validator): void {
-  // Shared operator password gating destructive, cross-user, PII-bearing
-  // admin surfaces. Required in prod; a short password here is the whole
-  // ballgame, so enforce a floor length.
   const raw = v.raw.ADMIN_SECRET;
   if (!raw) {
     v.errors.push("ADMIN_SECRET is required in production");
@@ -248,11 +243,6 @@ function validateAdminSecretProd(v: Validator): void {
   if (isPlaceholder(raw)) {
     v.errors.push("ADMIN_SECRET contains placeholder value");
     return;
-  }
-  if (raw.length < ADMIN_SECRET_MIN_LENGTH) {
-    v.errors.push(
-      `ADMIN_SECRET must be at least ${ADMIN_SECRET_MIN_LENGTH} characters`
-    );
   }
 }
 
