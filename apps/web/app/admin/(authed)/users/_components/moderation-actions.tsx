@@ -120,23 +120,27 @@ export function ModerationActions({
 
   return (
     <>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
         {view === "deleted" ? (
-          <button type="button" style={btn()} onClick={() => open("restore")}>
+          <button type="button" className="btn sm" onClick={() => open("restore")}>
             Restore
           </button>
         ) : (
           <>
             {user.disabled_at ? (
-              <button type="button" style={btn()} onClick={() => open("enable")}>
+              <button type="button" className="btn sm" onClick={() => open("enable")}>
                 Enable
               </button>
             ) : (
-              <button type="button" style={btn()} onClick={() => open("disable")}>
+              <button type="button" className="btn sm" onClick={() => open("disable")}>
                 Disable
               </button>
             )}
-            <button type="button" style={btn("danger")} onClick={() => open("delete")}>
+            <button
+              type="button"
+              className="btn sm danger"
+              onClick={() => open("delete")}
+            >
               Delete
             </button>
           </>
@@ -144,54 +148,83 @@ export function ModerationActions({
       </div>
 
       {action ? (
-        <div role="dialog" aria-modal="true" style={overlay} onClick={close}>
-          <div style={card} onClick={(e) => e.stopPropagation()}>
-            <h2 style={cardTitle}>{TITLES[action]}</h2>
-            <p style={cardBody}>{describe(action, user)}</p>
+        <div role="dialog" aria-modal="true" className="modal-overlay" onClick={close}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">{TITLES[action]}</h2>
+            <p className="modal-body">{describe(action, user)}</p>
 
             {NEEDS_REASON.includes(action) ? (
               <>
-                <label style={labelStyle}>Reason (internal code)</label>
-                <select
-                  value={reasonCode}
-                  onChange={(e) =>
-                    setReasonCode(e.target.value as ModerationReasonCode)
-                  }
-                  style={inputStyle}
-                >
-                  {REASON_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <label style={labelStyle}>Note to the user (optional, emailed)</label>
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  rows={3}
-                  maxLength={500}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                />
+                <label className="field" style={{ marginTop: 14 }}>
+                  <span className="field-label">Reason (internal code)</span>
+                  <select
+                    className="input"
+                    value={reasonCode}
+                    onChange={(e) =>
+                      setReasonCode(e.target.value as ModerationReasonCode)
+                    }
+                  >
+                    {REASON_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ marginTop: 14 }}>
+                  <span className="field-label">Note to the user (optional, emailed)</span>
+                  <textarea
+                    className="input"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                  />
+                </label>
               </>
             ) : null}
 
             {action === "delete" ? (
-              <>
-                <label style={labelStyle}>
-                  Type <code>{confirmTarget}</code> to confirm
+              <div style={{ marginTop: 14 }}>
+                <label
+                  htmlFor={`confirm-${user.id}`}
+                  style={{
+                    display: "block",
+                    fontSize: 13,
+                    color: "var(--color-ink-muted)",
+                    marginBottom: 6,
+                  }}
+                >
+                  Type{" "}
+                  <code
+                    className="mono"
+                    style={{
+                      padding: "1px 6px",
+                      borderRadius: 4,
+                      background: "var(--color-canvas-soft)",
+                      border: "1px solid var(--color-border)",
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    {confirmTarget}
+                  </code>{" "}
+                  to confirm
                 </label>
                 <input
+                  id={`confirm-${user.id}`}
+                  className="input"
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
-                  style={inputStyle}
                   autoComplete="off"
                 />
-              </>
+              </div>
             ) : null}
 
             {error ? (
-              <p role="alert" style={{ color: "var(--color-danger)", fontSize: 13, marginTop: 10 }}>
+              <p
+                role="alert"
+                style={{ color: "var(--color-danger)", fontSize: 13, marginTop: 12 }}
+              >
                 {error}
               </p>
             ) : null}
@@ -201,15 +234,20 @@ export function ModerationActions({
                 display: "flex",
                 gap: 8,
                 justifyContent: "flex-end",
-                marginTop: 16,
+                marginTop: 18,
               }}
             >
-              <button type="button" style={btn()} onClick={close} disabled={submitting}>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={close}
+                disabled={submitting}
+              >
                 Cancel
               </button>
               <button
                 type="button"
-                style={btn(action === "delete" ? "danger" : "primary")}
+                className={"btn " + (action === "delete" ? "danger" : "primary")}
                 onClick={submit}
                 disabled={submitting || !confirmOk}
               >
@@ -222,69 +260,3 @@ export function ModerationActions({
     </>
   );
 }
-
-function btn(
-  variant: "default" | "primary" | "danger" = "default"
-): React.CSSProperties {
-  const base: React.CSSProperties = {
-    padding: "6px 12px",
-    borderRadius: 8,
-    fontSize: 13,
-    cursor: "pointer",
-    border: "1px solid var(--color-border-strong)",
-    background: "transparent",
-    color: "var(--color-ink)",
-  };
-  if (variant === "danger") {
-    return { ...base, border: "1px solid var(--color-danger)", color: "var(--color-danger)" };
-  }
-  if (variant === "primary") {
-    return { ...base, background: "var(--color-ink)", color: "var(--color-paper)", border: "1px solid var(--color-ink)" };
-  }
-  return base;
-}
-
-const overlay: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.45)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 16,
-  zIndex: 50,
-};
-
-const card: React.CSSProperties = {
-  background: "var(--color-paper)",
-  border: "1px solid var(--color-border-strong)",
-  borderRadius: 12,
-  padding: 20,
-  width: "100%",
-  maxWidth: 440,
-  color: "var(--color-ink)",
-};
-
-const cardTitle: React.CSSProperties = { margin: "0 0 8px", fontSize: 16 };
-const cardBody: React.CSSProperties = {
-  margin: 0,
-  fontSize: 13,
-  lineHeight: 1.5,
-  color: "var(--color-ink-muted)",
-};
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 12,
-  color: "var(--color-ink-muted)",
-  margin: "12px 0 4px",
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  borderRadius: 8,
-  border: "1px solid var(--color-border-strong)",
-  background: "var(--color-canvas-soft)",
-  color: "var(--color-ink)",
-  fontSize: 14,
-  boxSizing: "border-box",
-};

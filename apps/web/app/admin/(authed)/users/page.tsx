@@ -8,14 +8,18 @@ export const dynamic = "force-dynamic";
 
 export default function UsersPage() {
   return (
-    <div style={{ maxWidth: 880 }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22, color: "var(--color-ink)" }}>
-        Users
-      </h1>
-      <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--color-ink-muted)" }}>
-        Directory by name and email. Disable blocks sign-in; delete soft-deletes
-        with a 30-day grace window and can be restored.
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <header className="page-header">
+        <div className="page-header-body">
+          <div className="page-eyebrow">Console · Users</div>
+          <h1 className="page-title">Users</h1>
+          <p className="page-desc">
+            Directory by name and email. Disable blocks sign-in; delete
+            soft-deletes with a 30-day grace window and can be restored.
+          </p>
+        </div>
+      </header>
+
       <UsersTable />
     </div>
   );

@@ -30,6 +30,31 @@ function daysLeft(deletedAt: string | null): number {
   return Math.max(0, Math.ceil((purgeMs - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
+function StatusPill({ row, view }: { row: Row; view: View }) {
+  if (view === "deleted") {
+    return (
+      <span className="status warn">
+        <span className="dot" />
+        Deleting · {daysLeft(row.deleted_at)}d
+      </span>
+    );
+  }
+  if (row.disabled_at) {
+    return (
+      <span className="status danger">
+        <span className="dot" />
+        Disabled
+      </span>
+    );
+  }
+  return (
+    <span className="status ok">
+      <span className="dot" />
+      Active
+    </span>
+  );
+}
+
 export function UsersTable() {
   const [view, setView] = useState<View>("active");
   const [search, setSearch] = useState("");
@@ -87,6 +112,8 @@ export function UsersTable() {
   }, [view, search, page, refreshKey, load]);
 
   const maxPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+  const start = page * PAGE_SIZE;
+  const showingTo = Math.min(start + PAGE_SIZE, total);
   const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   function switchView(next: View) {
@@ -96,198 +123,175 @@ export function UsersTable() {
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <button
-          type="button"
-          onClick={() => switchView("active")}
-          style={tabStyle(view === "active")}
+    <section className="card users">
+      <div className="card-head">
+        <div className="card-head-body">
+          <div className="card-eyebrow">
+            {view === "deleted" ? "Grace window" : "Directory"}
+          </div>
+          <h2 className="card-title">
+            {view === "deleted" ? "Pending deletion" : "All accounts"}
+          </h2>
+        </div>
+        <div
+          className="card-actions"
+          style={{ flexWrap: "wrap", justifyContent: "flex-end" }}
         >
-          Active
-        </button>
-        <button
-          type="button"
-          onClick={() => switchView("deleted")}
-          style={tabStyle(view === "deleted")}
-        >
-          Deleted (in grace)
-        </button>
+          <div className="seg" role="tablist" aria-label="User view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "active"}
+              className={"btn sm" + (view === "active" ? " primary" : "")}
+              onClick={() => switchView("active")}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "deleted"}
+              className={"btn sm" + (view === "deleted" ? " primary" : "")}
+              onClick={() => switchView("deleted")}
+            >
+              Deleted
+            </button>
+          </div>
+          <label className="search">
+            <span className="search-glyph">/</span>
+            <input
+              className="input"
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Search name or email"
+            />
+          </label>
+        </div>
       </div>
 
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          setPage(0);
-        }}
-        placeholder="Search name or email…"
-        style={{
-          width: "100%",
-          maxWidth: 320,
-          padding: "9px 12px",
-          borderRadius: 8,
-          border: "1px solid var(--color-border-strong)",
-          background: "var(--color-paper)",
-          color: "var(--color-ink)",
-          fontSize: 14,
-          marginBottom: 16,
-        }}
-      />
-
       {error ? (
-        <p role="alert" style={{ fontSize: 13, color: "var(--color-danger)" }}>
-          {error}
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-title">Couldn’t load users.</div>
+          <div className="empty-state-desc">
+            Something went wrong fetching the directory. Try again in a moment.
+          </div>
+          <button
+            type="button"
+            className="btn sm"
+            style={{ marginTop: 8 }}
+            onClick={() => void load(view, search, page)}
+          >
+            Retry
+          </button>
+        </div>
       ) : loading ? (
-        <p style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>Loading…</p>
+        <div className="table-wrap">
+          <div className="table-head">
+            <div className="th">Name</div>
+            <div className="th">Email</div>
+            <div className="th">Status</div>
+            <div className="th" style={{ textAlign: "right", justifySelf: "end" }}>
+              Actions
+            </div>
+          </div>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <div className="skeleton-bar" style={{ width: "34%" }} />
+              <div className="skeleton-bar" style={{ width: "44%" }} />
+              <div className="skeleton-bar" style={{ width: "16%" }} />
+            </div>
+          ))}
+        </div>
       ) : rows.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-          {view === "deleted"
-            ? "No accounts are pending deletion."
-            : search
-              ? "No users match that search."
-              : "No users yet."}
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-title">
+            {view === "deleted" ? "Nothing pending deletion." : "No matches."}
+          </div>
+          <div className="empty-state-desc">
+            {view === "deleted"
+              ? "No accounts are in the 30-day grace window."
+              : search
+                ? `Nothing matches “${search}”. Try a different name or email.`
+                : "No users yet."}
+          </div>
+          {search && view === "active" ? (
+            <button
+              type="button"
+              className="btn sm"
+              style={{ marginTop: 8 }}
+              onClick={() => setSearch("")}
+            >
+              Clear search
+            </button>
+          ) : null}
+        </div>
       ) : (
-        <div
-          style={{
-            border: "1px solid var(--color-border)",
-            borderRadius: 12,
-            overflow: "hidden",
-          }}
-        >
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ background: "var(--color-canvas-soft)" }}>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Email</th>
-                <th style={thStyle}>Status</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} style={{ borderTop: "1px solid var(--color-border)" }}>
-                  <td style={tdStyle}>{r.display_name ?? "—"}</td>
-                  <td style={tdStyle}>{r.email ?? "—"}</td>
-                  <td style={tdStyle}>
-                    {view === "deleted" ? (
-                      <Badge tone="warn">{`Deleting · ${daysLeft(r.deleted_at)}d left`}</Badge>
-                    ) : r.disabled_at ? (
-                      <Badge tone="danger">Disabled</Badge>
-                    ) : (
-                      <Badge tone="ok">Active</Badge>
-                    )}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
-                    <ModerationActions user={r} view={view} onChanged={reload} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="table-wrap">
+          <div className="table-head">
+            <div className="th">Name</div>
+            <div className="th">Email</div>
+            <div className="th">Status</div>
+            <div className="th" style={{ textAlign: "right", justifySelf: "end" }}>
+              Actions
+            </div>
+          </div>
+          {rows.map((r) => (
+            <div className="table-row" key={r.id}>
+              <div className="td">{r.display_name ?? "—"}</div>
+              <div
+                className="td mono"
+                style={{ color: "var(--color-ink-muted)", fontSize: 13 }}
+              >
+                {r.email ?? "—"}
+              </div>
+              <div className="td">
+                <StatusPill row={r} view={view} />
+              </div>
+              <div className="td td-actions">
+                <ModerationActions user={r} view={view} onChanged={reload} />
+              </div>
+            </div>
+          ))}
+
+          {total > PAGE_SIZE ? (
+            <div className="pagination">
+              <span className="pagination-meta">
+                <strong>
+                  {start + 1}–{showingTo}
+                </strong>{" "}
+                of <strong>{total.toLocaleString()}</strong>
+              </span>
+              <span className="pagination-ctrls">
+                <button
+                  type="button"
+                  className="btn sm ghost"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page <= 0}
+                  aria-disabled={page <= 0}
+                >
+                  ← Previous
+                </button>
+                <span className="pagination-meta" style={{ padding: "0 4px" }}>
+                  page <strong>{page + 1}</strong> / {maxPage + 1}
+                </span>
+                <button
+                  type="button"
+                  className="btn sm ghost"
+                  onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
+                  disabled={page >= maxPage}
+                  aria-disabled={page >= maxPage}
+                >
+                  Next →
+                </button>
+              </span>
+            </div>
+          ) : null}
         </div>
       )}
-
-      {!loading && !error && total > PAGE_SIZE ? (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            marginTop: 14,
-            fontSize: 13,
-            color: "var(--color-ink-muted)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page <= 0}
-            style={pageBtnStyle(page <= 0)}
-          >
-            Previous
-          </button>
-          <span>
-            Page {page + 1} of {maxPage + 1}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
-            disabled={page >= maxPage}
-            style={pageBtnStyle(page >= maxPage)}
-          >
-            Next
-          </button>
-        </div>
-      ) : null}
-    </div>
+    </section>
   );
-}
-
-function Badge({
-  tone,
-  children,
-}: {
-  tone: "ok" | "danger" | "warn";
-  children: React.ReactNode;
-}): React.ReactElement {
-  const color =
-    tone === "danger"
-      ? "var(--color-danger)"
-      : tone === "warn"
-        ? "var(--color-ink)"
-        : "var(--color-ink-muted)";
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 12,
-        border: `1px solid ${color}`,
-        color,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 14px",
-  fontWeight: 600,
-  color: "var(--color-ink-muted)",
-  fontSize: 12,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  color: "var(--color-ink)",
-};
-
-function pageBtnStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "6px 12px",
-    borderRadius: 8,
-    border: "1px solid var(--color-border-strong)",
-    background: "transparent",
-    color: disabled ? "var(--color-ink-subtle)" : "var(--color-ink)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 13,
-  };
-}
-
-function tabStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "6px 14px",
-    borderRadius: 8,
-    border: "1px solid var(--color-border-strong)",
-    background: active ? "var(--color-ink)" : "transparent",
-    color: active ? "var(--color-paper)" : "var(--color-ink)",
-    cursor: "pointer",
-    fontSize: 13,
-  };
 }

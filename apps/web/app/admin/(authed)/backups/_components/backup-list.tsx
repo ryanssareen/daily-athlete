@@ -17,16 +17,17 @@ interface Backup {
 
 const STATUS_LABEL: Record<Backup["status"], string> = {
   pending: "Queued",
-  running: "Running…",
+  running: "Running",
   success: "Ready",
   failed: "Failed",
 };
 
-const STATUS_COLOR: Record<Backup["status"], string> = {
-  pending: "var(--color-ink-muted)",
-  running: "var(--color-clay)",
-  success: "var(--color-pine)",
-  failed: "var(--color-danger)",
+// Map export status onto the design's status-pill variants.
+const STATUS_VARIANT: Record<Backup["status"], string> = {
+  pending: "warn",
+  running: "warn",
+  success: "ok",
+  failed: "danger",
 };
 
 function fmtBytes(n: number | null): string {
@@ -110,191 +111,205 @@ export function BackupList() {
     }
   }
 
+  const runLabel = anyInFlight
+    ? "Export running…"
+    : busy
+      ? "Starting…"
+      : "Run export now";
+  const totalBytes = backups.reduce((a, b) => a + (b.size_bytes ?? 0), 0);
+
   return (
-    <section
-      style={{
-        border: "1px solid var(--color-border)",
-        background: "var(--color-paper)",
-        borderRadius: 12,
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 14,
-          gap: 12,
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 13, color: "var(--color-ink-muted)" }}>
-          Encrypted full-data exports to private storage.
-        </p>
-        <button
-          type="button"
-          onClick={runExport}
-          disabled={busy || anyInFlight}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "none",
-            background: "var(--color-clay)",
-            color: "white",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: busy || anyInFlight ? "not-allowed" : "pointer",
-            opacity: busy || anyInFlight ? 0.6 : 1,
-            whiteSpace: "nowrap",
-          }}
-        >
-          {anyInFlight ? "Export running…" : "Run export"}
-        </button>
+    <section className="card exports" aria-labelledby="exports-title">
+      <div className="card-head">
+        <div className="card-head-body">
+          <div className="card-eyebrow">Section 02</div>
+          <h2 id="exports-title" className="card-title">
+            On-demand exports
+          </h2>
+          <div className="card-sub">
+            Encrypted full-data exports to private storage. Keep one before any
+            destructive migration.
+          </div>
+        </div>
+        <div className="card-actions">
+          <button
+            type="button"
+            className="btn primary"
+            onClick={runExport}
+            disabled={busy || anyInFlight}
+          >
+            {runLabel}
+          </button>
+        </div>
       </div>
 
       {error ? (
-        <p
+        <div
+          className="alert danger"
           role="alert"
-          style={{ margin: "0 0 12px", fontSize: 13, color: "var(--color-danger)" }}
+          style={{ margin: "16px 22px 0" }}
         >
-          {error}
-        </p>
+          <span className="alert-mark">!</span>
+          <div className="alert-body">
+            <div className="alert-title">Something went wrong</div>
+            <div className="alert-desc">{error}</div>
+          </div>
+        </div>
       ) : null}
 
       {loading ? (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--color-ink-muted)" }}>
-          Loading…
-        </p>
+        <div className="table-wrap">
+          <div className="table-head">
+            <div className="th">Export</div>
+            <div className="th">Size</div>
+            <div className="th">Status</div>
+            <div className="th">Created</div>
+            <div className="th" style={{ textAlign: "right", justifySelf: "end" }}>
+              Actions
+            </div>
+          </div>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div className="skeleton-row" key={i}>
+              <div className="skeleton-bar" style={{ width: "32%" }} />
+              <div className="skeleton-bar" style={{ width: "10%" }} />
+              <div className="skeleton-bar" style={{ width: "12%" }} />
+              <div className="skeleton-bar" style={{ width: "18%" }} />
+            </div>
+          ))}
+        </div>
       ) : backups.length === 0 ? (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--color-ink-muted)" }}>
-          No exports yet. Run one to create a downloadable backup.
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-title">No exports yet.</div>
+          <div className="empty-state-desc">
+            Run an on-demand export before your next migration — it lives in
+            private storage and downloads as a single encrypted file.
+          </div>
+          <button
+            type="button"
+            className="btn primary sm"
+            style={{ marginTop: 8 }}
+            onClick={runExport}
+            disabled={busy || anyInFlight}
+          >
+            Run export now
+          </button>
+        </div>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {backups.map((b) => (
-            <li
-              key={b.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: "10px 0",
-                borderTop: "1px solid var(--color-border)",
-                fontSize: 13,
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "var(--color-ink)" }}>
-                  {fmtDate(b.created_at)}
+        <div className="table-wrap">
+          <div className="table-head">
+            <div className="th">Export</div>
+            <div className="th">Size</div>
+            <div className="th">Status</div>
+            <div className="th">Created</div>
+            <div className="th" style={{ textAlign: "right", justifySelf: "end" }}>
+              Actions
+            </div>
+          </div>
+
+          {backups.map((b) => {
+            const inFlight = b.status === "pending" || b.status === "running";
+            return (
+              <div className="table-row" key={b.id}>
+                <div className="td">
+                  <div className="td-stack">
+                    <span className="primary">Database export</span>
+                    <span className="secondary">{b.id}</span>
+                  </div>
                 </div>
-                <div style={{ color: "var(--color-ink-muted)", fontSize: 12 }}>
-                  <span style={{ color: STATUS_COLOR[b.status], fontWeight: 600 }}>
+                <div className="td numeric">
+                  {b.status === "success" ? fmtBytes(b.size_bytes) : "—"}
+                </div>
+                <div className="td">
+                  <span className={"status " + STATUS_VARIANT[b.status]}>
+                    <span className="dot" />
                     {STATUS_LABEL[b.status]}
                   </span>
-                  {b.status === "success" ? ` · ${fmtBytes(b.size_bytes)}` : ""}
-                  {b.status === "failed" && b.error ? ` · ${b.error}` : ""}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {b.status === "success" ? (
-                  <a
-                    href={`/api/admin/backups/${b.id}/download`}
-                    style={{
-                      fontSize: 13,
-                      color: "var(--color-clay)",
-                      textDecoration: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Download
-                  </a>
-                ) : null}
-
-                {confirmId === b.id ? (
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input
-                      value={confirmText}
-                      onChange={(e) => setConfirmText(e.target.value)}
-                      placeholder="type DELETE"
+                  {b.status === "failed" && b.error ? (
+                    <span
                       style={{
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: "1px solid var(--color-border-strong)",
-                        background: "var(--color-canvas)",
-                        color: "var(--color-ink)",
-                        fontSize: 12,
-                        width: 110,
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => confirmDelete(b.id)}
-                      disabled={busy || confirmText !== "DELETE"}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: "var(--color-danger)",
-                        color: "white",
-                        fontSize: 12,
-                        cursor:
-                          busy || confirmText !== "DELETE"
-                            ? "not-allowed"
-                            : "pointer",
-                        opacity: busy || confirmText !== "DELETE" ? 0.6 : 1,
+                        display: "block",
+                        marginTop: 4,
+                        fontSize: 11,
+                        color: "var(--color-ink-subtle)",
                       }}
                     >
-                      Confirm
-                    </button>
+                      {b.error}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="td mono" style={{ color: "var(--color-ink-muted)" }}>
+                  {fmtDate(b.created_at)}
+                </div>
+                <div className="td td-actions">
+                  {b.status === "success" ? (
+                    <a
+                      className="btn sm"
+                      href={`/api/admin/backups/${b.id}/download`}
+                    >
+                      Download
+                    </a>
+                  ) : null}
+
+                  {confirmId === b.id ? (
+                    <>
+                      <input
+                        className="input"
+                        style={{ width: 104, padding: "5px 8px", fontSize: 12 }}
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        placeholder="type DELETE"
+                        aria-label="Type DELETE to confirm"
+                      />
+                      <button
+                        type="button"
+                        className="btn sm danger"
+                        onClick={() => confirmDelete(b.id)}
+                        disabled={busy || confirmText !== "DELETE"}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        className="btn sm ghost"
+                        onClick={() => {
+                          setConfirmId(null);
+                          setConfirmText("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
                     <button
                       type="button"
+                      className="btn sm danger"
                       onClick={() => {
-                        setConfirmId(null);
+                        setConfirmId(b.id);
                         setConfirmText("");
                       }}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: "1px solid var(--color-border-strong)",
-                        background: "transparent",
-                        color: "var(--color-ink-muted)",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
+                      disabled={inFlight}
                     >
-                      Cancel
+                      Delete
                     </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmId(b.id);
-                      setConfirmText("");
-                    }}
-                    disabled={b.status === "pending" || b.status === "running"}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid var(--color-border-strong)",
-                      background: "transparent",
-                      color: "var(--color-ink-muted)",
-                      fontSize: 12,
-                      cursor:
-                        b.status === "pending" || b.status === "running"
-                          ? "not-allowed"
-                          : "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+
+          <div className="pagination">
+            <span className="pagination-meta">
+              <strong>{backups.length}</strong>{" "}
+              {backups.length === 1 ? "export" : "exports"}
+              {totalBytes > 0 ? (
+                <>
+                  {" "}
+                  · <strong>{fmtBytes(totalBytes)}</strong> total
+                </>
+              ) : null}
+            </span>
+          </div>
+        </div>
       )}
     </section>
   );

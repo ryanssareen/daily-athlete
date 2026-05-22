@@ -21,44 +21,17 @@ export default async function AdminAuthedLayout({
   const { valid } = await verifyAdminSession(store.get(ADMIN_COOKIE_NAME)?.value);
   if (!valid) redirect(ADMIN_LOGIN_PATH);
 
+  // .admin-scope confines the ported design's generic class names (.card,
+  // .btn, .status, .table-row…) to the admin tree so they never collide with
+  // the global marketing/onboarding styles. See globals.css.
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "var(--color-canvas)",
-      }}
-    >
-      <aside
-        style={{
-          width: 220,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          background: "var(--color-paper)",
-          borderRight: "1px solid var(--color-border)",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-        }}
-      >
-        <div
-          style={{
-            padding: "20px 16px 16px",
-            borderBottom: "1px solid var(--color-border)",
-            fontWeight: 600,
-            fontSize: 15,
-            letterSpacing: "-0.02em",
-            color: "var(--color-ink)",
-          }}
-        >
-          DA2 Admin
+    <div className="admin-scope admin-shell">
+      <AdminNav />
+      <main className="admin-main">
+        <div className="admin-content">
+          <div className="admin-container">{children}</div>
         </div>
-        <div style={{ flex: 1 }}>
-          <AdminNav />
-        </div>
-      </aside>
-      <main style={{ flex: 1, minWidth: 0, padding: 32 }}>{children}</main>
+      </main>
     </div>
   );
 }

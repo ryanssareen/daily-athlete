@@ -44,93 +44,64 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "var(--color-canvas)",
-        padding: 24,
-      }}
-    >
-      <form
-        onSubmit={onSubmit}
-        style={{
-          width: "100%",
-          maxWidth: 360,
-          background: "var(--color-paper)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 14,
-          padding: 28,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, color: "var(--color-ink)" }}>
-            DA2 Admin
-          </h1>
-          <p
+    <div className="admin-scope login-page">
+      <form className="login-card" onSubmit={onSubmit} noValidate>
+        <div className="login-brand">
+          <span className="login-mark" />
+          <div
             style={{
-              margin: "6px 0 0",
-              fontSize: 13,
-              color: "var(--color-ink-muted)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            Enter the operator password to continue.
-          </p>
+            <span className="login-eyebrow">Daily Athlete</span>
+            <h1 className="login-title">DA2 Admin</h1>
+          </div>
         </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
-            Password
-          </span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-            autoComplete="current-password"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--color-border-strong)",
-              background: "var(--color-canvas)",
-              color: "var(--color-ink)",
-              fontSize: 14,
-            }}
-          />
-        </label>
-
         {error ? (
-          <p
-            role="alert"
-            style={{ margin: 0, fontSize: 13, color: "var(--color-danger)" }}
-          >
-            {error}
-          </p>
+          <div className="alert danger" role="alert" style={{ marginBottom: 14 }}>
+            <span className="alert-mark">!</span>
+            <div className="alert-body">
+              <div className="alert-title">Sign-in failed</div>
+              <div className="alert-desc">{error}</div>
+            </div>
+          </div>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={busy || password.length === 0}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 8,
-            border: "none",
-            background: "var(--color-clay)",
-            color: "white",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: busy || password.length === 0 ? "not-allowed" : "pointer",
-            opacity: busy || password.length === 0 ? 0.6 : 1,
-          }}
-        >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+        <div className="login-form">
+          <label className="field">
+            <span className="field-label">Admin password</span>
+            <input
+              className={"input" + (error ? " has-error" : "")}
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
+              autoFocus
+              autoComplete="current-password"
+              placeholder="••••••••••••"
+            />
+          </label>
+
+          <button
+            className="btn primary lg"
+            type="submit"
+            disabled={busy || password.length === 0}
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </div>
+
+        <div className="login-foot">
+          <span>Operator console</span>
+          <span>v2.0</span>
+        </div>
       </form>
-    </main>
+    </div>
   );
 }

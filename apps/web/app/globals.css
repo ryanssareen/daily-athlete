@@ -15,6 +15,8 @@
   --color-clay-deep: #a4451f;
   --color-clay-soft: #f6e0d2;
   --color-pine: #2d4a3e; /* secondary — trail/ocean */
+  --color-pine-soft: #d9e4dd;
+  --color-success: #2d6b44; /* positive status — healthy/ready */
   --color-danger: #c4423a;
 
   /* Type scale — display via Geist sans + tabular numerals via Geist mono. */
@@ -783,4 +785,446 @@ a {
   --color-border: #2b2820;
   --color-border-strong: #3a3628;
   /* clay/pine stay — they're brand colors */
+}
+
+/* ====================================================================
+   DA2 Admin console — warm-paper operator UI
+   Ported from the DA2 2.0 design bundle (DA2 Admin.html + admin/styles.css).
+   Every selector is scoped under .admin-scope so the prototype's generic
+   class names (.btn, .card, .status, .input, .table-row, .activity-row …)
+   never collide with the global marketing / onboarding / auth styles.
+   Palette reuses the existing @theme tokens; mock data from the prototype
+   (badge counts, fake exports, DB metrics, activity feed) is intentionally
+   dropped — real-data only.
+   ==================================================================== */
+.admin-scope {
+  --color-success-soft: color-mix(in oklab, var(--color-success) 12%, transparent);
+  --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
+  font-size: 15px;
+  color: var(--color-ink);
+}
+.admin-scope .mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+
+/* ---------- Shell layout ---------- */
+.admin-scope.admin-shell { display: flex; min-height: 100vh; background: var(--color-canvas); }
+.admin-scope .admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.admin-scope .admin-content { flex: 1; padding: 36px 48px 80px; }
+.admin-scope .admin-container {
+  max-width: 920px; margin: 0 auto; width: 100%;
+  display: flex; flex-direction: column; gap: 28px;
+}
+
+/* ---------- Sidebar / admin-nav ---------- */
+.admin-scope .admin-nav {
+  width: 232px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--color-paper);
+  border-right: 1px solid var(--color-border);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.admin-scope .nav-brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 22px 20px 20px; border-bottom: 1px solid var(--color-border);
+}
+.admin-scope .nav-brand-mark {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: conic-gradient(from 220deg, var(--color-clay) 0deg, var(--color-pine) 180deg, var(--color-clay) 360deg);
+}
+.admin-scope .nav-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.admin-scope .nav-brand-name {
+  font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink);
+}
+.admin-scope .nav-brand-tag {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-clay-deep);
+}
+.admin-scope .nav-section { padding: 20px 12px 4px; }
+.admin-scope .nav-section-label {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-ink-subtle);
+  padding: 0 12px 8px;
+}
+.admin-scope .nav-list { display: flex; flex-direction: column; gap: 2px; }
+.admin-scope .nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-radius: 8px; font-size: 14px;
+  color: var(--color-ink-muted); cursor: pointer;
+  transition: background 120ms, color 120ms;
+  border: none; background: transparent; text-align: left; width: 100%;
+}
+.admin-scope .nav-item:hover { color: var(--color-ink); background: var(--color-canvas-soft); }
+.admin-scope .nav-item.is-active {
+  background: var(--color-clay-soft); color: var(--color-clay-deep); font-weight: 500;
+}
+.admin-scope .nav-item-badge {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--color-ink-subtle); font-feature-settings: "tnum";
+}
+.admin-scope .nav-foot {
+  margin-top: auto; padding: 12px 14px 18px;
+  border-top: 1px solid var(--color-border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.admin-scope .nav-foot-meta { padding: 4px 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+.admin-scope .nav-foot-meta .k {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .nav-foot-meta .v {
+  font-size: 12px; color: var(--color-ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-scope .nav-foot-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; border: none; background: transparent;
+  color: var(--color-ink-muted); font-size: 13px; cursor: pointer; text-align: left;
+  transition: background 120ms, color 120ms;
+}
+.admin-scope .nav-foot-btn:hover { color: var(--color-ink); background: var(--color-canvas-soft); }
+
+/* ---------- Page header ---------- */
+.admin-scope .page-header {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 32px; padding-bottom: 4px;
+}
+.admin-scope .page-header-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.admin-scope .page-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .page-title {
+  font-size: 30px; font-weight: 600; letter-spacing: -0.02em; margin: 0; color: var(--color-ink);
+}
+.admin-scope .page-desc { font-size: 14px; color: var(--color-ink-muted); max-width: 60ch; margin: 0; }
+.admin-scope .page-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* ---------- Cards / sections ---------- */
+.admin-scope .card {
+  background: var(--color-paper); border: 1px solid var(--color-border);
+  border-radius: 14px; overflow: hidden;
+}
+.admin-scope .card-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 24px; padding: 18px 22px 14px; border-bottom: 1px solid var(--color-border);
+}
+.admin-scope .card-head-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.admin-scope .card-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .card-title {
+  font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink);
+  margin: 0; display: inline-flex; align-items: center; gap: 10px;
+}
+.admin-scope .card-sub { font-size: 13px; color: var(--color-ink-muted); }
+.admin-scope .card-actions { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.admin-scope .card-note { padding: 18px 22px; font-size: 13px; color: var(--color-ink-muted); }
+.admin-scope .card-note code, .admin-scope .runbook-desc code {
+  font-family: var(--font-mono); font-size: 12px; padding: 1px 6px;
+  background: var(--color-canvas-soft); border: 1px solid var(--color-border);
+  border-radius: 4px; color: var(--color-ink);
+}
+
+/* Key/value grid (Supabase status card) */
+.admin-scope .kv-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+.admin-scope .kv-row {
+  padding: 16px 22px; display: flex; flex-direction: column; gap: 6px;
+  border-top: 1px solid var(--color-border); border-right: 1px solid var(--color-border);
+}
+.admin-scope .kv-row:nth-child(2n) { border-right: none; }
+.admin-scope .kv-row:nth-child(-n+2) { border-top: none; }
+.admin-scope .kv-label {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .kv-value {
+  font-size: 16px; color: var(--color-ink); font-feature-settings: "tnum";
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.admin-scope .kv-value .mono { font-size: 15px; }
+.admin-scope .kv-sub {
+  font-size: 12px; color: var(--color-ink-subtle);
+  font-family: var(--font-mono); letter-spacing: 0.04em;
+}
+
+/* ---------- Buttons ---------- */
+.admin-scope .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  border: 1px solid var(--color-border); background: var(--color-paper);
+  color: var(--color-ink); cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms, transform 120ms;
+  white-space: nowrap; text-decoration: none;
+}
+.admin-scope .btn:hover { border-color: var(--color-border-strong); background: var(--color-canvas-soft); }
+.admin-scope .btn:active { transform: translateY(0.5px); }
+.admin-scope .btn:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-clay) 50%, transparent); outline-offset: 2px;
+}
+.admin-scope .btn:disabled, .admin-scope .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.admin-scope .btn.primary { background: var(--color-ink); color: var(--color-canvas); border-color: var(--color-ink); }
+.admin-scope .btn.primary:hover { background: var(--color-pine); border-color: var(--color-pine); }
+.admin-scope .btn.ghost { background: transparent; border-color: transparent; color: var(--color-ink-muted); }
+.admin-scope .btn.ghost:hover { color: var(--color-ink); background: var(--color-canvas-soft); border-color: transparent; }
+.admin-scope .btn.danger {
+  color: var(--color-danger); background: var(--color-paper);
+  border-color: color-mix(in oklab, var(--color-danger) 25%, var(--color-border));
+}
+.admin-scope .btn.danger:hover { color: #fff; background: var(--color-danger); border-color: var(--color-danger); }
+.admin-scope .btn.sm { padding: 6px 11px; font-size: 12px; border-radius: 7px; }
+.admin-scope .btn.lg { padding: 12px 20px; font-size: 14px; }
+
+/* ---------- Status pill / dot ---------- */
+.admin-scope .status {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+}
+.admin-scope .status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.admin-scope .status.ok { background: var(--color-success-soft); color: var(--color-success); }
+.admin-scope .status.warn { background: var(--color-clay-soft); color: var(--color-clay-deep); }
+.admin-scope .status.off { background: var(--color-canvas-soft); color: var(--color-ink-subtle); }
+.admin-scope .status.danger { background: var(--color-danger-soft); color: var(--color-danger); }
+.admin-scope .status.muted { background: transparent; color: var(--color-ink-muted); padding-left: 0; }
+
+/* ---------- Inputs ---------- */
+.admin-scope .field { display: flex; flex-direction: column; gap: 6px; }
+.admin-scope .field-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .input {
+  width: 100%; padding: 11px 14px; border-radius: 9px;
+  border: 1px solid var(--color-border); background: var(--color-paper);
+  font-size: 15px; color: var(--color-ink);
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.admin-scope .input::placeholder { color: var(--color-ink-subtle); }
+.admin-scope .input:focus {
+  outline: none; border-color: var(--color-clay);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-clay) 18%, transparent);
+}
+.admin-scope .input.has-error {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-danger) 18%, transparent);
+}
+.admin-scope .search { position: relative; display: inline-flex; align-items: center; width: 100%; max-width: 320px; }
+.admin-scope .search .input { padding-left: 34px; font-size: 14px; padding-top: 9px; padding-bottom: 9px; }
+.admin-scope .search-glyph {
+  position: absolute; left: 12px; font-family: var(--font-mono);
+  font-size: 13px; color: var(--color-ink-subtle); pointer-events: none;
+}
+
+/* ---------- Alerts ---------- */
+.admin-scope .alert {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: 10px; border: 1px solid;
+  font-size: 13.5px; line-height: 1.45;
+}
+.admin-scope .alert-mark {
+  width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: var(--color-paper); flex-shrink: 0; margin-top: 1px;
+}
+.admin-scope .alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-scope .alert-title { font-weight: 600; color: var(--color-ink); }
+.admin-scope .alert-desc { color: var(--color-ink-muted); font-size: 12.5px; }
+.admin-scope .alert.danger {
+  background: color-mix(in oklab, var(--color-danger) 8%, var(--color-paper));
+  border-color: color-mix(in oklab, var(--color-danger) 30%, var(--color-border));
+  color: var(--color-danger);
+}
+.admin-scope .alert.danger .alert-mark { background: var(--color-danger); }
+.admin-scope .alert.danger .alert-title { color: var(--color-danger); }
+
+/* ---------- Tables (exports + users) ---------- */
+.admin-scope .table-wrap { width: 100%; }
+.admin-scope .table-head, .admin-scope .table-row {
+  display: grid; align-items: center; gap: 16px; padding: 12px 22px;
+}
+.admin-scope .table-head {
+  border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-canvas-soft) 60%, var(--color-paper));
+}
+.admin-scope .table-head .th {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .table-row {
+  border-bottom: 1px solid var(--color-border); font-size: 13.5px;
+  color: var(--color-ink); transition: background 120ms;
+}
+.admin-scope .table-row:last-child { border-bottom: none; }
+.admin-scope .table-row:hover { background: color-mix(in oklab, var(--color-canvas-soft) 50%, transparent); }
+.admin-scope .td.mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+.admin-scope .td.numeric { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.admin-scope .td.right { text-align: right; justify-self: end; }
+.admin-scope .td-actions { display: inline-flex; gap: 4px; justify-self: end; }
+.admin-scope .td-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-scope .td-stack .primary {
+  color: var(--color-ink); font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.admin-scope .td-stack .secondary {
+  font-size: 12px; color: var(--color-ink-subtle);
+  font-family: var(--font-mono); letter-spacing: 0.02em;
+}
+.admin-scope .exports .table-head, .admin-scope .exports .table-row {
+  grid-template-columns: 1.6fr 100px 120px 150px 1fr;
+}
+.admin-scope .users .table-head, .admin-scope .users .table-row {
+  grid-template-columns: 1.3fr 1.7fr 96px 150px;
+}
+
+/* View toggle (active / deleted-in-grace) on the users directory */
+.admin-scope .seg { display: inline-flex; gap: 4px; }
+
+/* Confirmation modal (moderation actions) */
+.admin-scope .modal-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: color-mix(in oklab, var(--color-ink) 45%, transparent);
+}
+.admin-scope .modal-card {
+  width: 100%; max-width: 440px;
+  background: var(--color-paper); border: 1px solid var(--color-border);
+  border-radius: 14px; padding: 22px;
+  box-shadow: 0 30px 50px -30px color-mix(in oklab, var(--color-ink) 30%, transparent);
+}
+.admin-scope .modal-title {
+  margin: 0 0 8px; font-size: 17px; font-weight: 600;
+  letter-spacing: -0.01em; color: var(--color-ink);
+}
+.admin-scope .modal-body { margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-ink-muted); }
+.admin-scope textarea.input { resize: vertical; line-height: 1.5; min-height: 64px; }
+
+.admin-scope .empty-state {
+  padding: 48px 22px; text-align: center;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+.admin-scope .empty-state-title { font-size: 15px; font-weight: 600; color: var(--color-ink); }
+.admin-scope .empty-state-desc { font-size: 13px; color: var(--color-ink-muted); max-width: 44ch; }
+
+.admin-scope .skeleton-row {
+  padding: 16px 22px; border-bottom: 1px solid var(--color-border);
+  display: flex; gap: 14px; align-items: center;
+}
+.admin-scope .skeleton-bar {
+  height: 10px; border-radius: 4px;
+  background: linear-gradient(90deg, var(--color-canvas-soft) 0%,
+    color-mix(in oklab, var(--color-border) 80%, var(--color-canvas-soft)) 50%,
+    var(--color-canvas-soft) 100%);
+  background-size: 200% 100%; animation: admin-skeleton-shimmer 1.4s infinite ease-in-out;
+}
+@keyframes admin-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ---------- Pagination ---------- */
+.admin-scope .pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 22px; border-top: 1px solid var(--color-border);
+  font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-subtle); letter-spacing: 0.04em;
+}
+.admin-scope .pagination-meta { font-feature-settings: "tnum"; }
+.admin-scope .pagination-meta strong { color: var(--color-ink); font-weight: 600; }
+.admin-scope .pagination-ctrls { display: flex; align-items: center; gap: 6px; }
+
+/* ---------- Restore runbook ---------- */
+.admin-scope .runbook { display: flex; flex-direction: column; gap: 0; }
+.admin-scope .runbook-step {
+  display: grid; grid-template-columns: 36px 1fr; gap: 14px;
+  padding: 18px 22px; border-bottom: 1px solid var(--color-border);
+}
+.admin-scope .runbook-step:last-child { border-bottom: none; }
+.admin-scope .runbook-num {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; color: var(--color-ink-subtle); padding-top: 3px;
+}
+.admin-scope .runbook-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.admin-scope .runbook-title { font-size: 14.5px; font-weight: 600; color: var(--color-ink); letter-spacing: -0.005em; }
+.admin-scope .runbook-desc { font-size: 13px; color: var(--color-ink-muted); line-height: 1.55; max-width: 62ch; }
+.admin-scope .runbook-cmd {
+  display: block; font-family: var(--font-mono); font-size: 12.5px;
+  padding: 9px 12px; margin-top: 2px; white-space: pre; overflow-x: auto; line-height: 1.45;
+  background: var(--color-canvas-soft); border: 1px solid var(--color-border);
+  border-radius: 4px; color: var(--color-ink);
+}
+.admin-scope .runbook-cmd .c { color: var(--color-ink-subtle); }
+
+/* ---------- Overview tiles ---------- */
+.admin-scope .overview-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.admin-scope .overview-tile {
+  background: var(--color-paper); border: 1px solid var(--color-border);
+  border-radius: 14px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-decoration: none;
+  transition: border-color 120ms, background 120ms, transform 120ms;
+}
+.admin-scope .overview-tile:hover {
+  border-color: var(--color-border-strong);
+  background: color-mix(in oklab, var(--color-canvas-soft) 40%, var(--color-paper));
+}
+.admin-scope .overview-tile-head { display: flex; align-items: center; justify-content: space-between; }
+.admin-scope .overview-tile-name { font-size: 15px; font-weight: 600; color: var(--color-ink); }
+.admin-scope .overview-tile-desc { font-size: 13px; color: var(--color-ink-muted); }
+.admin-scope .overview-tile-meta {
+  font-family: var(--font-mono); font-size: 11px; color: var(--color-ink-subtle);
+  letter-spacing: 0.04em; margin-top: 8px; padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.admin-scope .overview-tile-meta strong { color: var(--color-ink); font-weight: 600; }
+
+/* ---------- Login (no shell) ---------- */
+.admin-scope.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px;
+  background: radial-gradient(1200px 600px at 50% -10%, color-mix(in oklab, var(--color-clay) 8%, transparent), transparent 60%), var(--color-canvas);
+}
+.admin-scope .login-card {
+  width: 100%; max-width: 380px; background: var(--color-paper);
+  border: 1px solid var(--color-border); border-radius: 16px; padding: 28px 28px 24px;
+  box-shadow: 0 1px 0 var(--color-border), 0 30px 50px -30px color-mix(in oklab, var(--color-ink) 18%, transparent);
+}
+.admin-scope .login-brand { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 22px; }
+.admin-scope .login-mark {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: conic-gradient(from 220deg, var(--color-clay) 0deg, var(--color-pine) 180deg, var(--color-clay) 360deg);
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-clay) 10%, transparent);
+}
+.admin-scope .login-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.admin-scope .login-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-clay-deep);
+}
+.admin-scope .login-form { display: flex; flex-direction: column; gap: 14px; }
+.admin-scope .login-foot {
+  margin-top: 18px; display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--color-ink-subtle);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .admin-scope .admin-content { padding: 28px 32px 80px; }
+  .admin-scope .kv-grid { grid-template-columns: 1fr; }
+  .admin-scope .kv-row { border-right: none; }
+  .admin-scope .kv-row:nth-child(-n+2) { border-top: 1px solid var(--color-border); }
+  .admin-scope .kv-row:first-child { border-top: none; }
+  .admin-scope .overview-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .admin-scope .admin-nav { display: none; }
+  .admin-scope .admin-content { padding: 24px 20px 80px; }
+  .admin-scope .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .admin-scope .exports .table-head, .admin-scope .exports .table-row { grid-template-columns: 1.4fr 110px 1fr; }
+  .admin-scope .exports .table-head .th:nth-child(2),
+  .admin-scope .exports .table-row .td:nth-child(2),
+  .admin-scope .exports .table-head .th:nth-child(4),
+  .admin-scope .exports .table-row .td:nth-child(4) { display: none; }
+  /* users: drop Email, keep Name · Status · Actions */
+  .admin-scope .users .table-head, .admin-scope .users .table-row { grid-template-columns: 1.2fr 96px 140px; }
+  .admin-scope .users .table-head .th:nth-child(2),
+  .admin-scope .users .table-row .td:nth-child(2) { display: none; }
 }
