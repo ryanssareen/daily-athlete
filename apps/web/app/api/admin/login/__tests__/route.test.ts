@@ -130,4 +130,28 @@ describe("POST /api/admin/login", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("returns 500 and logs the failing phase when a step throws", async () => {
+    mockVerify.mockReturnValue(true);
+    mockCreate.mockRejectedValue(
+      new Error("ADMIN_SESSION_SIGNING_KEY is not configured")
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await invoke({ password: "correct" });
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "internal_error" });
+    // The log must name the phase + underlying message, never the password.
+    const logged = errorSpy.mock.calls.find(
+      (c) => c[0] === "[admin-login] unhandled error"
+    );
+    expect(logged).toBeDefined();
+    const payload = JSON.parse(logged![1] as string);
+    expect(payload.phase).toBe("create_session");
+    expect(payload.message).toContain("ADMIN_SESSION_SIGNING_KEY");
+    expect(JSON.stringify(payload)).not.toContain("correct");
+
+    errorSpy.mockRestore();
+  });
 });
