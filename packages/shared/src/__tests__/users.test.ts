@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { RoleFlagSchema, RoleFlagsSchema, UserRowSchema } from "../users";
+import {
+  ModerationReasonCodeSchema,
+  RoleFlagSchema,
+  RoleFlagsSchema,
+  UserRowSchema,
+} from "../users";
 
 describe("RoleFlagSchema", () => {
   it("accepts each documented flag", () => {
@@ -39,6 +44,8 @@ describe("UserRowSchema", () => {
     created_at: "2026-05-13T10:30:00+00:00",
     updated_at: "2026-05-13T10:30:00+00:00",
     deleted_at: null,
+    disabled_at: null,
+    disabled_reason_code: null,
   };
 
   it("parses a fully-populated row", () => {
@@ -71,6 +78,22 @@ describe("UserRowSchema", () => {
     expect(parsed.deleted_at).toBe("2026-05-13T11:00:00+00:00");
   });
 
+  it("accepts a disabled row with a reason code", () => {
+    const parsed = UserRowSchema.parse({
+      ...baseRow,
+      disabled_at: "2026-05-13T11:00:00+00:00",
+      disabled_reason_code: "abuse",
+    });
+    expect(parsed.disabled_at).toBe("2026-05-13T11:00:00+00:00");
+    expect(parsed.disabled_reason_code).toBe("abuse");
+  });
+
+  it("rejects an unknown disabled_reason_code", () => {
+    expect(() =>
+      UserRowSchema.parse({ ...baseRow, disabled_reason_code: "because" }),
+    ).toThrow();
+  });
+
   it("accepts PostgREST-style timestamps with offset", () => {
     expect(() =>
       UserRowSchema.parse({
@@ -87,5 +110,25 @@ describe("UserRowSchema", () => {
   it("rejects role_flags that does not satisfy SQL CHECK", () => {
     expect(() => UserRowSchema.parse({ ...baseRow, role_flags: [] })).toThrow();
     expect(() => UserRowSchema.parse({ ...baseRow, role_flags: ["admin"] })).toThrow();
+  });
+});
+
+describe("ModerationReasonCodeSchema", () => {
+  it("accepts each documented reason code", () => {
+    for (const code of [
+      "spam",
+      "abuse",
+      "tos_violation",
+      "fraud",
+      "user_request",
+      "other",
+    ]) {
+      expect(ModerationReasonCodeSchema.parse(code)).toBe(code);
+    }
+  });
+
+  it("rejects unknown / empty codes", () => {
+    expect(() => ModerationReasonCodeSchema.parse("banned")).toThrow();
+    expect(() => ModerationReasonCodeSchema.parse("")).toThrow();
   });
 });

@@ -22,7 +22,13 @@ export interface AdminUserRow {
   id: string;
   display_name: string | null;
   email: string | null;
+  // Moderation state (0018). disabled_at => login-blocked; deleted_at => in the
+  // soft-delete grace window (only populated in the "deleted" view).
+  disabled_at: string | null;
+  deleted_at: string | null;
 }
+
+export type AdminUserStatusFilter = "active" | "deleted";
 
 export interface AdminUsersPage {
   users: AdminUserRow[];
@@ -52,6 +58,9 @@ export async function listUsers(opts: {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** "active" (default) lists live rows; "deleted" lists soft-deleted rows
+   * (in their grace window) so the operator can restore them. */
+  status?: AdminUserStatusFilter;
 }): Promise<AdminUsersPage> {
   const admin = createAdminClient();
   const pageSize = clampPageSize(opts.pageSize ?? DEFAULT_PAGE_SIZE);
@@ -62,10 +71,17 @@ export async function listUsers(opts: {
   const to = from + pageSize - 1;
 
   // service-role: explicit user filter required (admin cross-user read).
+  // Minimal columns only — never role_flags/tokens. deleted_at filter is on
+  // BOTH the row query AND the exact count (PostgREST applies it to both).
   let query = admin
     .from("users")
-    .select("id, display_name, email", { count: "exact" })
-    .is("deleted_at", null);
+    .select("id, display_name, email, disabled_at, deleted_at", {
+      count: "exact",
+    });
+  query =
+    opts.status === "deleted"
+      ? query.not("deleted_at", "is", null)
+      : query.is("deleted_at", null);
 
   const search = opts.search ? sanitizeSearch(opts.search) : "";
   if (search) {

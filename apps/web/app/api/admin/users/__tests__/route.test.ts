@@ -48,14 +48,22 @@ describe("GET /api/admin/users", () => {
     expect(mockList).not.toHaveBeenCalled();
   });
 
-  it("parses q/page/pageSize and passes them through", async () => {
+  it("parses q/page/pageSize and passes them through (default active status)", async () => {
     const res = await invoke("?q=alice&page=2&pageSize=10");
     expect(res.status).toBe(200);
     expect(mockList).toHaveBeenCalledWith({
       search: "alice",
       page: 2,
       pageSize: 10,
+      status: "active",
     });
+  });
+
+  it("passes status=deleted through for the grace-window view", async () => {
+    await invoke("?status=deleted");
+    expect(mockList).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "deleted" })
+    );
   });
 
   it("audits the view with NON-PII metadata (never the search term)", async () => {

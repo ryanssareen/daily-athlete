@@ -47,6 +47,8 @@ interface RawEnv {
   SUPABASE_PROJECT_REF?: string;
   BACKUP_ENCRYPTION_KEYS?: string;
   ADMIN_BACKUP_BUCKET?: string;
+  BREVO_API_KEY?: string;
+  EMAIL_SENDER?: string;
 }
 
 export interface AppConfig {
@@ -81,6 +83,14 @@ export interface AppConfig {
     // `1:<64-hex>,2:<64-hex>,...` (same shape as STRAVA_TOKEN_KEYS).
     encryptionKeysRaw: string | undefined;
     bucket: string;
+  };
+  email: {
+    // Brevo transactional email for admin moderation reason emails
+    // (apps/web/src/email/brevo.ts). Both optional: when absent, emails are
+    // disabled (notifyModeration returns sent:false) and the moderation action
+    // still succeeds.
+    brevoApiKey: string | undefined;
+    sender: string | undefined;
   };
 }
 
@@ -303,6 +313,32 @@ function validateBackupEncryptionKeysProd(v: Validator): void {
   }
 }
 
+function validateBrevoProd(v: Validator): void {
+  // Transactional email for admin moderation reason emails
+  // (apps/web/src/email/brevo.ts). Intentionally WARN, not fatal: a missing key
+  // must NOT brick boot — moderation still works, the email just doesn't send
+  // (notifyModeration returns sent:false). Mirrors the
+  // STRAVA_WEBHOOK_SUBSCRIPTION_ID fail-safe posture. Shape-check when present.
+  const key = v.raw.BREVO_API_KEY;
+  const sender = v.raw.EMAIL_SENDER;
+  if (!key || isPlaceholder(key)) {
+    v.warnings.push(
+      "BREVO_API_KEY missing — admin moderation emails are disabled until set"
+    );
+    return;
+  }
+  if (!key.startsWith("xkeysib-")) {
+    v.warnings.push(
+      'BREVO_API_KEY does not look like a Brevo key (expected "xkeysib-" prefix) — sends may fail'
+    );
+  }
+  if (!sender || isPlaceholder(sender)) {
+    v.warnings.push(
+      "EMAIL_SENDER missing while BREVO_API_KEY is set — moderation emails need a verified sender to send"
+    );
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -324,6 +360,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateStateSigningKeyProd(v);
     validateAdminSecretProd(v);
     validateAdminSessionSigningKeyProd(v);
+    validateBrevoProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
@@ -377,6 +414,10 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     backups: {
       encryptionKeysRaw: raw.BACKUP_ENCRYPTION_KEYS,
       bucket: raw.ADMIN_BACKUP_BUCKET ?? "admin-backups",
+    },
+    email: {
+      brevoApiKey: raw.BREVO_API_KEY,
+      sender: raw.EMAIL_SENDER,
     },
   };
 }

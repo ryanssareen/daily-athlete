@@ -18,10 +18,14 @@ export async function GET(request: Request): Promise<NextResponse> {
   const search = url.searchParams.get("q") ?? undefined;
   const page = Number(url.searchParams.get("page") ?? "0");
   const pageSize = Number(url.searchParams.get("pageSize") ?? "25");
+  // "deleted" shows soft-deleted rows (grace window) so they can be restored;
+  // anything else is the default active directory.
+  const status =
+    url.searchParams.get("status") === "deleted" ? "deleted" : "active";
 
   let result;
   try {
-    result = await listUsers({ search, page, pageSize });
+    result = await listUsers({ search, page, pageSize, status });
   } catch {
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
@@ -34,6 +38,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       results: result.users.length,
       page: result.page,
       searched: Boolean(search),
+      status,
     },
   });
 
