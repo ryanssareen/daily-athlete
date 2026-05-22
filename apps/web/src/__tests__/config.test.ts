@@ -220,35 +220,9 @@ describe("config validator -- production failure modes", () => {
   });
 });
 
-describe("config validator -- inngest + backup secrets (production)", () => {
-  it("rejects when INNGEST_EVENT_KEY is missing (first live Inngest fn)", async () => {
-    const env: Record<string, string | undefined> = { ...baseProdEnv };
-    delete env.INNGEST_EVENT_KEY;
-    await expect(importFresh(env)).rejects.toThrow(
-      /Inngest event key|INNGEST_EVENT_KEY/
-    );
-  });
-
-  it("rejects when INNGEST_SIGNING_KEY is missing", async () => {
-    const env: Record<string, string | undefined> = { ...baseProdEnv };
-    delete env.INNGEST_SIGNING_KEY;
-    await expect(importFresh(env)).rejects.toThrow(
-      /Inngest signing key|INNGEST_SIGNING_KEY/
-    );
-  });
-
-  it("rejects when BACKUP_ENCRYPTION_KEYS is missing", async () => {
-    const env: Record<string, string | undefined> = { ...baseProdEnv };
-    delete env.BACKUP_ENCRYPTION_KEYS;
-    await expect(importFresh(env)).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
-  });
-
-  it("rejects when BACKUP_ENCRYPTION_KEYS is malformed", async () => {
-    await expect(
-      importFresh({ ...baseProdEnv, BACKUP_ENCRYPTION_KEYS: "1:nothex" })
-    ).rejects.toThrow(/BACKUP_ENCRYPTION_KEYS/);
-  });
-});
+// The Inngest + backup-encryption production requirements were intentionally
+// removed from config.ts (commit cd185b2: "remove Inngest + backup-encryption
+// prod requirements"); their validator assertions were dropped with them.
 
 describe("config validator -- non-production", () => {
   it("does not reject when Strava env is missing in development", async () => {
@@ -314,11 +288,8 @@ describe("config validator -- admin secrets (production)", () => {
     );
   });
 
-  it("rejects when ADMIN_SECRET is shorter than 16 chars", async () => {
-    await expect(
-      importFresh({ ...baseProdEnv, ADMIN_SECRET: "short" })
-    ).rejects.toThrow(/ADMIN_SECRET.*at least 16/);
-  });
+  // The ADMIN_SECRET minimum-length requirement was intentionally removed from
+  // config.ts (commit 4ad766b); its assertion was dropped with it.
 
   it("rejects when ADMIN_SECRET is the placeholder 'xxx'", async () => {
     await expect(
