@@ -14,6 +14,7 @@ import { clientIp, parseSessionToken } from "@/auth/admin-session";
 import { writeAudit } from "@/db/admin-audit";
 
 import { BackupList } from "./_components/backup-list";
+import { BackupLogs } from "./_components/backup-logs";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,7 @@ export default async function BackupsPage() {
 
       <ManagedStatusCard status={status} />
       <BackupList />
+      <BackupLogs />
       <RestoreSection pitrEnabled={pitrEnabled} />
     </div>
   );
@@ -142,7 +144,7 @@ function RestoreSection({ pitrEnabled }: { pitrEnabled: boolean }) {
     <section className="card" aria-labelledby="restore-title">
       <div className="card-head">
         <div className="card-head-body">
-          <div className="card-eyebrow">Section 03 · Runbook</div>
+          <div className="card-eyebrow">Section 04 · Runbook</div>
           <h2 id="restore-title" className="card-title">
             Restore
             <span className="status warn">
