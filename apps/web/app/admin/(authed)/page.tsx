@@ -18,6 +18,18 @@ const SECTIONS = [
     desc: "Read-only directory of users by name and email, with search.",
     meta: ["Name + email", "Read-only"] as const,
   },
+  {
+    href: "/admin/logs",
+    name: "Logs",
+    desc: "Append-only audit trail of every admin operation, filterable by area.",
+    meta: ["Audit trail", "Read-only"] as const,
+  },
+  {
+    href: "/admin/api-playground",
+    name: "API Playground",
+    desc: "Invoke allow-listed, non-destructive endpoints as the operator.",
+    meta: ["Allow-listed", "Audited"] as const,
+  },
 ] as const;
 
 export default function AdminOverviewPage() {

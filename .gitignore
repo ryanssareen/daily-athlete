@@ -56,6 +56,10 @@ supabase/.temp
 # Logs
 *.log
 logs/
+# ...but NOT source route/page dirs under the Next app that are legitimately
+# named "logs" (e.g. /admin/logs, /api/admin/logs) — those are code, not output.
+!apps/web/app/**/logs/
+!apps/web/app/**/logs/**
 
 # Coverage
 coverage/

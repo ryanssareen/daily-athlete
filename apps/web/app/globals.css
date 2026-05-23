@@ -1076,6 +1076,9 @@ a {
 .admin-scope .users .table-head, .admin-scope .users .table-row {
   grid-template-columns: 1.3fr 1.7fr 96px 150px;
 }
+.admin-scope .logs .table-head, .admin-scope .logs .table-row {
+  grid-template-columns: 180px minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1.2fr);
+}
 
 /* View toggle (active / deleted-in-grace) on the users directory */
 .admin-scope .seg { display: inline-flex; gap: 4px; }
