@@ -67,7 +67,7 @@ export function BackupLogs() {
     <section className="card logs" aria-labelledby="backup-activity-title">
       <div className="card-head">
         <div className="card-head-body">
-          <div className="card-eyebrow">Section 03 · Activity</div>
+          <div className="card-eyebrow">Activity</div>
           <h2 id="backup-activity-title" className="card-title">
             Backup activity
           </h2>

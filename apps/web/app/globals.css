@@ -1070,14 +1070,14 @@ a {
   font-size: 12px; color: var(--color-ink-subtle);
   font-family: var(--font-mono); letter-spacing: 0.02em;
 }
-.admin-scope .exports .table-head, .admin-scope .exports .table-row {
-  grid-template-columns: 1.6fr 100px 120px 150px 1fr;
-}
 .admin-scope .users .table-head, .admin-scope .users .table-row {
   grid-template-columns: 1.3fr 1.7fr 96px 150px;
 }
 .admin-scope .logs .table-head, .admin-scope .logs .table-row {
   grid-template-columns: 180px minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1.2fr);
+}
+.admin-scope .history .table-head, .admin-scope .history .table-row {
+  grid-template-columns: 1.3fr 1.5fr 78px 110px 96px 110px minmax(120px, 1fr);
 }
 
 /* View toggle (active / deleted-in-grace) on the users directory */
@@ -1208,6 +1208,69 @@ a {
   text-transform: uppercase; color: var(--color-ink-subtle);
 }
 
+/* ---------- Backup Management (screenshot-style hero card) ---------- */
+.admin-scope .bm-head-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.admin-scope .bm-icon {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-clay-soft); color: var(--color-clay-deep);
+  border: 1px solid color-mix(in oklab, var(--color-clay) 22%, var(--color-border));
+}
+.admin-scope .bm-body {
+  display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 8px;
+}
+.admin-scope .bm-body .alert { margin: 0; }
+.admin-scope .bm-history-head {
+  font-size: 14.5px; font-weight: 600; color: var(--color-ink); letter-spacing: -0.005em;
+}
+.admin-scope .bm-history-note {
+  font-size: 12.5px; color: var(--color-ink-muted); margin-top: -10px; max-width: 70ch;
+}
+
+/* Restore-from-file panel — danger-tinted, echoing the screenshot's pink card. */
+.admin-scope .restore-panel {
+  border: 1px solid color-mix(in oklab, var(--color-danger) 28%, var(--color-border));
+  background: color-mix(in oklab, var(--color-danger) 6%, var(--color-paper));
+  border-radius: 12px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.admin-scope .restore-panel-head { display: flex; gap: 12px; align-items: flex-start; }
+.admin-scope .restore-panel-mark {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in oklab, var(--color-danger) 14%, transparent);
+  color: var(--color-danger); font-size: 15px; line-height: 1;
+}
+.admin-scope .restore-panel-title { font-size: 14px; font-weight: 600; color: var(--color-ink); }
+.admin-scope .restore-panel-sub {
+  font-size: 12.5px; color: var(--color-ink-muted); margin-top: 2px; line-height: 1.5; max-width: 76ch;
+}
+.admin-scope .restore-panel-sub code {
+  font-family: var(--font-mono); font-size: 11.5px; padding: 1px 5px;
+  background: var(--color-canvas-soft); border: 1px solid var(--color-border);
+  border-radius: 4px; color: var(--color-ink);
+}
+.admin-scope .restore-form { display: flex; flex-direction: column; gap: 12px; }
+.admin-scope .restore-controls,
+.admin-scope .restore-confirm {
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+}
+.admin-scope .restore-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 180px; }
+.admin-scope .restore-confirm .restore-field { flex: 0 1 220px; }
+.admin-scope .restore-field-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-ink-subtle);
+}
+.admin-scope .restore-file { display: inline-flex; align-items: center; gap: 8px; }
+.admin-scope .restore-file-name {
+  font-family: var(--font-mono); font-size: 12px; color: var(--color-ink);
+  background: var(--color-canvas-soft); border: 1px solid var(--color-border);
+  border-radius: 6px; padding: 5px 9px; max-width: 240px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-scope .restore-result { font-size: 13px; color: var(--color-success); }
+.admin-scope .restore-result strong { color: var(--color-ink); font-weight: 600; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .admin-scope .admin-content { padding: 28px 32px 80px; }
@@ -1221,13 +1284,16 @@ a {
   .admin-scope .admin-nav { display: none; }
   .admin-scope .admin-content { padding: 24px 20px 80px; }
   .admin-scope .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .admin-scope .exports .table-head, .admin-scope .exports .table-row { grid-template-columns: 1.4fr 110px 1fr; }
-  .admin-scope .exports .table-head .th:nth-child(2),
-  .admin-scope .exports .table-row .td:nth-child(2),
-  .admin-scope .exports .table-head .th:nth-child(4),
-  .admin-scope .exports .table-row .td:nth-child(4) { display: none; }
   /* users: drop Email, keep Name · Status · Actions */
   .admin-scope .users .table-head, .admin-scope .users .table-row { grid-template-columns: 1.2fr 96px 140px; }
   .admin-scope .users .table-head .th:nth-child(2),
   .admin-scope .users .table-row .td:nth-child(2) { display: none; }
+  /* history: drop Users/Workouts/Storage, keep Type · Time · Status · Actions */
+  .admin-scope .history .table-head, .admin-scope .history .table-row {
+    grid-template-columns: 1.2fr 1.4fr 100px minmax(110px, 1fr);
+  }
+  .admin-scope .history .th:nth-child(3), .admin-scope .history .td:nth-child(3),
+  .admin-scope .history .th:nth-child(4), .admin-scope .history .td:nth-child(4),
+  .admin-scope .history .th:nth-child(5), .admin-scope .history .td:nth-child(5) { display: none; }
+  .admin-scope .restore-controls, .admin-scope .restore-confirm { align-items: stretch; }
 }

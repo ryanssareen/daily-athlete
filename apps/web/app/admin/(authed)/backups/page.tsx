@@ -32,7 +32,7 @@ function ManagedStatusCard({ status }: { status: ManagedBackupResult }) {
     <section className="card" aria-labelledby="managed-title">
       <div className="card-head">
         <div className="card-head-body">
-          <div className="card-eyebrow">Section 01</div>
+          <div className="card-eyebrow">Managed</div>
           <h2 id="managed-title" className="card-title">
             Managed backups
             <span className="status muted">
@@ -131,8 +131,8 @@ export default async function BackupsPage() {
         </div>
       </header>
 
-      <ManagedStatusCard status={status} />
       <BackupList />
+      <ManagedStatusCard status={status} />
       <BackupLogs />
       <RestoreSection pitrEnabled={pitrEnabled} />
     </div>
@@ -144,17 +144,18 @@ function RestoreSection({ pitrEnabled }: { pitrEnabled: boolean }) {
     <section className="card" aria-labelledby="restore-title">
       <div className="card-head">
         <div className="card-head-body">
-          <div className="card-eyebrow">Section 04 · Runbook</div>
+          <div className="card-eyebrow">Runbook</div>
           <h2 id="restore-title" className="card-title">
-            Restore
+            Full / point-in-time restore
             <span className="status warn">
               <span className="dot" />
               Read before running
             </span>
           </h2>
           <div className="card-sub">
-            Restore is destructive and deliberate — a manual runbook, not an
-            in-place button. Current path:{" "}
+            The file restore above re-imports an export (a logical merge of
+            allow-listed tables). This runbook is the deliberate path for a full
+            or point-in-time recovery. Current path:{" "}
             <strong style={{ color: "var(--color-ink)" }}>
               {pitrEnabled
                 ? "PITR (point-in-time, in place)"
