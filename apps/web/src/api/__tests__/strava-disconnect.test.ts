@@ -2,17 +2,17 @@
 //
 // The route depends on:
 // - @/auth/server.createClient + resolveAuth (Bearer header)
-// - @/db/admin.createAdminClient (service-role) for strava_tokens reads + soft-delete
+// - @/db/admin.createAdminClient (service-role) for strava_tokens reads + delete
 // - @/security/token-crypto.decrypt (to decrypt token for Strava deauthorize)
 // - fetch (global) intercepted with msw for the Strava deauthorize call
 //
 // All external dependencies are mocked via vi.mock.
 //
 // Scenarios:
-// - valid auth → 204, row soft-deleted
+// - valid auth → 204, row deleted
 // - no strava_tokens row → 404
 // - missing Bearer → 401
-// - Strava deauthorize fails → still 204, row soft-deleted (non-blocking)
+// - Strava deauthorize fails → still 204, row deleted (non-blocking)
 
 import {
   afterAll,
@@ -49,10 +49,9 @@ const state = vi.hoisted(() => ({
     user_id: string;
     access_token_enc: string;
     key_version: number;
-    deleted_at: string | null;
   } | null,
-  // Captures soft-delete update.
-  updateFields: null as Record<string, unknown> | null,
+  // Captures the user_id filter on the DELETE call.
+  deletedUserId: null as string | null,
 }));
 
 // ---------------------------------------------------------------------------
@@ -88,45 +87,39 @@ class FakeAdminClient {
 }
 
 class FakeTokensQueryBuilder {
-  private _op: "select" | "update" | null = null;
-  private _updateFields: Record<string, unknown> | null = null;
+  private _op: "select" | "delete" | null = null;
+  private _eqUserId: string | null = null;
 
   select(_cols: string) {
     this._op = "select";
     return this;
   }
 
-  update(fields: Record<string, unknown>) {
-    this._op = "update";
-    this._updateFields = fields;
+  delete() {
+    this._op = "delete";
     return this;
   }
 
-  eq(_col: string, _val: unknown) {
-    return this;
-  }
-
-  is(_col: string, _val: unknown) {
+  eq(col: string, val: unknown) {
+    if (col === "user_id") this._eqUserId = val as string;
     return this;
   }
 
   async maybeSingle() {
     // SELECT path: return the current tokenRow or null.
     if (state.tokenRow === null) return { data: null, error: null };
-    // Only return if deleted_at is null (active row).
-    if (state.tokenRow.deleted_at !== null) return { data: null, error: null };
     return { data: state.tokenRow, error: null };
   }
 
-  // The route uses `await admin.from(...).update(...).eq(...).is(...)`.
+  // The route uses `await admin.from(...).delete().eq(...)`.
   // Supabase-js query builders resolve via implicit Promise when awaited.
-  // We make this builder thenable so it resolves on the update path.
+  // We make this builder thenable so it resolves on the delete path.
   then(
     resolve: (v: { error: null }) => unknown,
     _reject?: (e: unknown) => unknown,
   ) {
-    if (this._op === "update" && this._updateFields) {
-      state.updateFields = this._updateFields;
+    if (this._op === "delete") {
+      state.deletedUserId = this._eqUserId;
     }
     return Promise.resolve({ error: null }).then(resolve);
   }
@@ -151,7 +144,7 @@ afterAll(() => server.close());
 beforeEach(() => {
   state.authUser = null;
   state.tokenRow = null;
-  state.updateFields = null;
+  state.deletedUserId = null;
   stravaDeauthorizeCalls.length = 0;
 });
 
@@ -204,13 +197,12 @@ describe("DELETE /api/integrations/strava/disconnect", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 204 and soft-deletes the row on happy path", async () => {
+  it("returns 204 and deletes the row on happy path", async () => {
     state.authUser = { id: "user-happy" };
     state.tokenRow = {
       user_id: "user-happy",
       access_token_enc: "\\x737475622d6163636573732d746f6b656e", // hex for stub
       key_version: 1,
-      deleted_at: null,
     };
 
     const res = await invokeRoute({
@@ -218,9 +210,8 @@ describe("DELETE /api/integrations/strava/disconnect", () => {
     });
     expect(res.status).toBe(204);
 
-    // Soft-delete must have been applied.
-    expect(state.updateFields).toBeDefined();
-    expect(typeof state.updateFields?.deleted_at).toBe("string");
+    // DELETE must have been issued, scoped to the caller's user_id.
+    expect(state.deletedUserId).toBe("user-happy");
   });
 
   it("calls Strava deauthorize on happy path", async () => {
@@ -229,7 +220,6 @@ describe("DELETE /api/integrations/strava/disconnect", () => {
       user_id: "user-deauth",
       access_token_enc: "\\x737475622d6163636573732d746f6b656e",
       key_version: 1,
-      deleted_at: null,
     };
 
     const res = await invokeRoute({
@@ -240,13 +230,12 @@ describe("DELETE /api/integrations/strava/disconnect", () => {
     expect(stravaDeauthorizeCalls[0]).toContain("access_token=");
   });
 
-  it("still returns 204 and soft-deletes even if Strava deauthorize fails", async () => {
+  it("still returns 204 and deletes even if Strava deauthorize fails", async () => {
     state.authUser = { id: "user-strava-down" };
     state.tokenRow = {
       user_id: "user-strava-down",
       access_token_enc: "\\x737475622d6163636573732d746f6b656e",
       key_version: 1,
-      deleted_at: null,
     };
 
     // Override Strava to return 500.
@@ -266,7 +255,7 @@ describe("DELETE /api/integrations/strava/disconnect", () => {
     });
     // Strava failure is non-blocking — must still return 204.
     expect(res.status).toBe(204);
-    // Row must still be soft-deleted.
-    expect(state.updateFields?.deleted_at).toBeTruthy();
+    // Row must still have been deleted before the Strava call was attempted.
+    expect(state.deletedUserId).toBe("user-strava-down");
   });
 });

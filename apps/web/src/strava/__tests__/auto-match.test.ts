@@ -361,15 +361,15 @@ describe("matchStravaToPlanned", () => {
       structure: { duration_s: 3600 }, // 60 min
     });
 
-    // Strava activity is 40 min — closer to the 60-min plan
-    const cwId = await insertStravaCompletedWorkout(user.id, { duration_s: 2400 });
+    // Strava activity is 55 min — closer to the 60-min plan
+    const cwId = await insertStravaCompletedWorkout(user.id, { duration_s: 3300 });
 
     const result = await matchStravaToPlanned(serviceClient(), {
       athleteId: user.id,
       completedWorkoutId: cwId,
       sport: "run",
       startedAt: "2026-05-15T07:00:00Z",
-      durationS: 2400,
+      durationS: 3300,
     });
 
     expect(result.matched).toBe(true);
