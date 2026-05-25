@@ -80,6 +80,7 @@ const db = {
   coachLinks: [] as CoachLinkStub[],
   completedWorkouts: new Map<string, CompletedWorkoutStub>(),
   workoutMatches: [] as WorkoutMatchStub[],
+  workoutEdits: [] as Record<string, unknown>[],
   // Control flags
   rpcShouldSucceed: false as boolean,
   nextRpcError: null as { code?: string; message: string } | null,
@@ -126,6 +127,7 @@ function makeFakeAdmin() {
       if (table === "coach_athlete_links") return new CoachLinksTable();
       if (table === "completed_workouts") return new CompletedWorkoutsTable();
       if (table === "workout_matches") return new WorkoutMatchesTable();
+      if (table === "workout_edits") return new WorkoutEditsTable();
       throw new Error(`unexpected table in test: ${table}`);
     },
     async rpc(
@@ -150,6 +152,20 @@ function makeFakeAdmin() {
       };
     },
   };
+}
+
+// --- WorkoutEditsTable fake ---
+// The status route appends an append-only audit row (Unit 2) via
+// appendWorkoutEdit: .insert({...}).select("id").single().
+class WorkoutEditsTable {
+  insert(row: Record<string, unknown>) {
+    db.workoutEdits.push(row);
+    return {
+      select: (_cols: string) => ({
+        single: async () => ({ data: { id: `we-${db.workoutEdits.length}` }, error: null }),
+      }),
+    };
+  }
 }
 
 // --- PlannedWorkoutsTable fake ---
@@ -349,6 +365,7 @@ beforeEach(() => {
   db.coachLinks.length = 0;
   db.completedWorkouts.clear();
   db.workoutMatches.length = 0;
+  db.workoutEdits.length = 0;
   db.rpcShouldSucceed = false;
   db.nextRpcError = null;
   db.nextInsertError = null;

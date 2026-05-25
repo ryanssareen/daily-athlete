@@ -4,6 +4,16 @@
 
 import type { InngestFunction } from "inngest";
 
+import { adaptiveDetectors } from "./adaptive-detectors";
+import { adaptiveRun } from "./adaptive-run";
 import { adminBackupExport } from "./admin-backup-export";
+import { weeklyReviewExpirySweeper } from "./weekly-review-expiry-sweeper";
+import { weeklyReviewScheduler } from "./weekly-review-scheduler";
 
-export const functions: InngestFunction.Any[] = [adminBackupExport];
+export const functions: InngestFunction.Any[] = [
+  adminBackupExport,
+  weeklyReviewExpirySweeper,
+  weeklyReviewScheduler,
+  adaptiveRun,
+  adaptiveDetectors,
+];
