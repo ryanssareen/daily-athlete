@@ -337,7 +337,7 @@ describe("planned_workouts table", () => {
     const { data, error } = await admin
       .from("planned_workouts")
       .select(
-        "id, athlete_id, plan_id, scheduled_date, sport, structure, planned_load, status, rationale, edited_by_kind, edited_by_user_id, edited_at, created_at, deleted_at",
+        "id, athlete_id, plan_id, scheduled_date, sport, structure, planned_load, status, rationale, edited_by_kind, edited_by_user_id, edited_at, version, created_at, deleted_at",
       )
       .eq("athlete_id", user.id)
       .single();
