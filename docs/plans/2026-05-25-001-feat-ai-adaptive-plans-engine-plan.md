@@ -1,7 +1,7 @@
 ---
 title: "feat: AI Adaptive Plans — Unified Re-Plan Engine (Category B)"
 type: feat
-status: active
+status: completed
 date: 2026-05-25
 deepened: 2026-05-25
 origin: docs/brainstorms/2026-05-25-ai-athlete-plans-use-cases.md
@@ -512,7 +512,7 @@ entry points; Phase D is the athlete surface.
 
 ### Phase A — Foundation
 
-- [ ] **Unit 1: Schema — `weekly_reviews` + `workout_edits` + `planned_workouts.version`**
+- [x] **Unit 1: Schema — `weekly_reviews` + `workout_edits` + `planned_workouts.version`**
 
 **Goal:** Create the two foundation tables, the proposal lifecycle constraints, the single-open
 invariant, a monotonic row-version token on `planned_workouts`, and the shared Zod contracts.
@@ -583,7 +583,7 @@ version trigger bumps on every writer; CI realtime guard green.
 
 ---
 
-- [ ] **Unit 2: Authoritative attribution + complete audit log across the edit spine**
+- [x] **Unit 2: Authoritative attribution + complete audit log across the edit spine**
 
 **Goal:** Make `edited_by_kind`/`edited_by_user_id` reliable on *all* `planned_workouts` writers and
 make `workout_edits` a *complete* edit log — so the coach-overwrite guardrail (Unit 4) reads a
@@ -623,7 +623,7 @@ rows and a monotonically increasing `version`.
 
 ---
 
-- [ ] **Unit 3: `requireEntitlement` helper (paid-feature gate)**
+- [x] **Unit 3: `requireEntitlement` helper (paid-feature gate)**
 
 **Goal:** A single canonical entitlement check (none exists today) used at enqueue/generation and apply.
 
@@ -653,7 +653,7 @@ IS NULL OR expires_at > now())`; works under the user-JWT client (self-read RLS)
 
 ---
 
-- [ ] **Unit 4: Deterministic training-load + guardrail module**
+- [x] **Unit 4: Deterministic training-load + guardrail module**
 
 **Goal:** The source-of-truth layer — CTL/ATL/TSB load proxy from `completed_workouts`, plus the
 invariant validator used at generation AND apply.
@@ -713,7 +713,7 @@ load series deterministic for a fixed fixture; `summary_stats` schema imported c
 
 ### Phase B — Engine core
 
-- [ ] **Unit 5: Adaptive re-plan engine + LLM diff-proposer + precedence + single-open**
+- [x] **Unit 5: Adaptive re-plan engine + LLM diff-proposer + precedence + single-open**
 
 **Goal:** The orchestrator that turns a trigger + context into a validated, persisted proposal —
 including the precedence decision and the serialized supersede-then-insert.
@@ -762,7 +762,7 @@ no proposal contains an invariant-breaching op; interleaved triggers leave exact
 
 ---
 
-- [ ] **Unit 6: Proposal apply/reject — transactional RPC + agent-native decision API**
+- [x] **Unit 6: Proposal apply/reject — transactional RPC + agent-native decision API**
 
 **Goal:** Athlete accept/modify/reject. Accept atomically **re-validates invariants against current
 load**, applies valid non-stale ops (soft-delete on delete), stamps `ai_review`, writes `workout_edits`,
@@ -836,7 +836,7 @@ op is ever committed; agent-driven `GET`→`accept` round-trips via the named en
 
 ### Phase C — Trigger entry points
 
-- [ ] **Unit 7: Proposal expiry sweeper + Inngest-registry CI guard**
+- [x] **Unit 7: Proposal expiry sweeper + Inngest-registry CI guard**
 
 **Goal:** Expire stale proposals, and make "every Inngest function is registered" a CI guarantee
 (the recurring footgun) before the trigger units add six functions.
@@ -868,7 +868,7 @@ unregistered function and passes once registered.
 
 ---
 
-- [ ] **Unit 8: B1 — scheduled weekly adaptive review (the baseline)**
+- [x] **Unit 8: B1 — scheduled weekly adaptive review (the baseline)**
 
 **Goal:** Sunday ~18:00 athlete-local weekly review exercising the entire pipeline.
 
@@ -906,7 +906,7 @@ Sunday evening across a 2-week dry run.
 
 ---
 
-- [ ] **Unit 9: Detection trigger — B2 missed-block** *(B5/B6 deferred — see below)*
+- [x] **Unit 9: Detection trigger — B2 missed-block** *(B5/B6 deferred — see below)*
 
 **Goal:** The completion-driven detector that fires an off-cycle reflow when an athlete misses a block.
 
@@ -948,7 +948,7 @@ week yields no proposal.
 
 ---
 
-- [ ] **Unit 10: On-demand & edit triggers — B3 schedule-shock, B4 event change, B7 swap, R11 manual**
+- [x] **Unit 10: On-demand & edit triggers — B3 schedule-shock, B4 event change, B7 swap, R11 manual**
 
 **Goal:** Athlete/profile-edit-driven entry points into the same engine, via the agent-native API.
 
@@ -989,7 +989,7 @@ round-trips accept-and-apply within one interaction.
 
 ### Phase D — Athlete surface
 
-- [ ] **Unit 11: Athlete proposal UX (web + mobile)**
+- [x] **Unit 11: Athlete proposal UX (web + mobile)**
 
 **Goal:** The propose-then-confirm surface — banner, diff/preview, accept/modify/reject, live updates,
 lapsed-read-only.

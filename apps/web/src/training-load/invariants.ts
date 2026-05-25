@@ -241,7 +241,10 @@ export function validateOps(
     const prevVol = target ? rowVolumeSeconds(target) : 0;
     const delta = opVolumeSeconds(op) - (op.kind === "move" || op.kind === "modify" ? prevVol : 0);
     projectedWeekVolume.set(week, (projectedWeekVolume.get(week) ?? 0) + delta);
-    acceptedAddedTss += opTss(op) - (target && (op.kind === "modify") ? opTssOfRow(target) : 0);
+    // A `move` relocates existing load to another day -- net-zero added TSS, so
+    // like `modify` it subtracts the target's old TSS (only `insert` adds new load).
+    acceptedAddedTss +=
+      opTss(op) - (target && (op.kind === "modify" || op.kind === "move") ? opTssOfRow(target) : 0);
     valid.push(op);
   }
 

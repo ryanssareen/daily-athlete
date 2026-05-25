@@ -364,3 +364,31 @@ describe("validateOps — batch behavior", () => {
     expect(res.dropped[0].reason).toBe("volume_ramp");
   });
 });
+
+describe("validateOps — move ops relocate load (net-zero added TSS)", () => {
+  it("keeps a batch of high-load moves without false ctl_ramp/tsb_floor drops", () => {
+    // Five existing high-load workouts, each moved to a different day. A move
+    // relocates existing load; it adds NO new TSS to the series. If the validator
+    // counted each move's full TSS as "added" (the pre-fix bug), 5x150 TSS of
+    // phantom load would trip ctl_ramp/tsb_floor and wrongly drop the moves.
+    const planned: ValidatablePlannedWorkout[] = [];
+    const ops: ValidatableOp[] = [];
+    for (let i = 0; i < 5; i++) {
+      const id = `w-${i}`;
+      planned.push(
+        plannedRow({ id, scheduled_date: addDays("2026-03-16", i), duration_s: 3600, load: 150 }),
+      );
+      ops.push({
+        op_id: `op-${i}`,
+        kind: "move",
+        workout_id: id,
+        target_date: addDays("2026-03-23", i), // shift each into the next week
+        duration_s: 3600,
+        load: 150,
+      });
+    }
+    const res = validateOps({ event_date: null }, ops, baseCtx({ plannedWorkouts: planned }));
+    expect(res.dropped).toHaveLength(0);
+    expect(res.valid).toHaveLength(5);
+  });
+});
