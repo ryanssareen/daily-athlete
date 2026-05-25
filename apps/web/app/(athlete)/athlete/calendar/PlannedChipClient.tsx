@@ -5,8 +5,29 @@ import type { Route } from "next";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import type { EditedByKind } from "@da2/shared";
+
 import { getSportEmoji } from "@/lib/sport-display";
 import type { PlannedStatus } from "@/db/workouts";
+
+// Distinct attribution chip per editor — ai_review must read differently from a
+// coach edit (Unit 11). NULL / athlete edits get no badge (the default case).
+const ATTRIBUTION_CFG: Partial<
+  Record<EditedByKind, { label: string; bg: string; color: string; border: string }>
+> = {
+  ai_review: {
+    label: "✦ AI",
+    bg: "color-mix(in oklab, var(--color-clay) 16%, transparent)",
+    color: "var(--color-clay-deep)",
+    border: "color-mix(in oklab, var(--color-clay) 32%, transparent)",
+  },
+  coach: {
+    label: "Coach",
+    bg: "color-mix(in oklab, var(--color-pine) 14%, transparent)",
+    color: "var(--color-pine)",
+    border: "color-mix(in oklab, var(--color-pine) 30%, transparent)",
+  },
+};
 
 const STATUS_CFG: Record<string, { border: string; bg: string; color: string; label: string }> = {
   planned: {
@@ -39,10 +60,12 @@ export default function PlannedChipClient({
   id,
   status,
   sport,
+  editedByKind = null,
 }: {
   id: string;
   status: PlannedStatus;
   sport: string;
+  editedByKind?: EditedByKind | null;
 }) {
   const router = useRouter();
   const [marking, setMarking] = useState(false);
@@ -54,6 +77,8 @@ export default function PlannedChipClient({
     color: "var(--color-ink-muted)",
     label: status,
   };
+
+  const attribution = editedByKind ? ATTRIBUTION_CFG[editedByKind] : undefined;
 
   async function handleMarkDone(e: React.MouseEvent) {
     e.preventDefault();
@@ -104,10 +129,35 @@ export default function PlannedChipClient({
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              flex: 1,
             }}
           >
             {sport}
           </span>
+          {attribution && (
+            <span
+              data-attribution={editedByKind ?? undefined}
+              title={
+                editedByKind === "ai_review"
+                  ? "Adjusted by an AI review you approved"
+                  : "Edited by your coach"
+              }
+              style={{
+                flexShrink: 0,
+                padding: "0 4px",
+                borderRadius: 4,
+                fontSize: 8,
+                fontWeight: 700,
+                lineHeight: 1.6,
+                letterSpacing: "0.02em",
+                background: attribution.bg,
+                color: attribution.color,
+                border: `1px solid ${attribution.border}`,
+              }}
+            >
+              {attribution.label}
+            </span>
+          )}
         </div>
         <span
           style={{

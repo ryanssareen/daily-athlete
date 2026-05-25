@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import ReviewBanner from "@/adaptive/ReviewBanner";
 import {
   getPlannedInRange,
   getWorkoutsInRange,
@@ -283,6 +284,9 @@ export default async function AthleteCalendarPage({
 
   return (
     <div style={{ width: "100%", maxWidth: 1400, margin: "0 auto" }}>
+      {/* AI adaptive "review ready" banner (Unit 11). */}
+      <ReviewBanner athleteId={userId} />
+
       {/* Header */}
       <div
         style={{
@@ -446,7 +450,13 @@ export default async function AthleteCalendarPage({
                   </p>
                 )}
                 {day.planned.map((p) => (
-                  <PlannedChipClient key={p.id} id={p.id} status={p.status} sport={p.sport} />
+                  <PlannedChipClient
+                    key={p.id}
+                    id={p.id}
+                    status={p.status}
+                    sport={p.sport}
+                    editedByKind={p.edited_by_kind}
+                  />
                 ))}
                 {day.completed.map((w) => (
                   <CompletedChip key={w.id} w={w} />

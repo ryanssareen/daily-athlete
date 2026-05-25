@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import ReviewBanner from "@/adaptive/ReviewBanner";
 import {
   getPlannedInRange,
   getRecentWorkouts,
@@ -231,6 +232,9 @@ export default async function AthleteDashboardPage() {
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      {/* AI adaptive "review ready" banner (Unit 11) — persists until terminal. */}
+      <ReviewBanner athleteId={userId} />
+
       {/* Header */}
       <div
         style={{
