@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EntitlementKeySchema,
   EntitlementRowSchema,
   EntitlementSourceSchema,
 } from "../entitlement";
+
+describe("EntitlementKeySchema", () => {
+  it("accepts the keys named by the AI core plan", () => {
+    expect(EntitlementKeySchema.parse("ai_plans")).toBe("ai_plans");
+    expect(EntitlementKeySchema.parse("trend_reports")).toBe("trend_reports");
+    expect(EntitlementKeySchema.parse("coach_invite")).toBe("coach_invite");
+  });
+
+  it("rejects keys outside the pinned vocabulary", () => {
+    expect(() => EntitlementKeySchema.parse("pro_annual")).toThrow();
+    expect(() => EntitlementKeySchema.parse("")).toThrow();
+    expect(() => EntitlementKeySchema.parse("AI_PLANS")).toThrow();
+  });
+});
 
 describe("EntitlementSourceSchema", () => {
   it("accepts the documented v1 source", () => {

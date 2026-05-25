@@ -106,21 +106,52 @@ export default async function AthleteDetailPage({ params }: Props) {
       </Link>
 
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1
+      <div
+        style={{
+          marginBottom: 32,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              letterSpacing: "-0.02em",
+              color: "var(--color-ink)",
+              margin: 0,
+            }}
+          >
+            Athlete Activities
+          </h1>
+          <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
+            Last 30 completed workouts.
+          </p>
+        </div>
+        {/* Coach proposal-review surface (Unit 11): coached athletes' AI
+            proposals route here for the coach to accept on their behalf. */}
+        <Link
+          href={`/athletes/${athleteId}/review`}
           style={{
-            fontSize: 28,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "7px 16px",
+            borderRadius: 999,
+            fontSize: 13,
             fontWeight: 600,
-            letterSpacing: "-0.02em",
-            color: "var(--color-ink)",
-            margin: 0,
+            textDecoration: "none",
+            background: "color-mix(in oklab, var(--color-clay) 12%, var(--color-paper))",
+            color: "var(--color-clay-deep)",
+            border: "1px solid color-mix(in oklab, var(--color-clay) 30%, transparent)",
           }}
         >
-          Athlete Activities
-        </h1>
-        <p style={{ color: "var(--color-ink-muted)", marginTop: 6, fontSize: 15 }}>
-          Last 30 completed workouts.
-        </p>
+          ✦ Review AI proposal
+        </Link>
       </div>
 
       {workouts.length === 0 ? (

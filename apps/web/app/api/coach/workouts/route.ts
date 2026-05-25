@@ -16,6 +16,27 @@
 // coach-link and role_flags checks acting as the access control layer.
 //
 // Returns 201 with the created row.
+//
+// ---------------------------------------------------------------------------
+// Coach EDIT path (plan Unit 2) — DEFERRED, intentionally.
+//
+// Unit 2 makes edited_by_kind/edited_by_user_id authoritative on ALL
+// planned_workouts writers and turns workout_edits into a COMPLETE edit log.
+// This INSERT path already stamps edited_by_kind='coach' on a NEW assignment.
+//
+// A coach edit/PATCH on an EXISTING planned_workouts row does not exist as its
+// own endpoint, and this Unit does NOT add one. The smaller correct option was
+// chosen because coach edits to existing workouts are ALREADY covered by the
+// shared status endpoint: POST /api/workouts/[id]/status honors isLinkedCoach
+// and (as of Unit 2) stamps edited_by_kind='coach'/edited_by_user_id and
+// appends a workout_edits row with actor_role='coach' on skip/move/complete.
+// So the coach-overwrite guardrail's signal (Unit 4) is already trustworthy for
+// coach edits made through that endpoint.
+//
+// A dedicated coach structure-editing endpoint (changing intervals/load/sport
+// on an existing row) is a larger surface that belongs to a later unit; when it
+// lands it MUST stamp coach attribution and append a workout_edits row, exactly
+// as the status route now does (reuse @/db/workout-edits.appendWorkoutEdit).
 
 import { NextResponse } from "next/server";
 import { z } from "zod";

@@ -23,16 +23,69 @@ import { SportSchema } from "./planned-workout";
 export const CompletedWorkoutSourceSchema = z.enum(["strava", "manual"]);
 export type CompletedWorkoutSource = z.infer<typeof CompletedWorkoutSourceSchema>;
 
-// Permissive summary_stats JSONB. Final shape converges with product plan
-// Unit 2.2 (Strava normalization). v1 expected keys: avg_hr_bpm, max_hr_bpm,
-// avg_power_w, max_power_w, normalized_power_w, tss_equivalent, zones_*
-// distributions, avg_pace_s_per_km. Per R18 / Strava ToS, NO raw 1Hz stream
-// samples appear here -- only summary statistics.
+// summary_stats JSONB. This was previously `z.object({}).passthrough()`.
+// Unit 4 (deterministic training-load) pins the fields the load proxy reads
+// so the CTL/ATL/TSB series is computed against a typed, value-semantic
+// contract rather than `unknown`. The shape stays OPEN (`.passthrough()`) so
+// every existing producer key (polyline, laps, zones, kilojoules, suffer_score,
+// pr_count, hydrated_at, etc.) and any future Unit 2.2 key still validate; we
+// only *narrow the types of the keys the load math depends on*.
+//
+// Two naming generations coexist on purpose:
+//   - Currently persisted (apps/web/src/strava/hydrate-workout.ts +
+//     build-summary-stats.ts): `tss`, `intensity_factor`, `average_heartrate`,
+//     `max_heartrate`, `weighted_average_watts`, `average_watts`,
+//     `average_speed`, `manual`, `device_watts`, `ftp_at_workout`,
+//     `hr_max_at_workout`.
+//   - Forward-declared canonical names from product plan Unit 2.2 (Strava
+//     normalization): `tss_equivalent`, `avg_hr_bpm`, `max_hr_bpm`,
+//     `normalized_power_w`, `avg_power_w`, `max_power_w`, `avg_pace_s_per_km`.
+// The load proxy reads whichever is present, preferring the canonical name.
+// Pinning both lets the load math compile against this contract today and keep
+// working once Unit 2.2 renames keys.
+//
+// Per R18 / Strava ToS, NO raw 1Hz stream samples appear here -- only summary
+// statistics.
 //
 // Size note: ce:review #55 item 7 (and #51 item 4) flag the Realtime ~10MB
 // per-message cap. No Zod .max() refinement yet; tighten when prompt-driven
 // payload bounds are known.
-export const SummaryStatsSchema = z.object({}).passthrough();
+export const SummaryStatsSchema = z
+  .object({
+    // --- Training-load (the load proxy's primary signal) ---
+    // Currently-persisted power-based TSS (rounded integer in hydrate-workout).
+    tss: z.number().optional(),
+    // Forward-declared canonical name (Unit 2.2). TSS-equivalent across sports.
+    tss_equivalent: z.number().optional(),
+    intensity_factor: z.number().optional(),
+
+    // --- Heart rate (drives the duration/HR-aware conservative fallback) ---
+    average_heartrate: z.number().optional(),
+    max_heartrate: z.number().optional(),
+    avg_hr_bpm: z.number().optional(),
+    max_hr_bpm: z.number().optional(),
+    hr_max_at_workout: z.number().optional(),
+
+    // --- Power ---
+    weighted_average_watts: z.number().optional(),
+    average_watts: z.number().optional(),
+    normalized_power_w: z.number().optional(),
+    avg_power_w: z.number().optional(),
+    max_power_w: z.number().optional(),
+    ftp_at_workout: z.number().optional(),
+    // `device_watts === false` means estimated power (preserve explicit false).
+    device_watts: z.boolean().optional(),
+
+    // --- Pace / speed ---
+    average_speed: z.number().optional(),
+    max_speed: z.number().optional(),
+    avg_pace_s_per_km: z.number().optional(),
+
+    // --- Provenance flags the load proxy uses for confidence/eligibility ---
+    manual: z.boolean().optional(),
+    hydrated_at: z.string().optional(),
+  })
+  .passthrough();
 export type SummaryStats = z.infer<typeof SummaryStatsSchema>;
 
 // Strava activity IDs are BIGINT in SQL. Current Strava IDs (~10^10) fit

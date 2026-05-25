@@ -8,6 +8,7 @@
 export * from "./admin-moderation";
 export * from "./athlete-profile";
 export * from "./completed-workout";
+export * from "./edit-op";
 export * from "./entitlement";
 export * from "./plan";
 export * from "./planned-workout";
@@ -17,4 +18,6 @@ export * from "./strava-connect";
 export * from "./strava-raw-payload";
 export * from "./strava-token";
 export * from "./users";
+export * from "./weekly-review";
+export * from "./workout-edit";
 export * from "./workout-match";

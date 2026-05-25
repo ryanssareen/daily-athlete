@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { EditedByKind } from "@da2/shared";
 
 export interface WorkoutRow {
   id: string;
@@ -31,6 +32,10 @@ export interface PlannedRow {
   sport: string;
   status: PlannedStatus;
   structure: Record<string, unknown>;
+  // Who last edited this row (Unit 2 attribution). `ai_review` rows get a
+  // distinct calendar badge vs. coach/athlete edits (Unit 11). NULL = never
+  // edited since assignment.
+  edited_by_kind: EditedByKind | null;
 }
 
 export interface WeekStats {
@@ -134,7 +139,7 @@ export async function getPlannedInRange(
 ): Promise<PlannedRow[]> {
   const { data, error } = await supabase
     .from("planned_workouts")
-    .select("id, scheduled_date, sport, status, structure")
+    .select("id, scheduled_date, sport, status, structure, edited_by_kind")
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
     .gte("scheduled_date", from)
@@ -158,7 +163,7 @@ export async function getPlannedById(
 ): Promise<PlannedRow | null> {
   const { data, error } = await supabase
     .from("planned_workouts")
-    .select("id, scheduled_date, sport, status, structure")
+    .select("id, scheduled_date, sport, status, structure, edited_by_kind")
     .eq("id", id)
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
