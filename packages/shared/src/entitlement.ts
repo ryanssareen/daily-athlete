@@ -14,9 +14,27 @@ import { z } from "zod";
 export const EntitlementSourceSchema = z.enum(["revenuecat"]);
 export type EntitlementSource = z.infer<typeof EntitlementSourceSchema>;
 
-// entitlement_key is open-ended TEXT in SQL. v1 has no documented
-// vocabulary yet; the RevenueCat product mapping defines it. Pin to a
-// closed enum once the set stabilises.
+// Known paid-feature entitlement keys. The column stays open-ended TEXT in
+// SQL (the RevenueCat product mapping can introduce new keys without a
+// migration), so `EntitlementRowSchema.entitlement_key` is left as a bare
+// string. This enum pins the *application-recognised* vocabulary that gates
+// check against (see `requireEntitlement`/`hasActiveEntitlement` in
+// apps/web/src/auth/entitlements.ts), so a typo in a gate is a compile error.
+//
+// Keys named by the AI core plan:
+//   - "ai_plans"      AI plan generation + adaptive re-plan engine (paid).
+//   - "trend_reports" athlete trend / progress reports (paid).
+//   - "coach_invite"  coach-athlete linking / invites (paid).
+export const EntitlementKeySchema = z.enum([
+  "ai_plans",
+  "trend_reports",
+  "coach_invite",
+]);
+export type EntitlementKey = z.infer<typeof EntitlementKeySchema>;
+
+// entitlement_key is open-ended TEXT in SQL. The RevenueCat product mapping
+// defines the wire vocabulary, so the row schema accepts any string; the
+// closed `EntitlementKeySchema` above pins the keys the app gates on.
 export const EntitlementRowSchema = z.object({
   user_id: z.string().uuid(),
   entitlement_key: z.string(),

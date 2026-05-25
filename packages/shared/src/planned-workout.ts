@@ -74,6 +74,11 @@ export const PlannedWorkoutRowSchema = z.object({
   edited_by_kind: EditedByKindSchema.nullable(),
   edited_by_user_id: z.string().uuid().nullable(),
   edited_at: z.string().datetime({ offset: true }).nullable(),
+  // Monotonic row-version token (migration 0021). Bumped by a BEFORE UPDATE
+  // trigger only when a plannable column changes. The AI adaptive engine's
+  // per-op staleness baseline -- NOT edited_at (which is stamped inconsistently
+  // across writers). Starts at 1.
+  version: z.number().int(),
   created_at: z.string().datetime({ offset: true }),
   deleted_at: z.string().datetime({ offset: true }).nullable(),
 });

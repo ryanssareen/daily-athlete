@@ -95,6 +95,7 @@ describe("PlannedWorkoutRowSchema", () => {
     edited_by_kind: null,
     edited_by_user_id: null,
     edited_at: null,
+    version: 1,
     created_at: "2026-05-13T10:30:00+00:00",
     deleted_at: null,
   };
