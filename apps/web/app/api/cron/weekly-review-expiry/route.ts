@@ -1,12 +1,15 @@
 // GET /api/cron/weekly-review-expiry
 //
-// Vercel cron job (hourly). Marks proposed weekly_reviews whose
-// earliest_affected_date has passed as 'expired'. Mirror of the Inngest
-// weekly-review-expiry-sweeper -- whichever cron mechanism is wired runs the
-// same idempotent sweep. See the plan, Unit 7.
+// Marks proposed weekly_reviews whose earliest_affected_date has passed as
+// 'expired'. Idempotent. CRON_SECRET-gated (401 without it).
 //
-// Vercel calls this with the CRON_SECRET in the Authorization header; without
-// it the route returns 401.
+// NOT scheduled in vercel.json: the Vercel Hobby plan caps cron jobs at 2 and
+// daily-only frequency, and those slots are taken (backfill-watchdog,
+// backup-prune). Adding a 3rd / hourly cron makes the whole deployment fail at
+// config validation. The expiry sweep is scheduled on INNGEST instead
+// (weekly-review-expiry-sweeper, hourly -- not counted against Vercel's limit).
+// This route remains as a manual/backup trigger. If the project moves to Vercel
+// Pro, an hourly cron entry can be re-added here.
 
 import { NextResponse } from "next/server";
 
