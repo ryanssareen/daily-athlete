@@ -136,6 +136,16 @@ a {
   border-radius: 4px;
 }
 
+/* ---------- Entrance animation --------------------------------------- */
+@keyframes da-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Opt-in stagger entrance; disabled when the user prefers reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .da-enter { animation: da-fade-in-up 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+}
+
 /* ---------- Activity table rows -------------------------------------- */
 .activity-row:hover { background: var(--color-canvas-soft); }
 
