@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
-import { createClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { getAthleteCoach } from "@/db/roster";
@@ -60,7 +59,6 @@ export default async function AthleteSettingsPage() {
   const session = await getUserWithRoles();
   if (!session) redirect("/sign-in");
 
-  const supabase = await createClient();
   const admin = createAdminClient();
   const userId = session.user.id;
   const email = session.user.email ?? "";
@@ -70,7 +68,7 @@ export default async function AthleteSettingsPage() {
 
   const [stravaConnected, coach] = await Promise.all([
     hasStravaToken(admin, userId),
-    getAthleteCoach(supabase, userId),
+    getAthleteCoach(admin, userId),
   ]);
 
   return (

@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { getAthleteCoach } from "../roster";
 import { createTestUser, serviceClient } from "./setup";
 
 // ---------------------------------------------------------------------------
@@ -192,6 +193,74 @@ describe("coach_athlete_links RLS", () => {
       status: "active",
     });
     expect(error).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getAthleteCoach: full link + coach-profile resolution
+//
+// Regression for the Settings "No coach linked" bug. getAthleteCoach reads the
+// coach's public.users row, which an athlete's RLS client cannot see (users has
+// only a self-SELECT policy). The function therefore runs on the service-role
+// client; these tests pin that contract end to end.
+// ---------------------------------------------------------------------------
+
+describe("getAthleteCoach", () => {
+  it("resolves the linked coach's profile for an athlete with an active link", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+    await admin.from("users").update({ display_name: "Coach Nadia" }).eq("id", coach.id);
+    await createCoachLink(coach.id, athlete.id);
+
+    const result = await getAthleteCoach(admin, athlete.id);
+    expect(result).not.toBeNull();
+    expect(result?.coachId).toBe(coach.id);
+    expect(result?.displayName).toBe("Coach Nadia");
+    expect(result?.email).toBe(coach.email);
+  });
+
+  it("returns null when the athlete has no active link", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+
+    expect(await getAthleteCoach(admin, athlete.id)).toBeNull();
+  });
+
+  it("ignores archived / soft-deleted links", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+    const linkId = await createCoachLink(coach.id, athlete.id);
+    await admin
+      .from("coach_athlete_links")
+      .update({ status: "archived", deleted_at: new Date().toISOString() })
+      .eq("id", linkId);
+
+    expect(await getAthleteCoach(admin, athlete.id)).toBeNull();
+  });
+
+  // Root-cause guard: this is WHY getAthleteCoach must use the service-role
+  // client. An athlete can read their own link row but NOT the coach's
+  // public.users row, so an RLS-client implementation silently loses the coach
+  // and renders "No coach linked" even though the link exists.
+  it("athlete RLS client can read the link but NOT the coach's users row", async () => {
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+    await createCoachLink(coach.id, athlete.id);
+
+    const { data: linkRows } = await athlete.client
+      .from("coach_athlete_links")
+      .select("coach_user_id")
+      .eq("athlete_user_id", athlete.id);
+    expect(linkRows).toHaveLength(1);
+    expect(linkRows?.[0]?.coach_user_id).toBe(coach.id);
+
+    const { data: coachRows } = await athlete.client
+      .from("users")
+      .select("id")
+      .eq("id", coach.id);
+    expect(coachRows).toHaveLength(0); // users self-SELECT only → coach row hidden
   });
 });
 

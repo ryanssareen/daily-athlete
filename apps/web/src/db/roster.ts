@@ -147,13 +147,23 @@ export async function getAthleteWorkouts(
 
 /**
  * Returns the coach linked to an athlete (if any).
- * Uses the RLS-enforced supabase client (athlete can see their own links).
+ *
+ * Uses the service-role admin client. The coach-profile lookup (second query)
+ * reads another user's public.users row, which the RLS-scoped client cannot
+ * do: public.users has only a self-SELECT policy (auth.uid() = id, migration
+ * 0001), so an athlete can never read their coach's row. With the RLS client
+ * the second query returned zero rows and the function reported "no coach"
+ * even when an active link existed. Every query here is explicitly filtered by
+ * athlete_user_id, matching the service-role convention used by getCoachRoster
+ * and the /join/coach paths, so no cross-athlete leakage is possible. Callers
+ * MUST pass the authenticated athlete's own id.
  */
 export async function getAthleteCoach(
-  supabase: SupabaseClient,
+  admin: SupabaseClient,
   athleteId: string
 ): Promise<CoachEntry | null> {
-  const { data: link, error: linkError } = await supabase
+  // service-role: explicit user filter required (filtered by athlete_user_id)
+  const { data: link, error: linkError } = await admin
     .from("coach_athlete_links")
     .select("id, coach_user_id")
     .eq("athlete_user_id", athleteId)
@@ -166,7 +176,8 @@ export async function getAthleteCoach(
   }
   if (!link) return null;
 
-  const { data: coach, error: coachError } = await supabase
+  // service-role: explicit user filter required (filtered by coach_user_id)
+  const { data: coach, error: coachError } = await admin
     .from("users")
     .select("id, email, display_name")
     .eq("id", link.coach_user_id)
