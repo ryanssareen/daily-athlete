@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getAthleteCoach } from "../roster";
+import { archiveAthleteCoachLink, getAthleteCoach } from "../roster";
 import { createTestUser, serviceClient } from "./setup";
 
 // ---------------------------------------------------------------------------
@@ -261,6 +261,83 @@ describe("getAthleteCoach", () => {
       .select("id")
       .eq("id", coach.id);
     expect(coachRows).toHaveLength(0); // users self-SELECT only → coach row hidden
+  });
+});
+
+// ---------------------------------------------------------------------------
+// archiveAthleteCoachLink: athlete-side disconnect
+// ---------------------------------------------------------------------------
+
+describe("archiveAthleteCoachLink", () => {
+  it("archives the athlete's active link and reports the removed ids", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+    const linkId = await createCoachLink(coach.id, athlete.id);
+
+    const result = await archiveAthleteCoachLink(admin, athlete.id);
+    expect(result).toEqual({ linkId, coachId: coach.id });
+
+    // Row is soft-deleted, and getAthleteCoach now reports no coach.
+    const { data: row } = await admin
+      .from("coach_athlete_links")
+      .select("status, deleted_at")
+      .eq("id", linkId)
+      .single();
+    expect(row?.status).toBe("archived");
+    expect(row?.deleted_at).not.toBeNull();
+    expect(await getAthleteCoach(admin, athlete.id)).toBeNull();
+  });
+
+  it("returns null when the athlete has no active coach", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+
+    expect(await archiveAthleteCoachLink(admin, athlete.id)).toBeNull();
+  });
+
+  it("is idempotent — a second disconnect is a no-op", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athlete = await createTestUser();
+    await createCoachLink(coach.id, athlete.id);
+
+    expect(await archiveAthleteCoachLink(admin, athlete.id)).not.toBeNull();
+    expect(await archiveAthleteCoachLink(admin, athlete.id)).toBeNull();
+  });
+
+  it("archives only the calling athlete's link, leaving others untouched", async () => {
+    const admin = serviceClient();
+    const coach = await createTestUser();
+    const athleteA = await createTestUser();
+    const athleteB = await createTestUser();
+    await createCoachLink(coach.id, athleteA.id);
+    await createCoachLink(coach.id, athleteB.id);
+
+    await archiveAthleteCoachLink(admin, athleteA.id);
+
+    expect(await getAthleteCoach(admin, athleteA.id)).toBeNull();
+    // B is still linked to the same coach.
+    expect((await getAthleteCoach(admin, athleteB.id))?.coachId).toBe(coach.id);
+  });
+
+  it("frees the athlete to join a new coach (the partial unique index no longer blocks)", async () => {
+    const admin = serviceClient();
+    const coach1 = await createTestUser();
+    const coach2 = await createTestUser();
+    const athlete = await createTestUser();
+    await createCoachLink(coach1.id, athlete.id);
+
+    await archiveAthleteCoachLink(admin, athlete.id);
+
+    // A fresh active link to a different coach must now succeed.
+    const { error } = await admin.from("coach_athlete_links").insert({
+      coach_user_id: coach2.id,
+      athlete_user_id: athlete.id,
+      status: "active",
+    });
+    expect(error).toBeNull();
+    expect((await getAthleteCoach(admin, athlete.id))?.coachId).toBe(coach2.id);
   });
 });
 

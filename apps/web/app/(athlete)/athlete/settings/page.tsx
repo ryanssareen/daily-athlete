@@ -6,6 +6,7 @@ import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { getAthleteCoach } from "@/db/roster";
 import { StravaToggle } from "@/components/strava-toggle";
+import { CoachDisconnect } from "@/components/coach-disconnect";
 
 // ---------- Sub-components ------------------------------------------------
 
@@ -208,16 +209,7 @@ export default async function AthleteSettingsPage() {
                   </p>
                 </div>
               </div>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--color-ink-subtle)",
-                  marginTop: 10,
-                  marginBottom: 0,
-                }}
-              >
-                To remove this coach link, contact {coach.displayName} directly.
-              </p>
+              <CoachDisconnect coachName={coach.displayName} />
             </div>
           ) : (
             <p style={{ fontSize: 14, color: "var(--color-ink-muted)", margin: 0 }}>

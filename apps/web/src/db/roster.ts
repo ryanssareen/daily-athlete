@@ -195,3 +195,46 @@ export async function getAthleteCoach(
     email: coach.email ?? "",
   };
 }
+
+/**
+ * Archives (soft-deletes) the athlete's current active coach link, letting the
+ * athlete leave their coach. Sets status='archived', deleted_at=now() — the
+ * same soft-delete shape the coach-side archive uses, so the row drops out of
+ * the partial unique index and the athlete can immediately join a new coach.
+ *
+ * Service-role client with an explicit athlete_user_id filter (same rationale
+ * as getAthleteCoach): the filter is the authorization boundary, so callers
+ * MUST pass the authenticated athlete's own id. Idempotent — returns null when
+ * there is no active link, so a double-disconnect is a no-op rather than an
+ * error.
+ */
+export async function archiveAthleteCoachLink(
+  admin: SupabaseClient,
+  athleteId: string
+): Promise<{ linkId: string; coachId: string } | null> {
+  // service-role: explicit user filter required (filtered by athlete_user_id)
+  const { data: link, error: linkError } = await admin
+    .from("coach_athlete_links")
+    .select("id, coach_user_id")
+    .eq("athlete_user_id", athleteId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (linkError) {
+    throw new Error(`archiveAthleteCoachLink link query failed: ${linkError.message}`);
+  }
+  if (!link) return null;
+
+  // service-role: scoped to this athlete's own active link id (resolved above).
+  const { error: updateError } = await admin
+    .from("coach_athlete_links")
+    .update({ status: "archived", deleted_at: new Date().toISOString() })
+    .eq("id", link.id);
+
+  if (updateError) {
+    throw new Error(`archiveAthleteCoachLink update failed: ${updateError.message}`);
+  }
+
+  return { linkId: link.id, coachId: link.coach_user_id };
+}
