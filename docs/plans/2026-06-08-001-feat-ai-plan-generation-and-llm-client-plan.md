@@ -768,7 +768,7 @@ returns a plan breaching `invariants.ts`; infeasible asks refuse rather than emi
 
 ---
 
-- [ ] **Unit 5: Persistence + Inngest generation job + `POST /api/plans` + `create_ai_plan` RPC**
+- [x] **Unit 5: Persistence + Inngest generation job + `POST /api/plans` + `create_ai_plan` RPC**
 
 **Goal:** Expose generation as an entitlement-gated, agent-native endpoint that enqueues an Inngest
 job which generates, validates, and atomically persists the plan (archive-then-create) — returning
@@ -949,7 +949,7 @@ client; `adaptive-run.ts` constructs the real proposer; the existing adaptive te
 
 ### Phase E — Conversion & coherence
 
-- [ ] **Unit 7: One free trial plan (conversion lever, R27)**
+- [x] **Unit 7: One free trial plan (conversion lever, R27)**
 
 **Goal:** Let a never-paid user generate **exactly one** AI plan before the paywall — the conversion
 lever the brainstorm names as the actual monetization driver — without opening generation to unlimited
