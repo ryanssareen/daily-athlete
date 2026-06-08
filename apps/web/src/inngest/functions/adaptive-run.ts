@@ -16,8 +16,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { runEngine } from "@/ai/adaptive/engine";
-import { FixtureProposer } from "@/ai/adaptive/llm";
+import { LlmProposer } from "@/ai/adaptive/llm-proposer";
 import { localPartsInTimezone } from "@/ai/adaptive/schedule";
+import { createLlmClient } from "@/llm";
 import { hasActiveEntitlement } from "@/auth/entitlements";
 import { createAdminClient } from "@/db/admin";
 import { inngest } from "@/inngest/client";
@@ -101,7 +102,7 @@ export const adaptiveRun = inngest.createFunction(
         triggerKind: trigger_kind,
         scope,
         recipient: ctx.recipient,
-        proposer: new FixtureProposer(), // TODO: real LLM client (Unit 3.2)
+        proposer: new LlmProposer(createLlmClient()),
         asOf: ctx.asOf,
       });
       return { outcome: r.outcome, opCount: r.opCount, droppedCount: r.droppedCount };
