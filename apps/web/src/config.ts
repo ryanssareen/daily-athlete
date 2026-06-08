@@ -41,6 +41,11 @@ interface RawEnv {
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
+  LLM_MODEL?: string;
+  LANGFUSE_PUBLIC_KEY?: string;
+  LANGFUSE_SECRET_KEY?: string;
+  LANGFUSE_HOST?: string;
   ADMIN_SECRET?: string;
   ADMIN_SESSION_SIGNING_KEY?: string;
   SUPABASE_MANAGEMENT_TOKEN?: string;
@@ -69,6 +74,23 @@ export interface AppConfig {
   inngest: {
     eventKey: string | undefined;
     signingKey: string | undefined;
+  };
+  llm: {
+    // Anthropic (Claude) API key for AI plan generation + adaptive re-planning.
+    // Optional in config (WARN, not fatal, in prod): a missing key disables the
+    // AI features but must not brick the app. createLlmClient() throws at the
+    // call site when it's absent. The generation/adaptive paths are
+    // entitlement-gated, so a missing key surfaces only there.
+    anthropicApiKey: string | undefined;
+    // Model id, tunable via the eval harness. Defaults to the latest Opus tier.
+    model: string;
+  };
+  langfuse: {
+    // LLM observability (apps/web/src/llm/tracing.ts). All optional and WARN,
+    // never fatal: tracing is best-effort and PII-minimized (metadata only).
+    publicKey: string | undefined;
+    secretKey: string | undefined;
+    host: string | undefined;
   };
   admin: {
     password: string | undefined;
@@ -339,6 +361,55 @@ function validateBrevoProd(v: Validator): void {
   }
 }
 
+function validateInngestSigningKeyProd(v: Validator): void {
+  // Inngest HMAC verification for the serve endpoint. The new AI generation
+  // worker archives an athlete's active plan and spends model tokens, so an
+  // unsigned endpoint is a forged-event surface — the key SHOULD be set in
+  // prod. WARN (not fatal) deliberately: commit cd185b2 removed the hard
+  // Inngest prod requirement to avoid bricking deploys (see PR #87), so this
+  // nudges without reversing that decision. Mirrors the Brevo/webhook posture.
+  const key = v.raw.INNGEST_SIGNING_KEY;
+  if (!key || isPlaceholder(key)) {
+    v.warnings.push(
+      "INNGEST_SIGNING_KEY missing — the Inngest endpoint accepts unsigned events; set it in production so forged plan-generation events are rejected"
+    );
+  }
+}
+
+function validateAnthropicProd(v: Validator): void {
+  // AI plan generation + adaptive re-planning (apps/web/src/llm). Intentionally
+  // WARN, not fatal: a missing key disables the AI features (createLlmClient
+  // throws at the entitlement-gated call site) but must NOT brick boot, the
+  // same posture as BREVO_API_KEY. Shape-check when present.
+  const key = v.raw.ANTHROPIC_API_KEY;
+  if (!key || isPlaceholder(key)) {
+    v.warnings.push(
+      "ANTHROPIC_API_KEY missing — AI plan generation and adaptive re-planning are disabled until set"
+    );
+    return;
+  }
+  if (!key.startsWith("sk-ant-")) {
+    v.warnings.push(
+      'ANTHROPIC_API_KEY does not look like an Anthropic key (expected "sk-ant-" prefix) — calls may fail'
+    );
+  }
+}
+
+function validateLangfuseProd(v: Validator): void {
+  // Best-effort LLM tracing (apps/web/src/llm/tracing.ts). All three vars are
+  // needed to trace; any missing one disables tracing (no-op) without failing
+  // generation. WARN only — observability is never allowed to brick boot.
+  const { LANGFUSE_PUBLIC_KEY: pub, LANGFUSE_SECRET_KEY: sec, LANGFUSE_HOST: host } =
+    v.raw;
+  const some = pub || sec || host;
+  const all = pub && sec && host;
+  if (some && !all) {
+    v.warnings.push(
+      "LANGFUSE_* partially configured — all of LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST are required to trace; tracing disabled"
+    );
+  }
+}
+
 function buildFromRaw(raw: RawEnv): AppConfig {
   const nodeEnv = readNodeEnv(raw);
   const isProd = nodeEnv === "production";
@@ -361,6 +432,9 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateAdminSecretProd(v);
     validateAdminSessionSigningKeyProd(v);
     validateBrevoProd(v);
+    validateInngestSigningKeyProd(v);
+    validateAnthropicProd(v);
+    validateLangfuseProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
@@ -404,6 +478,15 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     inngest: {
       eventKey: raw.INNGEST_EVENT_KEY,
       signingKey: raw.INNGEST_SIGNING_KEY,
+    },
+    llm: {
+      anthropicApiKey: raw.ANTHROPIC_API_KEY,
+      model: raw.LLM_MODEL ?? "claude-opus-4-8",
+    },
+    langfuse: {
+      publicKey: raw.LANGFUSE_PUBLIC_KEY,
+      secretKey: raw.LANGFUSE_SECRET_KEY,
+      host: raw.LANGFUSE_HOST,
     },
     admin: {
       password: raw.ADMIN_SECRET,
