@@ -52,3 +52,14 @@ export class LlmInvalidOutput extends LlmError {
     this.name = "LlmInvalidOutput";
   }
 }
+
+/** True for LLM failures that should back off (rate-limit / transient) rather
+ * than consume a parse/regenerate attempt. Both propose.ts and generate.ts
+ * branch on this to re-throw, so the Inngest worker maps them to RetryAfterError
+ * instead of burning the per-call retry budget on provider hiccups. */
+export function isLlmBackOff(err: unknown): err is LlmError {
+  return (
+    err instanceof LlmError &&
+    (err.code === "rate_limited" || err.code === "transient")
+  );
+}

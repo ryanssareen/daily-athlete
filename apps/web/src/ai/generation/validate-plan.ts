@@ -68,10 +68,6 @@ interface WeekTotal {
   firstDate: string;
 }
 
-function round(n: number): number {
-  return Math.round(n);
-}
-
 /** Group planned workouts into ordered ISO-week TSS totals. */
 function weeklyTotals(plan: GeneratedPlan): WeekTotal[] {
   const byWeek = new Map<string, WeekTotal>();
@@ -113,9 +109,9 @@ export function validateGeneratedPlan(
     if (baseline > 0 && weeks[i].total > baseline * (1 + WEEKLY_VOLUME_RAMP_CAP) + EPS) {
       violations.push({
         code: "volume_ramp",
-        detail: `week of ${weeks[i].firstDate} totals ${round(weeks[i].total)} TSS, more than ${Math.round(
+        detail: `week of ${weeks[i].firstDate} totals ${Math.round(weeks[i].total)} TSS, more than ${Math.round(
           WEEKLY_VOLUME_RAMP_CAP * 100
-        )}% above the recent ${round(baseline)} TSS baseline`,
+        )}% above the recent ${Math.round(baseline)} TSS baseline`,
       });
       break;
     }
@@ -127,9 +123,12 @@ export function validateGeneratedPlan(
     duration_s: w.structure.duration_s,
     summary_stats: { tss: w.planned_load },
   }));
-  const lastDay = weeks[weeks.length - 1]
-    ? plan.workouts.reduce((max, w) => (w.scheduled_date > max ? w.scheduled_date : max), plan.workouts[0].scheduled_date)
-    : undefined;
+  // workouts is non-empty here (the length===0 early return guarantees it), so
+  // the last calendar day always exists — no undefined branch.
+  const lastDay = plan.workouts.reduce(
+    (max, w) => (w.scheduled_date > max ? w.scheduled_date : max),
+    plan.workouts[0].scheduled_date
+  );
   const projected = buildLoadSeries(inputs, {
     asOf: lastDay,
     seedCtl: ctx.seedCtl,
@@ -149,7 +148,7 @@ export function validateGeneratedPlan(
   if (maxRamp > CTL_RAMP_CAP_PER_WEEK + EPS) {
     violations.push({
       code: "ctl_ramp",
-      detail: `projected CTL climbs ${round(maxRamp)}/week by ${rampDate}, above the ${CTL_RAMP_CAP_PER_WEEK}/week cap`,
+      detail: `projected CTL climbs ${Math.round(maxRamp)}/week by ${rampDate}, above the ${CTL_RAMP_CAP_PER_WEEK}/week cap`,
     });
   }
 
@@ -165,7 +164,7 @@ export function validateGeneratedPlan(
   if (projected.series.length > 0 && minTsb < TSB_FLOOR - EPS) {
     violations.push({
       code: "tsb_floor",
-      detail: `projected TSB dips to ${round(minTsb)} on ${tsbDate}, below the ${TSB_FLOOR} floor`,
+      detail: `projected TSB dips to ${Math.round(minTsb)} on ${tsbDate}, below the ${TSB_FLOOR} floor`,
     });
   }
 
@@ -182,7 +181,7 @@ export function validateGeneratedPlan(
       if (maxTaper >= peak - EPS) {
         violations.push({
           code: "taper_window",
-          detail: `taper-window weekly load (${round(maxTaper)} TSS) is not reduced below the ${round(peak)} TSS peak before the event`,
+          detail: `taper-window weekly load (${Math.round(maxTaper)} TSS) is not reduced below the ${Math.round(peak)} TSS peak before the event`,
         });
       }
     }

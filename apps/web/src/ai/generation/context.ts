@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  addDays,
   buildLoadSeries,
   dayDiff,
   type LoadWorkoutInput,
@@ -26,6 +27,13 @@ export const SPARSE_PROFILE_WORKOUT_THRESHOLD = 8;
 // Window for the "recent weekly TSS" baseline the first plan week is checked
 // against.
 const RECENT_WINDOW_DAYS = 28;
+// How far back to read history for the seed CTL/ATL. CTL/ATL are EWMAs with
+// ~42d / ~7d time constants, so efforts older than ~9x the CTL tau contribute
+// <0.1% to the seed at asOf. Bounding the fetch keeps it from scaling with
+// athlete tenure (a multi-year athlete otherwise drags their whole history
+// through buildLoadSeries on every generation) without moving the seed. See the
+// derivePlanLoadContext losslessness test.
+const HISTORY_WINDOW_DAYS = 400;
 
 /** Pure: derive the load context the validator/prompt consume from completed
  * workouts as of a given day. */
@@ -59,7 +67,10 @@ export async function gatherGenerationContext(
     .from("completed_workouts")
     .select("started_at, duration_s, summary_stats")
     .eq("athlete_id", athleteId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Bounded history window (see HISTORY_WINDOW_DAYS) — lossless for the EWMA
+    // seed, but caps the read so it doesn't scale with athlete tenure.
+    .gte("started_at", addDays(asOf, -HISTORY_WINDOW_DAYS));
   if (error) throw error;
 
   const completed: LoadWorkoutInput[] = (data ?? []).map((row) => ({

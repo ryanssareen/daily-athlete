@@ -21,7 +21,13 @@ import { config } from "@/config";
 
 import { AnthropicClient } from "./anthropic";
 
-export { LlmError, LlmRateLimited, LlmTransient, LlmInvalidOutput } from "./errors";
+export {
+  LlmError,
+  LlmRateLimited,
+  LlmTransient,
+  LlmInvalidOutput,
+  isLlmBackOff,
+} from "./errors";
 export type { LlmErrorCode } from "./errors";
 
 /** Token + latency accounting returned alongside every call (provider-neutral). */

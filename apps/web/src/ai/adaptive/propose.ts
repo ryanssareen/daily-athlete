@@ -18,7 +18,7 @@ import "server-only";
 
 import { EditOpSchema, type EditOp, type TriggerKind } from "@da2/shared";
 
-import { LlmError } from "@/llm";
+import { isLlmBackOff } from "@/llm";
 
 import type { AdaptiveProposer, ProposeInput } from "./llm";
 import type { PlanContext } from "./context";
@@ -67,10 +67,7 @@ export async function propose(args: ProposeArgs): Promise<EditOp[]> {
       // backs off, instead of burning the whole budget (3x model spend) during a
       // provider rate-limit storm. Invalid-output / other throws still consume an
       // attempt and feed a note back.
-      if (
-        err instanceof LlmError &&
-        (err.code === "rate_limited" || err.code === "transient")
-      ) {
+      if (isLlmBackOff(err)) {
         throw err;
       }
       lastErrorDetail = err instanceof Error ? err.message : String(err);

@@ -107,6 +107,28 @@ describe("validateGeneratedPlan — catches unsafe load", () => {
   });
 });
 
+describe("validateGeneratedPlan — cold start (no recent baseline)", () => {
+  // A true cold start: seed 0/0 and recentWeeklyTss undefined (a brand-new
+  // athlete with no history). Week 1 has no ramp baseline, but the intra-plan
+  // week-over-week guard must STILL fire — this is the empty-baseline P0 the
+  // validator was written to catch, and the path the rest of the suite (which
+  // always sets recentWeeklyTss) never exercises.
+  const COLD_CTX = { seedCtl: 0, seedAtl: 0 };
+
+  it("does not false-flag a gentle from-scratch ramp on volume", () => {
+    // <=8% week-over-week, under the 10% WEEKLY_VOLUME_RAMP_CAP.
+    expect(codes(planFromWeeklyTss([100, 108, 116, 124]), COLD_CTX)).not.toContain(
+      "volume_ramp"
+    );
+  });
+
+  it("still catches an intra-plan spike with no recent baseline", () => {
+    expect(codes(planFromWeeklyTss([100, 108, 300]), COLD_CTX)).toContain(
+      "volume_ramp"
+    );
+  });
+});
+
 describe("validateGeneratedPlan — taper window", () => {
   // Gentle ramp whose hardest weeks sit INSIDE the taper window = no real taper.
   const NO_TAPER = [300, 325, 350, 375, 400, 425, 450, 475, 500, 520, 520, 520];

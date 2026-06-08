@@ -139,7 +139,22 @@ export const GeneratedWorkoutSchema = z
     // read planned_load without unpacking structure.
     planned_load: z.number().nonnegative(),
   })
-  .strict();
+  .strict()
+  // planned_load and structure.load are the SAME quantity stored twice (one for
+  // the calendar/load layer, one inside structure). The safety validator forward-
+  // simulates from planned_load while the adaptive engine re-seeds from
+  // structure.load, so a model that diverges them could slip an unsafe load past
+  // the gate that the engine later acts on. Reject the divergence at the trust
+  // boundary; the generator's parse-retry loop feeds the mismatch back to the model.
+  .superRefine((wk, ctx) => {
+    if (Math.abs(wk.planned_load - wk.structure.load) > 1e-6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["planned_load"],
+        message: `planned_load (${wk.planned_load}) must equal structure.load (${wk.structure.load})`,
+      });
+    }
+  });
 export type GeneratedWorkout = z.infer<typeof GeneratedWorkoutSchema>;
 
 export const GeneratedPlanSchema = z

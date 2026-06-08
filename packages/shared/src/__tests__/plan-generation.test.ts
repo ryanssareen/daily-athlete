@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   GeneratePlanInputSchema,
   GeneratedPlanSchema,
+  GeneratedWorkoutSchema,
   GeneratedWorkoutStructureSchema,
   isFutureEventDate,
 } from "../plan-generation";
@@ -113,6 +114,25 @@ describe("GeneratedWorkoutStructureSchema", () => {
         phase: "base",
       }).success
     ).toBe(false);
+  });
+});
+
+describe("GeneratedWorkoutSchema — planned_load / structure.load invariant", () => {
+  it("accepts a workout whose planned_load equals structure.load", () => {
+    expect(GeneratedWorkoutSchema.safeParse(validWorkout()).success).toBe(true);
+  });
+
+  it("rejects a workout where planned_load diverges from structure.load", () => {
+    // The safety validator forward-simulates from planned_load while the adaptive
+    // engine re-seeds from structure.load; a divergence could slip an unsafe load
+    // past the gate, so the schema must reject it at the trust boundary.
+    const w = validWorkout();
+    const diverged = {
+      ...w,
+      planned_load: 5,
+      structure: { ...w.structure, load: 600 },
+    };
+    expect(GeneratedWorkoutSchema.safeParse(diverged).success).toBe(false);
   });
 });
 

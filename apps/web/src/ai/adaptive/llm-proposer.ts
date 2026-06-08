@@ -15,7 +15,6 @@ import { EditOpSchema } from "@da2/shared";
 
 import type { LlmClient } from "@/llm";
 
-import type { PlanContext } from "./context";
 import type { AdaptiveProposer, ProposeInput } from "./llm";
 import { buildReplanPrompt } from "./prompts/replan";
 
@@ -27,7 +26,7 @@ export class LlmProposer implements AdaptiveProposer {
 
   async propose(input: ProposeInput): Promise<unknown[]> {
     const { system, prompt } = buildReplanPrompt(
-      input.context as PlanContext,
+      input.context,
       input.triggerKind,
       input.priorError
     );

@@ -12,7 +12,7 @@ import {
   type GeneratedPlan,
 } from "@da2/shared";
 
-import { LlmRateLimited, LlmTransient, type LlmClient } from "@/llm";
+import { isLlmBackOff, type LlmClient } from "@/llm";
 
 import { checkPlanContent } from "./content-gate";
 import type { GenerationContext } from "./context";
@@ -76,7 +76,7 @@ export async function generate(
         raw = result.json;
       } catch (err) {
         // Back-off cases propagate; the worker turns them into RetryAfterError.
-        if (err instanceof LlmRateLimited || err instanceof LlmTransient) throw err;
+        if (isLlmBackOff(err)) throw err;
         priorError = err instanceof Error ? err.message : "invalid model output";
         continue;
       }

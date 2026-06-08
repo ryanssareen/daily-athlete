@@ -68,7 +68,7 @@ export class AnthropicClient implements LlmClient {
         body: JSON.stringify({
           model: this.model,
           max_tokens: this.maxTokens,
-          system: appendSchemaHint(params.system, params.schema),
+          system: appendSchemaHint(params.system, params.schema !== undefined),
           messages: [{ role: "user", content: params.prompt }],
         }),
         signal,
@@ -166,10 +166,12 @@ function combineSignals(caller: AbortSignal | undefined, timeoutMs: number): Abo
   return AbortSignal.any([caller, timeout]);
 }
 
-/** Append a compact JSON-only instruction so the model returns parseable JSON.
- * The Zod schema is a soft hint; the caller still safeParses. */
-function appendSchemaHint(system: string, schema: unknown): string {
-  if (!schema) return system;
+/** Append a compact JSON-only instruction when the caller asked for structured
+ * output. Only the PRESENCE of a schema matters here — the schema's shape is a
+ * caller-side concern (the caller safeParses); this just nudges the model to
+ * emit bare JSON. */
+function appendSchemaHint(system: string, hasSchema: boolean): string {
+  if (!hasSchema) return system;
   return `${system}\n\nRespond with ONLY a single valid JSON value and no prose, code fences, or commentary.`;
 }
 
