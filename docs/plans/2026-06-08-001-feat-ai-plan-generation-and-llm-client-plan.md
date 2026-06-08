@@ -485,7 +485,7 @@ prod generation), **C** generation, **D** adaptive wiring, **E** conversion (tri
 
 ### Phase A — Foundation
 
-- [ ] **Unit 1: Shared LLM client (`apps/web/src/llm/`) + config + Langfuse tracing**
+- [x] **Unit 1: Shared LLM client (`apps/web/src/llm/`) + config + Langfuse tracing**
 
 **Goal:** A provider-agnostic `LlmClient` with a single Claude (Anthropic) adapter, Langfuse
 tracing, typed errors, timeouts, and config validation — the dependency both generation and the
@@ -556,7 +556,7 @@ extrapolation blows the ceiling, the 3-call shape is redesigned **before** Units
 
 ---
 
-- [ ] **Unit 2: Generation contracts + tighten `PlannedWorkoutStructureSchema`**
+- [x] **Unit 2: Generation contracts + tighten `PlannedWorkoutStructureSchema`**
 
 **Goal:** The shared Zod contracts both the generator and the eval harness consume — the generation
 *request* schema, the multi-step *output* schemas (skeleton/week/workout), the **tightened**
@@ -619,7 +619,7 @@ existing `planned-workout` / `edit-op` test regresses.
 
 ### Phase B — Quality gate (ships before prod generation)
 
-- [ ] **Unit 3: Promptfoo + Langfuse eval harness (R8)**
+- [x] **Unit 3: Promptfoo + Langfuse eval harness (R8)**
 
 **Goal:** A CI eval harness that scores generated plans with deterministic assertions + an
 LLM-as-judge against coach-graded reference plans, gating deploy at ≥80% pass. (Product-plan Unit 3.1.)
@@ -684,7 +684,7 @@ with `invariants.ts`; the gate blocks a deliberately-unsafe fixture.
 > spike must have confirmed the 3-call chain fits. This is a billing/infra decision outside engineering's
 > unilateral control — assign an owner before starting Unit 4.
 
-- [ ] **Unit 4: Generation pipeline core + whole-plan validator**
+- [x] **Unit 4: Generation pipeline core + whole-plan validator**
 
 **Goal:** The multi-step structured generator (skeleton → week → workout) over the shared client,
 with Zod-validate-and-retry, A6 mode, A4/A5 guardrails, feasibility refusal, and a net-new
@@ -890,7 +890,7 @@ no PII in Inngest history or logs.
 
 ### Phase D — Adaptive wiring
 
-- [ ] **Unit 6: Real adaptive proposer — replace `FixtureProposer`**
+- [x] **Unit 6: Real adaptive proposer — replace `FixtureProposer`**
 
 **Goal:** Light up the shipped Category-B engine by implementing `AdaptiveProposer` over the shared
 client and swapping it in at the single wiring point — making the adaptive engine actually call the
@@ -996,7 +996,7 @@ unaffected; the trial cannot be farmed by replay or concurrency.
 
 ---
 
-- [ ] **Unit 8: Non-blocking block-coherence drift flag**
+- [x] **Unit 8: Non-blocking block-coherence drift flag**
 
 **Goal:** Make block decoherence *observable* (not silent) after workout-level adaptation — a lightweight
 flag, never a block on adaptation — so the drift the `block=generation/workout=adaptation` decision
