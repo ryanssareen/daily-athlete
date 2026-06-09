@@ -135,7 +135,7 @@ export default async function AthleteDetailPage({ params }: Props) {
         {/* Coach proposal-review surface (Unit 11): coached athletes' AI
             proposals route here for the coach to accept on their behalf. */}
         <Link
-          href={`/athletes/${athleteId}/review`}
+          href={`/athletes/${athleteId}/plan`}
           style={{
             display: "inline-flex",
             alignItems: "center",

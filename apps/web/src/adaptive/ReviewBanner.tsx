@@ -67,7 +67,7 @@ export default function ReviewBanner({
 
   return (
     <Link
-      href={`/athlete/review?id=${banner.reviewId}`}
+      href={`/plan?id=${banner.reviewId}`}
       style={{
         display: "flex",
         alignItems: "center",

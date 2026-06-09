@@ -186,7 +186,6 @@ export default function ProposalReview({
   const [outcomes, setOutcomes] = useState<AppliedOutcome[] | null>(null);
   const [lapsed, setLapsed] = useState(false);
   const [supersededNotice, setSupersededNotice] = useState(false);
-  const [isWide, setIsWide] = useState(true);
 
   const refetch = useCallback(async () => {
     try {
@@ -252,15 +251,6 @@ export default function ProposalReview({
     };
   }, [athleteId, disableRealtime, refetch]);
 
-  // Responsive breakpoint (≥768px = two-column).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(min-width: 768px)");
-    const apply = () => setIsWide(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
 
   const rows = useMemo(
     () => (review ? toOpRows(review, timezone) : []),
@@ -591,33 +581,54 @@ export default function ProposalReview({
     </>
   );
 
-  // ----- Layout (responsive) -------------------------------------------------
+  // ----- Layout (responsive via CSS) -----------------------------------------
 
-  if (isWide && rows.length > 0) {
+  if (rows.length === 0) {
     return (
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ maxWidth: 680, margin: "0 auto" }}>
         {header}
         {notices}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
-          <div>
-            {opList}
-            {actionBar}
-            {lapsedBar}
-          </div>
-          <DetailRail review={review} invariants={invariants} timezone={timezone} />
-        </div>
+        {opList}
+        {actionBar}
+        {lapsedBar}
       </div>
     );
   }
 
-  // Stacked (mobile-width or no rows).
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto" }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <style>{`
+        .proposal-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .proposal-detail-rail {
+          display: none;
+        }
+        @media (min-width: 768px) {
+          .proposal-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            align-items: start;
+          }
+          .proposal-detail-rail {
+            display: block;
+          }
+        }
+      `}</style>
       {header}
       {notices}
-      {opList}
-      {actionBar}
-      {lapsedBar}
+      <div className="proposal-layout">
+        <div>
+          {opList}
+          {actionBar}
+          {lapsedBar}
+        </div>
+        <div className="proposal-detail-rail">
+          <DetailRail review={review} invariants={invariants} timezone={timezone} />
+        </div>
+      </div>
     </div>
   );
 }
