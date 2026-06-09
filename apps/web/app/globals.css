@@ -149,6 +149,51 @@ a {
 /* ---------- Activity table rows -------------------------------------- */
 .activity-row:hover { background: var(--color-canvas-soft); }
 
+/* ---------- Landing page responsive ---------------------------------- */
+.landing-navlink:hover {
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+}
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr !important; }
+  .hero-art-col { max-width: 460px; }
+  .stat-strip-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 24px 0 !important; }
+  .feature-row { grid-template-columns: 1fr !important; gap: 28px !important; }
+  .feature-row > div { order: 0 !important; }
+  .feature-cards-grid { grid-template-columns: 1fr !important; }
+  .coach-band-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+  .landing-site-links { display: none !important; }
+}
+
+/* ---------- Coach dashboard table ------------------------------------ */
+.roster-table-wrap { overflow-x: auto; }
+.roster-table-head,
+.roster-table-row {
+  display: grid;
+  grid-template-columns: 1.5fr 96px 1fr 1fr;
+  gap: 0;
+  align-items: center;
+  padding: 0 20px;
+}
+.roster-table-head {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+.roster-table-row {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-top: 1px solid var(--color-border);
+  transition: background 120ms;
+}
+.roster-table-row:first-child { border-top: none; }
+.roster-table-row:hover { background: var(--color-canvas-soft); }
+@media (max-width: 820px) {
+  .roster-table-head,
+  .roster-table-row { grid-template-columns: 1.4fr 96px 1fr; }
+  .roster-table-col-last { display: none !important; }
+}
+
 /* ---------- Workout detail 2-col layout ------------------------------ */
 .workout-detail-grid {
   display: grid;
