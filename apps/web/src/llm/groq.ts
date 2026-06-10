@@ -1,9 +1,9 @@
-// Anthropic (Claude) adapter for the shared LlmClient.
+// Groq adapter for the shared LlmClient.
 //
-// Plain `fetch` against the Messages API — mirroring the repo's fail-soft
-// fetch-wrapper idiom (apps/web/src/email/brevo.ts) rather than pulling in the
-// SDK. This keeps the whole client MSW-testable and dependency-light. The SDK
-// can replace the transport later behind the same LlmClient interface.
+// Plain `fetch` against Groq's OpenAI-compatible Chat Completions API —
+// the same dependency-light idiom as anthropic.ts (no SDK, MSW-testable).
+// Groq hosts open-weight models (Llama, etc.) behind very low latency,
+// which suits the synchronous-feeling generation flow.
 //
 // Returns RAW parsed JSON (never validates a domain schema). Maps provider
 // failures to typed Llm* errors and never logs the API key or raw provider
@@ -23,38 +23,33 @@ import type {
 import { emitTrace } from "./tracing";
 import { appendSchemaHint, combineSignals, extractJson } from "./transport";
 
-// Re-exported for existing consumers/tests; the implementation moved to
-// transport.ts when the Groq adapter joined (provider-neutral helper).
-export { extractJson } from "./transport";
-
-const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
-const ANTHROPIC_VERSION = "2023-06-01";
+const GROQ_BASE_URL = "https://api.groq.com";
 const REQUEST_TIMEOUT_MS = 120_000; // bounded; the Inngest step deadline absorbs the rest
 const DEFAULT_MAX_TOKENS = 8192;
 
-interface AnthropicClientOptions {
+interface GroqClientOptions {
   apiKey: string;
   model: string;
   maxTokens?: number;
   baseUrl?: string;
 }
 
-interface AnthropicMessageResponse {
-  content?: Array<{ type: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+interface GroqChatCompletionResponse {
+  choices?: Array<{ message?: { content?: string | null } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-export class AnthropicClient implements LlmClient {
+export class GroqClient implements LlmClient {
   private readonly apiKey: string;
   private readonly model: string;
   private readonly maxTokens: number;
   private readonly baseUrl: string;
 
-  constructor(opts: AnthropicClientOptions) {
+  constructor(opts: GroqClientOptions) {
     this.apiKey = opts.apiKey;
     this.model = opts.model;
     this.maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
-    this.baseUrl = opts.baseUrl ?? ANTHROPIC_BASE_URL;
+    this.baseUrl = opts.baseUrl ?? GROQ_BASE_URL;
   }
 
   async generateStructured(params: GenerateStructuredParams): Promise<LlmResult> {
@@ -63,24 +58,28 @@ export class AnthropicClient implements LlmClient {
 
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/v1/messages`, {
+      response = await fetch(`${this.baseUrl}/openai/v1/chat/completions`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-api-key": this.apiKey,
-          "anthropic-version": ANTHROPIC_VERSION,
+          authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: this.maxTokens,
-          system: appendSchemaHint(params.system, params.schema !== undefined),
-          messages: [{ role: "user", content: params.prompt }],
+          max_completion_tokens: this.maxTokens,
+          messages: [
+            {
+              role: "system",
+              content: appendSchemaHint(params.system, params.schema !== undefined),
+            },
+            { role: "user", content: params.prompt },
+          ],
         }),
         signal,
       });
     } catch (err) {
       // Network failure or abort/timeout — retryable. Never echo the raw cause
-      // (it can carry request headers including x-api-key).
+      // (it can carry request headers including the bearer token).
       const aborted = err instanceof Error && err.name === "AbortError";
       this.trace(params.traceName, startedAt, "ERROR");
       throw new LlmTransient(
@@ -93,18 +92,15 @@ export class AnthropicClient implements LlmClient {
       throw this.mapHttpError(response);
     }
 
-    let parsed: AnthropicMessageResponse;
+    let parsed: GroqChatCompletionResponse;
     try {
-      parsed = (await response.json()) as AnthropicMessageResponse;
+      parsed = (await response.json()) as GroqChatCompletionResponse;
     } catch {
       this.trace(params.traceName, startedAt, "ERROR", response.status);
       throw new LlmInvalidOutput("LLM response body was not JSON");
     }
 
-    const text = (parsed.content ?? [])
-      .filter((b) => b.type === "text" && typeof b.text === "string")
-      .map((b) => b.text as string)
-      .join("");
+    const text = parsed.choices?.[0]?.message?.content ?? "";
 
     const json = extractJson(text);
     if (json === undefined) {
@@ -113,8 +109,8 @@ export class AnthropicClient implements LlmClient {
     }
 
     const usage: LlmUsage = {
-      inputTokens: parsed.usage?.input_tokens ?? 0,
-      outputTokens: parsed.usage?.output_tokens ?? 0,
+      inputTokens: parsed.usage?.prompt_tokens ?? 0,
+      outputTokens: parsed.usage?.completion_tokens ?? 0,
       latencyMs: Date.now() - startedAt,
     };
     emitTrace({
@@ -136,9 +132,9 @@ export class AnthropicClient implements LlmClient {
         Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined
       );
     }
-    if (response.status === 529) {
-      // Anthropic "overloaded" — back off like a rate limit.
-      return new LlmRateLimited("LLM provider overloaded");
+    if (response.status === 498) {
+      // Groq flex-tier "capacity exceeded" — back off like a rate limit.
+      return new LlmRateLimited("LLM provider over capacity");
     }
     // 5xx and any other non-2xx are treated as transient/retryable. The body
     // is NOT read into the message (it can echo request context).
@@ -163,4 +159,3 @@ export class AnthropicClient implements LlmClient {
     });
   }
 }
-

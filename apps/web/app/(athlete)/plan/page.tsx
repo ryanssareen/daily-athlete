@@ -8,8 +8,9 @@
 // ?id=<reviewId> (the banner links here with the pending proposal's id).
 //
 // No-plan gate: reviews only exist for athletes with a training plan, so when
-// the athlete has no active plan we render an honest "no plan yet" empty state
-// instead of ProposalReview's "we'll let you know when your plan is reviewed"
+// the athlete has no active plan we render the "no plan yet" state with the
+// AI generation entry point (<GeneratePlanCard> → POST /api/plans) instead of
+// ProposalReview's "we'll let you know when your plan is reviewed"
 // (misleading when there is nothing to review). On a query ERROR we fall
 // through to ProposalReview rather than telling a planned athlete they have no
 // plan.
@@ -20,6 +21,7 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import ProposalReview from "@/adaptive/ProposalReview";
+import GeneratePlanCard from "@/plan/GeneratePlanCard";
 
 export default async function AthleteReviewPage({
   searchParams,
@@ -67,9 +69,11 @@ export default async function AthleteReviewPage({
               lineHeight: 1.5,
             }}
           >
-            This is where you&apos;ll review AI adjustments to your training
-            plan. Once you have a plan, weekly reviews of it will show up here.
+            Tell the AI coach how much time you have and what you&apos;re
+            training for, and it will build you a week-by-week plan. Weekly
+            reviews of that plan will land here.
           </p>
+          <GeneratePlanCard athleteId={session.user.id} />
           <div
             style={{
               display: "flex",
@@ -82,15 +86,15 @@ export default async function AthleteReviewPage({
             <Link
               href="/athlete/workouts/new"
               style={{
-                background: "var(--color-ink)",
-                color: "var(--color-paper)",
+                border: "1px solid var(--color-border)",
+                color: "var(--color-ink)",
                 padding: "10px 18px",
                 borderRadius: 999,
                 fontSize: 13,
                 fontWeight: 600,
               }}
             >
-              Add a workout
+              Add a workout instead
             </Link>
             <Link
               href="/athlete/calendar"

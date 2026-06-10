@@ -20,6 +20,7 @@ import type { ZodTypeAny } from "zod";
 import { config } from "@/config";
 
 import { AnthropicClient } from "./anthropic";
+import { GroqClient } from "./groq";
 
 export {
   LlmError,
@@ -62,18 +63,40 @@ export interface LlmClient {
   generateStructured(params: GenerateStructuredParams): Promise<LlmResult>;
 }
 
+// Per-provider model defaults, overridable via LLM_MODEL (tuned through the
+// eval harness). These live here — not in config — so config stays a plain
+// env mirror and provider selection owns its own fallbacks.
+const DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8";
+const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+
 /**
  * Construct the configured LLM client. Mirrors createAdminClient(): reads
- * `config`, throws a clear error if the key is missing — so a missing key fails
+ * `config`, throws a clear error if no key is set — so a missing key fails
  * the generation CALL (which is entitlement-gated and rare), not app boot.
+ *
+ * Provider selection: LLM_PROVIDER pins explicitly; otherwise the provider
+ * whose key is present is used, Anthropic winning when both are set.
  */
 export function createLlmClient(): LlmClient {
-  const apiKey = config.llm.anthropicApiKey;
-  if (!apiKey) {
-    throw new Error(
-      "ANTHROPIC_API_KEY not configured. AI plan generation and adaptive " +
-        "re-planning require it. Set it in the environment to enable these features."
-    );
+  const { anthropicApiKey, groqApiKey, provider, model } = config.llm;
+  const resolved =
+    provider ?? (anthropicApiKey ? "anthropic" : groqApiKey ? "groq" : undefined);
+
+  if (resolved === "anthropic" && anthropicApiKey) {
+    return new AnthropicClient({
+      apiKey: anthropicApiKey,
+      model: model ?? DEFAULT_ANTHROPIC_MODEL,
+    });
   }
-  return new AnthropicClient({ apiKey, model: config.llm.model });
+  if (resolved === "groq" && groqApiKey) {
+    return new GroqClient({
+      apiKey: groqApiKey,
+      model: model ?? DEFAULT_GROQ_MODEL,
+    });
+  }
+  throw new Error(
+    "No LLM provider configured. AI plan generation and adaptive re-planning " +
+      "require ANTHROPIC_API_KEY or GROQ_API_KEY (LLM_PROVIDER pins the choice " +
+      "when both are set). Set one in the environment to enable these features."
+  );
 }

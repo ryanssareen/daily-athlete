@@ -42,6 +42,8 @@ interface RawEnv {
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  GROQ_API_KEY?: string;
+  LLM_PROVIDER?: string;
   LLM_MODEL?: string;
   LANGFUSE_PUBLIC_KEY?: string;
   LANGFUSE_SECRET_KEY?: string;
@@ -76,14 +78,19 @@ export interface AppConfig {
     signingKey: string | undefined;
   };
   llm: {
-    // Anthropic (Claude) API key for AI plan generation + adaptive re-planning.
-    // Optional in config (WARN, not fatal, in prod): a missing key disables the
+    // Provider API keys for AI plan generation + adaptive re-planning. Both
+    // optional in config (WARN, not fatal, in prod): missing keys disable the
     // AI features but must not brick the app. createLlmClient() throws at the
-    // call site when it's absent. The generation/adaptive paths are
+    // call site when none is set. The generation/adaptive paths are
     // entitlement-gated, so a missing key surfaces only there.
     anthropicApiKey: string | undefined;
-    // Model id, tunable via the eval harness. Defaults to the latest Opus tier.
-    model: string;
+    groqApiKey: string | undefined;
+    // Explicit provider pin ("anthropic" | "groq"). Undefined = auto: the
+    // provider whose key is set, Anthropic winning when both are.
+    provider: "anthropic" | "groq" | undefined;
+    // Model id override, tunable via the eval harness. Undefined = each
+    // adapter's default (createLlmClient owns the per-provider defaults).
+    model: string | undefined;
   };
   langfuse: {
     // LLM observability (apps/web/src/llm/tracing.ts). All optional and WARN,
@@ -376,21 +383,45 @@ function validateInngestSigningKeyProd(v: Validator): void {
   }
 }
 
-function validateAnthropicProd(v: Validator): void {
+function validateLlmProd(v: Validator): void {
   // AI plan generation + adaptive re-planning (apps/web/src/llm). Intentionally
-  // WARN, not fatal: a missing key disables the AI features (createLlmClient
+  // WARN, not fatal: missing keys disable the AI features (createLlmClient
   // throws at the entitlement-gated call site) but must NOT brick boot, the
-  // same posture as BREVO_API_KEY. Shape-check when present.
-  const key = v.raw.ANTHROPIC_API_KEY;
-  if (!key || isPlaceholder(key)) {
+  // same posture as BREVO_API_KEY. Shape-check keys when present.
+  const anthropic = v.raw.ANTHROPIC_API_KEY;
+  const groq = v.raw.GROQ_API_KEY;
+  const hasAnthropic = Boolean(anthropic && !isPlaceholder(anthropic));
+  const hasGroq = Boolean(groq && !isPlaceholder(groq));
+
+  if (!hasAnthropic && !hasGroq) {
     v.warnings.push(
-      "ANTHROPIC_API_KEY missing — AI plan generation and adaptive re-planning are disabled until set"
+      "No LLM API key (ANTHROPIC_API_KEY or GROQ_API_KEY) — AI plan generation and adaptive re-planning are disabled until one is set"
     );
     return;
   }
-  if (!key.startsWith("sk-ant-")) {
+  if (hasAnthropic && !anthropic!.startsWith("sk-ant-")) {
     v.warnings.push(
       'ANTHROPIC_API_KEY does not look like an Anthropic key (expected "sk-ant-" prefix) — calls may fail'
+    );
+  }
+  if (hasGroq && !groq!.startsWith("gsk_")) {
+    v.warnings.push(
+      'GROQ_API_KEY does not look like a Groq key (expected "gsk_" prefix) — calls may fail'
+    );
+  }
+
+  const provider = v.raw.LLM_PROVIDER;
+  if (provider && provider !== "anthropic" && provider !== "groq") {
+    v.warnings.push(
+      `LLM_PROVIDER "${provider}" is not recognized (expected "anthropic" or "groq") — falling back to key-based auto-selection`
+    );
+  } else if (provider === "anthropic" && !hasAnthropic) {
+    v.warnings.push(
+      "LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing — AI calls will fail until set"
+    );
+  } else if (provider === "groq" && !hasGroq) {
+    v.warnings.push(
+      "LLM_PROVIDER=groq but GROQ_API_KEY is missing — AI calls will fail until set"
     );
   }
 }
@@ -433,7 +464,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateAdminSessionSigningKeyProd(v);
     validateBrevoProd(v);
     validateInngestSigningKeyProd(v);
-    validateAnthropicProd(v);
+    validateLlmProd(v);
     validateLangfuseProd(v);
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
@@ -481,7 +512,12 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     },
     llm: {
       anthropicApiKey: raw.ANTHROPIC_API_KEY,
-      model: raw.LLM_MODEL ?? "claude-opus-4-8",
+      groqApiKey: raw.GROQ_API_KEY,
+      provider:
+        raw.LLM_PROVIDER === "anthropic" || raw.LLM_PROVIDER === "groq"
+          ? raw.LLM_PROVIDER
+          : undefined,
+      model: raw.LLM_MODEL,
     },
     langfuse: {
       publicKey: raw.LANGFUSE_PUBLIC_KEY,

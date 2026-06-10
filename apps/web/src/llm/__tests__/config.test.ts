@@ -28,6 +28,8 @@ const baseProdEnv: Record<string, string> = {
 const MANAGED_KEYS = [
   ...Object.keys(baseProdEnv),
   "ANTHROPIC_API_KEY",
+  "GROQ_API_KEY",
+  "LLM_PROVIDER",
   "LLM_MODEL",
   "LANGFUSE_PUBLIC_KEY",
   "LANGFUSE_SECRET_KEY",
@@ -58,30 +60,79 @@ afterEach(() => {
 });
 
 describe("config — llm section", () => {
-  it("warns (does not throw) when ANTHROPIC_API_KEY is missing in production", async () => {
+  it("warns (does not throw) when no LLM key is set in production", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const { config } = await importFresh(baseProdEnv);
       expect(config.config.llm.anthropicApiKey).toBeUndefined();
-      expect(config.config.llm.model).toBe("claude-opus-4-8");
+      expect(config.config.llm.groqApiKey).toBeUndefined();
+      expect(config.config.llm.model).toBeUndefined();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringMatching(/ANTHROPIC_API_KEY missing/)
+        expect.stringMatching(/No LLM API key/)
       );
     } finally {
       warn.mockRestore();
     }
   });
 
-  it("reads the key and an LLM_MODEL override when present", async () => {
+  it("reads the keys and an LLM_MODEL override when present", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const { config } = await importFresh({
         ...baseProdEnv,
         ANTHROPIC_API_KEY: "sk-ant-real",
+        GROQ_API_KEY: "gsk_real",
         LLM_MODEL: "claude-sonnet-4-6",
       });
       expect(config.config.llm.anthropicApiKey).toBe("sk-ant-real");
+      expect(config.config.llm.groqApiKey).toBe("gsk_real");
       expect(config.config.llm.model).toBe("claude-sonnet-4-6");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns when GROQ_API_KEY does not look like a Groq key", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await importFresh({ ...baseProdEnv, GROQ_API_KEY: "not-a-groq-key" });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/GROQ_API_KEY does not look like a Groq key/)
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("warns when LLM_PROVIDER names a provider whose key is missing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { config } = await importFresh({
+        ...baseProdEnv,
+        GROQ_API_KEY: "gsk_real",
+        LLM_PROVIDER: "anthropic",
+      });
+      expect(config.config.llm.provider).toBe("anthropic");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing/)
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("ignores an unrecognized LLM_PROVIDER with a warning", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { config } = await importFresh({
+        ...baseProdEnv,
+        GROQ_API_KEY: "gsk_real",
+        LLM_PROVIDER: "openai",
+      });
+      expect(config.config.llm.provider).toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/LLM_PROVIDER "openai" is not recognized/)
+      );
     } finally {
       warn.mockRestore();
     }
@@ -116,7 +167,7 @@ describe("config — llm section", () => {
 });
 
 describe("createLlmClient", () => {
-  it("returns a client when ANTHROPIC_API_KEY is set", async () => {
+  it("returns a client when only ANTHROPIC_API_KEY is set", async () => {
     const { llm } = await importFresh({
       NODE_ENV: "test",
       ANTHROPIC_API_KEY: "sk-ant-real",
@@ -125,8 +176,45 @@ describe("createLlmClient", () => {
     expect(typeof client.generateStructured).toBe("function");
   });
 
-  it("throws a clear error when ANTHROPIC_API_KEY is absent", async () => {
+  it("returns a client when only GROQ_API_KEY is set", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      GROQ_API_KEY: "gsk_real",
+    });
+    const client = llm.createLlmClient();
+    expect(typeof client.generateStructured).toBe("function");
+  });
+
+  it("prefers Anthropic when both keys are set and no LLM_PROVIDER pin", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      ANTHROPIC_API_KEY: "sk-ant-real",
+      GROQ_API_KEY: "gsk_real",
+    });
+    expect(llm.createLlmClient().constructor.name).toBe("AnthropicClient");
+  });
+
+  it("honors LLM_PROVIDER=groq when both keys are set", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      ANTHROPIC_API_KEY: "sk-ant-real",
+      GROQ_API_KEY: "gsk_real",
+      LLM_PROVIDER: "groq",
+    });
+    expect(llm.createLlmClient().constructor.name).toBe("GroqClient");
+  });
+
+  it("throws a clear error when no key is configured", async () => {
     const { llm } = await importFresh({ NODE_ENV: "test" });
-    expect(() => llm.createLlmClient()).toThrow(/ANTHROPIC_API_KEY not configured/);
+    expect(() => llm.createLlmClient()).toThrow(/No LLM provider configured/);
+  });
+
+  it("throws when LLM_PROVIDER pins a provider whose key is absent", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      GROQ_API_KEY: "gsk_real",
+      LLM_PROVIDER: "anthropic",
+    });
+    expect(() => llm.createLlmClient()).toThrow(/No LLM provider configured/);
   });
 });
