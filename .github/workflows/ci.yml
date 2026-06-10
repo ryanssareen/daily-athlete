@@ -103,3 +103,42 @@ jobs:
             docker logs --tail 200 "$name" || true
             echo "::endgroup::"
           done
+
+  # Apply pending migrations to the production database after tests pass on
+  # main. Before this job existed, supabase/migrations/ was only ever applied
+  # to the local CI stack -- code merged to main could reference tables that
+  # prod didn't have yet (issue #93: /api/weekly-review 500'd with PGRST205
+  # because migrations 0019-0023 were never pushed).
+  #
+  # Auth: SUPABASE_ACCESS_TOKEN repo secret. No DB password needed -- the CLI
+  # mints a temporary login role (cli_login_postgres) via the management API
+  # and connects through the pooler (the direct db host is IPv6-only, which
+  # GitHub runners can't reach). `db push` is a no-op when remote history
+  # already matches, so running on every main push is safe and idempotent.
+  deploy-migrations:
+    name: Deploy migrations (prod)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [web, test]
+    # Serialize deploys; never cancel a half-applied batch (each migration
+    # file runs in its own transaction, so a re-run resumes cleanly).
+    concurrency:
+      group: deploy-migrations-prod
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.95.4
+
+      - name: Link to production project
+        run: supabase link --project-ref gukhwozgnunbqzllobbd
+
+      - name: Show pending migrations
+        run: supabase db push --dry-run
+
+      - name: Push migrations
+        run: supabase db push --yes
