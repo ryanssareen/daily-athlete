@@ -25,7 +25,9 @@ import { appendSchemaHint, combineSignals, extractJson } from "./transport";
 
 const GROQ_BASE_URL = "https://api.groq.com";
 const REQUEST_TIMEOUT_MS = 120_000; // bounded; the Inngest step deadline absorbs the rest
-const DEFAULT_MAX_TOKENS = 8192;
+// A whole-plan generation for a multi-month event runs well past 8k output
+// tokens of strict JSON; llama-3.3-70b-versatile supports 32k completions.
+const DEFAULT_MAX_TOKENS = 32_768;
 
 interface GroqClientOptions {
   apiKey: string;
@@ -35,7 +37,10 @@ interface GroqClientOptions {
 }
 
 interface GroqChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string | null } }>;
+  choices?: Array<{
+    message?: { content?: string | null };
+    finish_reason?: string | null;
+  }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
@@ -100,7 +105,18 @@ export class GroqClient implements LlmClient {
       throw new LlmInvalidOutput("LLM response body was not JSON");
     }
 
-    const text = parsed.choices?.[0]?.message?.content ?? "";
+    const choice = parsed.choices?.[0];
+    const text = choice?.message?.content ?? "";
+
+    // A length-stop means the JSON is truncated mid-stream — surface that
+    // distinctly so the retry feedback can ask for shorter output instead of
+    // an unactionable "no parseable JSON".
+    if (choice?.finish_reason === "length") {
+      this.trace(params.traceName, startedAt, "ERROR", response.status);
+      throw new LlmInvalidOutput(
+        "LLM output was truncated by the completion token limit — respond with more compact JSON (shorter descriptions, no optional fields)"
+      );
+    }
 
     const json = extractJson(text);
     if (json === undefined) {

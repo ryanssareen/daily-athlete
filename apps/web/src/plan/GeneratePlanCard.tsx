@@ -41,6 +41,10 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
   const pollAbort = useRef(false);
 
   useEffect(() => {
+    // Re-arm on every (re)mount: StrictMode runs mount → cleanup → mount in
+    // dev while PRESERVING refs, so without this the flag stays true forever
+    // and the poll loop exits before its first query.
+    pollAbort.current = false;
     return () => {
       pollAbort.current = true;
     };

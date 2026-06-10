@@ -116,15 +116,16 @@ export function describeStructureChange(c: StructureChange): string {
   return parts.length > 0 ? parts.join(" · ") : "Updated";
 }
 
-/** Render-boundary date formatting in the athlete's timezone (date-only). */
-export function formatScheduledDate(dateStr: string, timezone: string): string {
-  const tz = timezone || "UTC";
-  const d = new Date(`${dateStr}T12:00:00Z`);
-  return d.toLocaleDateString("en-US", {
+/** Render-boundary date formatting (date-only). A calendar date must never
+ * round-trip through an instant — the 12:00Z anchor showed the day one late
+ * for UTC+13/+14 athletes. UTC-pinned formatting of the Y-M-D parts is exact. */
+export function formatScheduledDate(dateStr: string, _timezone?: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
-    timeZone: tz,
+    timeZone: "UTC",
   });
 }
 

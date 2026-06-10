@@ -209,6 +209,24 @@ describe("createLlmClient", () => {
     expect(() => llm.createLlmClient()).toThrow(/No LLM provider configured/);
   });
 
+  it("treats a placeholder Anthropic key as absent and selects Groq", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      ANTHROPIC_API_KEY: "xxx",
+      GROQ_API_KEY: "gsk_real",
+    });
+    expect(llm.createLlmClient().constructor.name).toBe("GroqClient");
+  });
+
+  it("throws when only placeholder keys are set", async () => {
+    const { llm } = await importFresh({
+      NODE_ENV: "test",
+      ANTHROPIC_API_KEY: "xxx",
+      GROQ_API_KEY: "",
+    });
+    expect(() => llm.createLlmClient()).toThrow(/No LLM provider configured/);
+  });
+
   it("throws when LLM_PROVIDER pins a provider whose key is absent", async () => {
     const { llm } = await importFresh({
       NODE_ENV: "test",

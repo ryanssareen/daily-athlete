@@ -149,21 +149,19 @@ export function describeStructureChange(c: StructureChange): string {
 }
 
 /**
- * Format a YYYY-MM-DD scheduled-date at the render boundary in the athlete's
- * timezone (mirrors the formatWorkoutDateTime helper's intent for date-only
- * values). A bare date string has no time-of-day, so we anchor at local noon to
- * avoid a day-shift across timezones.
+ * Format a YYYY-MM-DD scheduled-date at the render boundary. A calendar date
+ * has no instant, so it must never round-trip through one: the old 12:00Z
+ * anchor projected into the athlete's timezone showed the day one late for
+ * offsets past +12 (all of New Zealand, Tonga, Kiritimati). Pin the formatter
+ * to UTC instead — the Y-M-D parts ARE the calendar day, for every athlete.
  */
-export function formatScheduledDate(dateStr: string, timezone: string): string {
-  const tz = timezone || "UTC";
-  // Anchor at 12:00 UTC: a DATE has no instant; noon keeps the calendar day
-  // stable for every IANA offset when projected into `tz`.
-  const d = new Date(`${dateStr}T12:00:00Z`);
-  return d.toLocaleDateString("en-US", {
+export function formatScheduledDate(dateStr: string, _timezone?: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
-    timeZone: tz,
+    timeZone: "UTC",
   });
 }
 

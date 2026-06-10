@@ -153,6 +153,21 @@ BEGIN
               AND status = 'active'
               AND deleted_at IS NULL;
 
+        -- Soft-delete the archived plan(s)' not-yet-done workouts in the same
+        -- transaction. Calendar reads, the adaptive context, and the detectors
+        -- all scope by athlete_id + deleted_at (never plan status), so leaving
+        -- these live would double-book the calendar with a dead plan and keep
+        -- its rows valid targets for adaptive edit ops. Completed/skipped rows
+        -- stay (history); 'moved' rows are superseded pointers, also history.
+        UPDATE public.planned_workouts pw
+            SET deleted_at = now()
+            FROM public.plans p
+            WHERE pw.plan_id = p.id
+              AND p.athlete_id = p_athlete_id
+              AND p.status = 'archived'
+              AND pw.deleted_at IS NULL
+              AND pw.status = 'planned';
+
         -- Insert the new active AI plan. created_from_review_id stays NULL.
         INSERT INTO public.plans (athlete_id, status, source, event_type, event_date)
             VALUES (

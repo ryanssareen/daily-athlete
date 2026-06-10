@@ -511,8 +511,18 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       signingKey: raw.INNGEST_SIGNING_KEY,
     },
     llm: {
-      anthropicApiKey: raw.ANTHROPIC_API_KEY,
-      groqApiKey: raw.GROQ_API_KEY,
+      // Placeholder values ('', 'xxx', 'hex') are normalized to undefined so
+      // createLlmClient's key-presence selection agrees with what
+      // validateLlmProd warned about — a placeholder key must never reach a
+      // provider call as a literal credential.
+      anthropicApiKey:
+        raw.ANTHROPIC_API_KEY && !isPlaceholder(raw.ANTHROPIC_API_KEY)
+          ? raw.ANTHROPIC_API_KEY
+          : undefined,
+      groqApiKey:
+        raw.GROQ_API_KEY && !isPlaceholder(raw.GROQ_API_KEY)
+          ? raw.GROQ_API_KEY
+          : undefined,
       provider:
         raw.LLM_PROVIDER === "anthropic" || raw.LLM_PROVIDER === "groq"
           ? raw.LLM_PROVIDER

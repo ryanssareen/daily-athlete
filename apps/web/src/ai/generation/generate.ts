@@ -82,7 +82,14 @@ export async function generate(
       }
       const parsed = GeneratedPlanSchema.safeParse(raw);
       if (!parsed.success) {
-        priorError = parsed.error.issues[0]?.message ?? "invalid plan shape";
+        // Path-qualified, multi-issue feedback (mirrors propose.ts parseAll).
+        // A bare issues[0].message is often just "Required" — useless to steer
+        // an open-weight model that wrapped the plan in an envelope object.
+        priorError =
+          parsed.error.issues
+            .slice(0, 5)
+            .map((iss) => `${iss.path.join(".") || "(root)"}: ${iss.message}`)
+            .join("; ") || "invalid plan shape";
         continue;
       }
       plan = parsed.data;

@@ -41,6 +41,7 @@ interface AnthropicClientOptions {
 
 interface AnthropicMessageResponse {
   content?: Array<{ type: string; text?: string }>;
+  stop_reason?: string | null;
   usage?: { input_tokens?: number; output_tokens?: number };
 }
 
@@ -99,6 +100,16 @@ export class AnthropicClient implements LlmClient {
     } catch {
       this.trace(params.traceName, startedAt, "ERROR", response.status);
       throw new LlmInvalidOutput("LLM response body was not JSON");
+    }
+
+    // A max_tokens stop means the JSON is truncated mid-stream — surface that
+    // distinctly so the retry feedback can ask for shorter output instead of
+    // an unactionable "no parseable JSON".
+    if (parsed.stop_reason === "max_tokens") {
+      this.trace(params.traceName, startedAt, "ERROR", response.status);
+      throw new LlmInvalidOutput(
+        "LLM output was truncated by the completion token limit — respond with more compact JSON (shorter descriptions, no optional fields)"
+      );
     }
 
     const text = (parsed.content ?? [])
