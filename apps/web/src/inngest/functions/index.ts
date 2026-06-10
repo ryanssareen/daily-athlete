@@ -7,6 +7,7 @@ import type { InngestFunction } from "inngest";
 import { adaptiveDetectors } from "./adaptive-detectors";
 import { adaptiveRun } from "./adaptive-run";
 import { adminBackupExport } from "./admin-backup-export";
+import { generatePlan } from "./generate-plan";
 import { weeklyReviewExpirySweeper } from "./weekly-review-expiry-sweeper";
 import { weeklyReviewScheduler } from "./weekly-review-scheduler";
 
@@ -16,4 +17,5 @@ export const functions: InngestFunction.Any[] = [
   weeklyReviewScheduler,
   adaptiveRun,
   adaptiveDetectors,
+  generatePlan,
 ];

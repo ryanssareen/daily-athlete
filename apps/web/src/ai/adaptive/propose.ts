@@ -18,6 +18,8 @@ import "server-only";
 
 import { EditOpSchema, type EditOp, type TriggerKind } from "@da2/shared";
 
+import { isLlmBackOff } from "@/llm";
+
 import type { AdaptiveProposer, ProposeInput } from "./llm";
 import type { PlanContext } from "./context";
 
@@ -60,8 +62,14 @@ export async function propose(args: ProposeArgs): Promise<EditOp[]> {
     try {
       raw = await proposer.propose(input);
     } catch (err) {
-      // A proposer that throws (network / provider error) consumes an attempt;
-      // feed a short note back and retry.
+      // Back-off errors (rate-limit / transient) must NOT consume a retry
+      // attempt: re-throw so the Inngest worker maps them to RetryAfterError and
+      // backs off, instead of burning the whole budget (3x model spend) during a
+      // provider rate-limit storm. Invalid-output / other throws still consume an
+      // attempt and feed a note back.
+      if (isLlmBackOff(err)) {
+        throw err;
+      }
       lastErrorDetail = err instanceof Error ? err.message : String(err);
       priorError = `proposer threw: ${lastErrorDetail}`;
       continue;

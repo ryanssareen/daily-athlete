@@ -1,0 +1,52 @@
+# Promptfoo harness for the LLM-as-judge eval (soft tier). Needs ANTHROPIC_API_KEY.
+#
+# The deterministic gate (the blocking one) runs as a vitest suite, not here —
+# see ../README.md and src/ai/eval/deterministic.ts. This config drives the live
+# generate -> judge loop over the athlete fixtures.
+#
+# SCAFFOLD: wiring promptfoo to invoke the in-repo generator + judge requires a
+# small custom provider that calls apps/web/src/ai/generation/generate.ts and a
+# custom assertion that calls src/ai/eval/{deterministic,judge}.ts. That shim is
+# a follow-up; the structure below documents the intended harness.
+
+description: AI plan generation quality eval (judge tier)
+
+prompts:
+  - "Generate a training plan for the athlete fixture."
+
+providers:
+  # TODO: a file:// custom provider that calls generate() with the real LlmClient
+  # and returns the GeneratedPlan JSON. Until then this config is a documented
+  # skeleton, not an executable eval.
+  - id: file://./providers/generate-provider.ts
+    label: da2-generator
+
+tests:
+  - description: beginner 5K
+    vars:
+      athlete: file://./fixtures/athletes/beginner.json
+    assert:
+      # Deterministic safety gate (reuses src/ai/eval/deterministic.ts).
+      - type: javascript
+        value: file://./providers/deterministic-assert.ts
+      # Subjective judge vs the coach-graded reference (src/ai/eval/judge.ts).
+      - type: llm-rubric
+        value: >
+          Athlete-appropriate, well-periodized (base->build->peak->taper),
+          coherent narrative, no medical claims. Pass means a coach would assign
+          it with at most minor edits.
+  - description: time-crunched triathlete with a knee niggle
+    vars:
+      athlete: file://./fixtures/athletes/time-crunched-injury.json
+    assert:
+      - type: javascript
+        value: file://./providers/deterministic-assert.ts
+      - type: llm-rubric
+        value: >
+          Polarized / adaptation-per-hour bias for low hours; conservative ramp
+          and "stop if pain" framing for the injury note; NO medical claims.
+
+defaultTest:
+  options:
+    provider:
+      id: anthropic:messages:claude-opus-4-8

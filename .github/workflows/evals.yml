@@ -1,0 +1,63 @@
+name: AI Plan Evals
+
+# Quality gate for AI plan generation (R8). Two tiers:
+#  - deterministic-gate: the HARD, blocking gate. Scores plans against the same
+#    safety thresholds the apply path enforces. No model or coaches needed, so it
+#    always runs and always blocks.
+#  - judge: the SOFT, subjective LLM-as-judge against coach-graded reference
+#    plans. Needs a live model + a reference corpus (grows with the alpha), so it
+#    runs only when ANTHROPIC_API_KEY is configured and does not block today.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic-gate:
+    name: Deterministic eval gate (R8, blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      # The deterministic scorer reuses validateGeneratedPlan (apply-time safety)
+      # + content gate + periodization structure checks.
+      - run: pnpm --filter @da2/web exec vitest run src/ai/eval
+
+  judge:
+    name: LLM-as-judge (soft, needs ANTHROPIC_API_KEY)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - name: Run promptfoo (skips when no key is configured)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ANTHROPIC_API_KEY not set — skipping the live judge eval."
+            exit 0
+          fi
+          # promptfooconfig.yaml references provider shims (providers/*.ts) that
+          # are scaffolded in a follow-up. Until they exist, skip rather than
+          # hard-fail the job the moment ANTHROPIC_API_KEY is configured.
+          if [ ! -f apps/web/evals/providers/generate-provider.ts ]; then
+            echo "promptfoo provider scaffolds not present yet — skipping the live judge eval."
+            exit 0
+          fi
+          npx --yes promptfoo@latest eval -c apps/web/evals/promptfooconfig.yaml

@@ -41,17 +41,47 @@ export type PlannedWorkoutStatus = z.infer<typeof PlannedWorkoutStatusSchema>;
 export const EditedByKindSchema = z.enum(["athlete", "coach", "ai_review"]);
 export type EditedByKind = z.infer<typeof EditedByKindSchema>;
 
-// Permissive structure JSONB. Final shape converges with the AI prompt in
-// product plan Unit 3.2. Top-level keys reserved (warmup, main, cooldown,
-// intervals, targets) but inner schema stays open (.passthrough). The eval
-// harness (product plan Unit 3.1) will tighten this once the prompt
-// stabilises.
-//
-// Size note: ce:review flagged that Supabase Realtime has a ~10MB
-// per-message cap. Today there is no Zod .max() refinement; product plan
-// Unit 3.2 should constrain output size in the prompt and add a refinement
-// here once a representative max is known.
-export const PlannedWorkoutStructureSchema = z.object({}).passthrough();
+// Periodization phase (block) tag. Generation writes this per workout
+// (structure.phase) so the plan is block-structured without a schema/table
+// change. It is a generation-time hint that MAY drift after workout-level
+// adaptation (the shipped EditOp engine has no block awareness) — downstream
+// consumers treat it as a hint, not a guarantee, until block-replan (vNext).
+export const WORKOUT_PHASES = [
+  "base",
+  "build",
+  "peak",
+  "taper",
+  "maintenance",
+] as const;
+export const WorkoutPhaseSchema = z.enum(WORKOUT_PHASES);
+export type WorkoutPhase = z.infer<typeof WorkoutPhaseSchema>;
+
+// Per-workout structure size cap. Supabase Realtime has a ~10MB per-MESSAGE
+// cap; a whole plan publishes many workouts, so each structure is bounded well
+// under that. 16 KiB is generous for a single session's structure.
+export const MAX_STRUCTURE_BYTES = 16_384;
+
+// Structure JSONB as STORED/READ. Kept backward-compatible (passthrough) so
+// existing coach/athlete-authored rows — which never followed a fixed shape —
+// still parse: only an optional typed `phase` and a size refinement are added.
+// The STRICT, enumerated, length-capped shape the AI is allowed to EMIT lives
+// in packages/shared/src/plan-generation.ts (GeneratedWorkoutStructureSchema);
+// that is the actual write boundary for AI content, so injected/unbounded
+// free-text never reaches a persisted AI row even though this read schema stays
+// permissive for legacy data.
+export const PlannedWorkoutStructureSchema = z
+  .object({
+    phase: WorkoutPhaseSchema.optional(),
+  })
+  .passthrough()
+  .superRefine((val, ctx) => {
+    if (JSON.stringify(val).length > MAX_STRUCTURE_BYTES) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `structure exceeds ${MAX_STRUCTURE_BYTES} bytes`,
+      });
+    }
+  });
 export type PlannedWorkoutStructure = z.infer<
   typeof PlannedWorkoutStructureSchema
 >;
