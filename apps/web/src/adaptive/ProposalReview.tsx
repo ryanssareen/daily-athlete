@@ -208,7 +208,8 @@ export default function ProposalReview({
       setReview(next);
       setLoadError(false);
       setPhase("ready");
-    } catch {
+    } catch (err) {
+      console.error("Failed to load review:", err);
       setLoadError(true);
       setPhase("error");
     }

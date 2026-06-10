@@ -37,6 +37,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 import type { WeeklyReviewRow } from "@da2/shared";
 
 import { isLinkedCoach } from "@/ai/adaptive/recipient-auth";
@@ -75,6 +77,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     .order("generated_at", { ascending: false });
 
   if (ownErr) {
+    console.error("ownErr:", ownErr);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 
@@ -93,6 +96,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     .is("deleted_at", null);
 
   if (linksErr) {
+    console.error("linksErr:", linksErr);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 

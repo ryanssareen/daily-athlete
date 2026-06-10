@@ -9,6 +9,8 @@
 
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 import { resolveAuth } from "@/auth/bearer";
 import { createClient as createServerClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
