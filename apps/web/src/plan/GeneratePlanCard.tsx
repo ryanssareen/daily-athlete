@@ -56,12 +56,18 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
       const startedAt = Date.now();
       while (!pollAbort.current && Date.now() - startedAt < POLL_TIMEOUT_MS) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("ai_generation_attempts")
-          .select("status, plan_id")
+          .select("status, plan_id, error_code")
           .eq("athlete_id", athleteId)
           .eq("request_id", requestId)
           .maybeSingle();
+        console.info("[generate-plan] poll", {
+          request_id: requestId,
+          status: data?.status ?? null,
+          error_code: data?.error_code ?? null,
+          poll_error: error?.message ?? null,
+        });
         if (pollAbort.current) return;
         if (data?.status === "succeeded") {
           setPhase("succeeded");
@@ -98,6 +104,7 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
           event_date: eventDate === "" ? null : eventDate,
         }),
       });
+      console.info("[generate-plan] submit", { status: res.status });
       if (res.status === 402) {
         setPhase("payment_required");
         return;

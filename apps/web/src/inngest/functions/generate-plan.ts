@@ -167,6 +167,19 @@ export async function runGeneratePlan(
   const result = await generate(input, ctx, { client, today: asOf });
 
   if (result.status === "infeasible") {
+    // The athlete-facing reason is generic by design; the debug block is the
+    // ONLY diagnosable record of which gate fired (stage + last error/violation
+    // + model-call count). Ids and gate detail only — never athlete free-text.
+    console.error(
+      "[generate-plan] infeasible",
+      JSON.stringify({
+        athlete_id,
+        request_id,
+        stage: result.debug.stage,
+        detail: result.debug.detail,
+        model_calls: result.debug.modelCalls,
+      })
+    );
     await markAttempt(admin, athlete_id, request_id, { status: "infeasible" });
     return { status: "infeasible" };
   }
