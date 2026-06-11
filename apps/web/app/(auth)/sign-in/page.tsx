@@ -1,30 +1,27 @@
 "use client";
 
+// Shared sign-in for both athletes and coaches. The page is role-agnostic:
+// email + password, or one-tap Google. After auth we land on "/", which
+// dispatches to the right home via landingPathForRoles(). No nav chrome —
+// this is a focused, single-action screen.
+
 import Link from "next/link";
 import type { Route } from "next";
 import { useState } from "react";
 
-import { ArrowLeft } from "lucide-react";
-
 import { createClient } from "@/auth/supabase";
 
-const ROSTER_PATH = "/roster";
+// Land on the root dispatcher rather than a role-specific path so the same
+// page works for athletes and coaches.
+const POST_SIGN_IN_PATH = "/";
 
-type Mode = "password" | "magic-link";
-type Status = "idle" | "sending" | "sent" | "error";
+type Status = "idle" | "sending" | "error";
 
 export default function SignInPage() {
-  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    setStatus("idle");
-    setErrorMsg(null);
-  }
 
   const onPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,27 +33,7 @@ export default function SignInPage() {
       setErrorMsg(error.message);
       setStatus("error");
     } else {
-      window.location.href = ROSTER_PATH;
-    }
-  };
-
-  const onMagicLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus("sending");
-    setErrorMsg(null);
-    const supabase = createClient();
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(ROSTER_PATH)}`,
-      },
-    });
-    if (error) {
-      setErrorMsg(error.message);
-      setStatus("error");
-    } else {
-      setStatus("sent");
+      window.location.href = POST_SIGN_IN_PATH;
     }
   };
 
@@ -67,7 +44,7 @@ export default function SignInPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(ROSTER_PATH)}`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(POST_SIGN_IN_PATH)}`,
       },
     });
     if (error) {
@@ -76,179 +53,81 @@ export default function SignInPage() {
     }
   };
 
-  if (status === "sent") {
-    return (
-      <main className="min-h-screen flex flex-col">
-        <header className="px-6 py-4">
-          <button
-            onClick={() => { setStatus("idle"); setMode("magic-link"); }}
-            className="inline-flex items-center gap-2 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] transition"
-          >
-            <ArrowLeft size={16} strokeWidth={2.25} />
-            Back
-          </button>
-        </header>
-        <div className="flex-1 flex items-center justify-center px-6 py-16">
-          <div className="w-full max-w-md text-center">
-            <div className="text-4xl mb-5">✉️</div>
-            <h1 className="text-2xl font-semibold tracking-tight mb-3">Check your inbox</h1>
-            <p className="text-[color:var(--color-ink-muted)]">
-              We sent a sign-in link to <strong>{email}</strong>. Click it to access your roster.
-            </p>
-            <p className="mt-4 text-sm text-[color:var(--color-ink-subtle)]">
-              Didn&apos;t get it? Check your spam folder, or{" "}
-              <button
-                onClick={() => setStatus("idle")}
-                className="underline underline-offset-4 hover:text-[color:var(--color-ink)] transition"
-              >
-                try again
-              </button>
-              .
-            </p>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen flex flex-col">
-      <header className="px-6 py-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] transition"
+    <main className="min-h-screen flex items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md">
+        <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight leading-tight mb-3">
+          Sign in.
+        </h1>
+        <p className="text-[color:var(--color-ink-muted)] mb-8">
+          Use your email and password, or continue with Google.
+        </p>
+
+        <button
+          type="button"
+          onClick={onGoogleClick}
+          className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] hover:bg-[color:var(--color-canvas-soft)] transition font-medium"
         >
-          <ArrowLeft size={16} strokeWidth={2.25} />
-          Back
-        </Link>
-      </header>
-      <div className="flex-1 flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-md">
-          <p className="eyebrow mb-3">Coaches</p>
-          <h1 className="text-3xl lg:text-4xl font-semibold tracking-tight leading-tight mb-3">
-            Sign in to your roster.
-          </h1>
-          <p className="text-[color:var(--color-ink-muted)] mb-8">
-            {mode === "password"
-              ? "Use your password, or continue with Google."
-              : "Enter your email and we’ll send you a sign-in link."}
-          </p>
+          <GoogleGlyph />
+          Continue with Google
+        </button>
+
+        <div className="my-5 flex items-center gap-3">
+          <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+          <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--color-ink-subtle)]">
+            or
+          </span>
+          <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
+        </div>
+
+        <form onSubmit={onPasswordSubmit} className="flex flex-col gap-3">
+          <label htmlFor="email" className="sr-only">Email address</label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            required
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+            autoFocus
+            className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
+          />
+
+          <label htmlFor="password" className="sr-only">Password</label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            required
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            autoComplete="current-password"
+            className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
+          />
 
           <button
-            type="button"
-            onClick={onGoogleClick}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] hover:bg-[color:var(--color-canvas-soft)] transition font-medium"
+            type="submit"
+            disabled={status === "sending" || !email || !password}
+            className="btn btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <GoogleGlyph />
-            Continue with Google
+            {status === "sending" ? "Working…" : "Sign in"}
           </button>
 
-          <div className="my-5 flex items-center gap-3">
-            <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
-            <span className="text-xs uppercase tracking-[0.18em] text-[color:var(--color-ink-subtle)]">
-              or
-            </span>
-            <span className="flex-1 h-px" style={{ background: "var(--color-border)" }} />
-          </div>
-
-          {mode === "password" ? (
-            <form onSubmit={onPasswordSubmit} className="flex flex-col gap-3">
-              <label htmlFor="email" className="sr-only">Email address</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                required
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                autoFocus
-                className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
-              />
-
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                required
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                autoComplete="current-password"
-                className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
-              />
-
-              <button
-                type="submit"
-                disabled={status === "sending" || !email || !password}
-                className="btn btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {status === "sending" ? "Working…" : "Sign in"}
-              </button>
-
-              {status === "error" && errorMsg && (
-                <p className="mt-1 text-sm text-[color:var(--color-danger)]">{errorMsg}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => switchMode("magic-link")}
-                className="mt-1 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] transition text-left"
-              >
-                Sign in with a magic link instead →
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={onMagicLinkSubmit} className="flex flex-col gap-3">
-              <label htmlFor="email-magic" className="sr-only">Email address</label>
-              <input
-                id="email-magic"
-                type="email"
-                value={email}
-                required
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                autoFocus
-                className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
-              />
-
-              <button
-                type="submit"
-                disabled={status === "sending" || !email}
-                className="btn btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {status === "sending" ? "Sending…" : "Send magic link"}
-              </button>
-
-              {status === "error" && errorMsg && (
-                <p className="mt-1 text-sm text-[color:var(--color-danger)]">{errorMsg}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => switchMode("password")}
-                className="mt-1 text-sm text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink)] transition text-left"
-              >
-                Sign in with password instead →
-              </button>
-            </form>
+          {status === "error" && errorMsg && (
+            <p className="mt-1 text-sm text-[color:var(--color-danger)]">{errorMsg}</p>
           )}
+        </form>
 
-          <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
-            Don&apos;t have an account?{" "}
-            <Link
-              href={"/sign-up" as Route}
-              className="underline underline-offset-4 decoration-[color:var(--color-border-strong)] hover:decoration-[color:var(--color-ink)] hover:text-[color:var(--color-ink)] transition"
-            >
-              Sign up
-            </Link>
-          </p>
-
-          <p className="mt-10 text-sm text-[color:var(--color-ink-subtle)]">
-            Athletes — the iOS and Android apps are launching soon.
-          </p>
-        </div>
+        <p className="mt-6 text-sm text-[color:var(--color-ink-muted)]">
+          Don&apos;t have an account?{" "}
+          <Link
+            href={"/sign-up" as Route}
+            className="underline underline-offset-4 decoration-[color:var(--color-border-strong)] hover:decoration-[color:var(--color-ink)] hover:text-[color:var(--color-ink)] transition"
+          >
+            Sign up
+          </Link>
+        </p>
       </div>
     </main>
   );
