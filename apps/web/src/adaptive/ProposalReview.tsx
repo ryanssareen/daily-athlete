@@ -15,6 +15,7 @@
 // inline "your plan is unchanged", selection preserved), stale-skip inline,
 // no_changes on-track, lapsed read-only + upsell.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EditOpResult, WeeklyReviewRow } from "@da2/shared";
@@ -333,11 +334,65 @@ export default function ProposalReview({
   }
 
   if (!review) {
+    // No pending/most-recent review to show. The athlete only reaches this
+    // surface WITH an active plan (the /plan page gates on it), so the old
+    // dead-end "No reviews yet. We'll let you know…" was misleading — it read as
+    // "you have nothing" when they have a live plan. Point them at the plan
+    // instead. A coach genuinely has "nothing to act on yet" for the athlete.
+    if (actor === "coach") {
+      return (
+        <div
+          style={{ ...card, padding: "40px 32px", textAlign: "center" }}
+          data-testid="state-no-review"
+        >
+          <p style={{ fontSize: 15, color: "var(--color-ink-muted)", margin: 0 }}>
+            No reviews to act on yet — this athlete&apos;s weekly check-ins will
+            appear here.
+          </p>
+        </div>
+      );
+    }
     return (
-      <div style={{ ...card, padding: "40px 32px", textAlign: "center" }}>
-        <p style={{ fontSize: 15, color: "var(--color-ink-muted)", margin: 0 }}>
-          No reviews yet. We&apos;ll let you know when your plan is reviewed.
+      <div
+        style={{ ...card, padding: "44px 32px", textAlign: "center" }}
+        data-testid="state-no-review"
+      >
+        <h2
+          style={{
+            fontSize: 20,
+            fontWeight: 600,
+            color: "var(--color-ink)",
+            margin: "0 0 8px",
+          }}
+        >
+          Your plan is active
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--color-ink-muted)",
+            margin: "0 auto 20px",
+            maxWidth: 420,
+            lineHeight: 1.5,
+          }}
+        >
+          Your training is on your calendar. The AI coach posts weekly check-ins
+          here when there&apos;s something to review.
         </p>
+        <Link
+          href="/athlete/calendar"
+          style={{
+            display: "inline-block",
+            background: "var(--color-ink)",
+            color: "var(--color-paper)",
+            padding: "10px 22px",
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          View your calendar
+        </Link>
       </div>
     );
   }
