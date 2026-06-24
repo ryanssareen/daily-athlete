@@ -29,9 +29,16 @@ const RAMP_PCT = Math.round(WEEKLY_VOLUME_RAMP_CAP * 100);
 export function buildGenerationPrompt(
   input: GeneratePlanInput,
   ctx: GenerationContext,
+  /** Athlete-local "today" (YYYY-MM-DD) — the calendar anchor the plan starts from. */
+  today: string,
   feedback: PromptFeedback = {}
 ): { system: string; prompt: string } {
+  const todayYear = today.slice(0, 4);
   const guardrails: string[] = [
+    // FIRST and most prominent: the open-weight model otherwise ignores the
+    // calendar entirely and emits a previous-era default (observed: 2024-01-01),
+    // so the plan lands ~2.5y in the past and never renders. Anchor hard.
+    `CALENDAR ANCHOR — today is ${today}. The plan starts now: the earliest scheduled_date MUST be on or after ${today}, and EVERY scheduled_date MUST be a real absolute date in ${todayYear} or later, written as YYYY-MM-DD. Never emit a date before ${today}, and never use a prior year.`,
     `Periodize as phase-tagged blocks: base -> build -> peak -> taper.`,
     `Ramp weekly training load by at most ${RAMP_PCT}% week-over-week; keep the projected CTL ramp at or under ${CTL_RAMP_CAP_PER_WEEK}/week; include recovery/deload weeks.`,
     `Every workout needs duration_s (whole seconds), load (TSS-equivalent), an intensity_target, a phase, and a short rationale.`,
@@ -67,7 +74,7 @@ export function buildGenerationPrompt(
     `  "narrative": string (optional, <= 2000 chars, plan-level summary),`,
     `  "workouts": [`,
     `    {`,
-    `      "scheduled_date": "YYYY-MM-DD",`,
+    `      "scheduled_date": "YYYY-MM-DD" (absolute date on/after today; see CALENDAR ANCHOR),`,
     `      "sport": "swim" | "bike" | "run" | "strength" | "mobility" | "other",`,
     `      "structure": {`,
     `        "duration_s": integer seconds,`,
@@ -86,6 +93,7 @@ export function buildGenerationPrompt(
   ].join("\n");
 
   const profileLines: string[] = [
+    `today (schedule week 1 on or after this date): ${today}`,
     `weekly_hours_available: ${input.weekly_hours}`,
     // event_type is athlete-authored free text — it is emitted below inside
     // its own data delimiter (same posture as injury_history), never raw here.

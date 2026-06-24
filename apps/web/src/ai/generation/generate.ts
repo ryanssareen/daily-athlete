@@ -24,6 +24,7 @@ import { checkPlanContent } from "./content-gate";
 import type { GenerationContext } from "./context";
 import { assessFeasibility } from "./feasibility";
 import { buildGenerationPrompt } from "./prompts/generate-plan";
+import { realignPlanToToday } from "./realign-dates";
 import { validateGeneratedPlan } from "./validate-plan";
 
 /** Which gate produced an infeasible result (for logs/triage, never the UI). */
@@ -100,7 +101,7 @@ export async function generate(
         };
       }
       calls++;
-      const { system, prompt } = buildGenerationPrompt(input, ctx, {
+      const { system, prompt } = buildGenerationPrompt(input, ctx, deps.today, {
         priorError,
         violationFeedback,
       });
@@ -180,6 +181,24 @@ export async function generate(
         },
       };
     }
+
+    // Date-anchor correction BEFORE validation: the model often emits a
+    // past-era calendar (e.g. 2024-01-01) despite the prompt anchor. Shift the
+    // whole plan forward so it starts on/after today, then validate the dates we
+    // will actually persist. A correctly-anchored plan is untouched.
+    const realigned = realignPlanToToday(plan, deps.today);
+    if (realigned.shiftedDays > 0) {
+      console.warn(
+        "[generate-plan] realigned_dates",
+        JSON.stringify({
+          call: calls,
+          regen,
+          shifted_days: realigned.shiftedDays,
+          today: deps.today,
+        })
+      );
+    }
+    plan = realigned.plan;
 
     const validation = validateGeneratedPlan(plan, ctx.load);
     if (validation.valid) return { status: "ok", plan };

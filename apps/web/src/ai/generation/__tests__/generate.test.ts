@@ -22,13 +22,17 @@ function input() {
 }
 
 // Build a schema-valid plan JSON from a per-week TSS array.
-function planJson(weeklyTss: number[], over: { rationale?: string } = {}) {
+function planJson(
+  weeklyTss: number[],
+  over: { rationale?: string } = {},
+  start: string = START
+) {
   const offsets = [0, 1, 3, 5];
   const workouts = weeklyTss.flatMap((wt, wi) =>
     offsets.map((off) => {
       const per = wt / offsets.length;
       return {
-        scheduled_date: addDays(START, wi * 7 + off),
+        scheduled_date: addDays(start, wi * 7 + off),
         sport: "run",
         structure: {
           duration_s: 3600,
@@ -117,6 +121,26 @@ describe("generate", () => {
     expect(result.status).toBe("infeasible");
     if (result.status === "infeasible") {
       expect(result.reason).toMatch(/safe training limits/i);
+    }
+  });
+
+  it("anchors the prompt to today", async () => {
+    const client = new FakeClient([SAFE]);
+    await generate(input(), CTX, { client, today: TODAY });
+    expect(client.calls[0].system + client.calls[0].prompt).toContain(TODAY);
+  });
+
+  it("realigns a past-dated plan forward so nothing persists before today", async () => {
+    // The reported prod failure mode: the model returns a 2024-dated plan.
+    const past = planJson([200, 200], {}, "2024-01-01");
+    const client = new FakeClient([past]);
+    const result = await generate(input(), CTX, { client, today: TODAY });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.plan.workouts.length).toBeGreaterThan(0);
+      for (const w of result.plan.workouts) {
+        expect(w.scheduled_date >= TODAY).toBe(true);
+      }
     }
   });
 
