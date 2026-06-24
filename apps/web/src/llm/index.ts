@@ -94,6 +94,21 @@ export function createLlmClient(): LlmClient {
       model: model ?? DEFAULT_GROQ_MODEL,
     });
   }
+  // DEBUG (diagnose "generation always fails no matter what"): this throw is the
+  // actual prod failure today — an EMPTY GROQ_API_KEY is normalized to undefined
+  // by config (isPlaceholder("") === true), so no provider resolves and every
+  // generation dies here, then gets retried + flattened into an opaque
+  // "generation_failed". Log WHICH knobs are present (booleans only, never key
+  // values) so a misconfigured env is obvious in Vercel logs.
+  console.error(
+    "[llm][debug] createLlmClient: no provider configured — AI generation will fail",
+    JSON.stringify({
+      hasAnthropicKey: Boolean(anthropicApiKey),
+      hasGroqKey: Boolean(groqApiKey),
+      providerPin: provider ?? null,
+      modelOverride: model ?? null,
+    })
+  );
   throw new Error(
     "No LLM provider configured. AI plan generation and adaptive re-planning " +
       "require ANTHROPIC_API_KEY or GROQ_API_KEY (LLM_PROVIDER pins the choice " +

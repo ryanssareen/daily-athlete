@@ -94,6 +94,12 @@ export class GroqClient implements LlmClient {
 
     if (!response.ok) {
       this.trace(params.traceName, startedAt, "ERROR", response.status);
+      // DEBUG (diagnose "generation always fails"): Groq's error body carries
+      // the actionable cause (e.g. {"code":"invalid_api_key"}, model
+      // decommissioned) and was otherwise discarded — only the status survived
+      // into LlmTransient. Log it server-side (it is the PROVIDER's error, never
+      // the prompt); bound the length to avoid log spam.
+      await this.logErrorBody(params.traceName, response);
       throw this.mapHttpError(response);
     }
 
@@ -138,6 +144,25 @@ export class GroqClient implements LlmClient {
     });
 
     return { json, usage };
+  }
+
+  /** DEBUG: surface the provider error body (cause) before it is mapped away. */
+  private async logErrorBody(traceName: string, response: Response): Promise<void> {
+    let body = "";
+    try {
+      body = (await response.clone().text()).slice(0, 1000);
+    } catch {
+      body = "<unreadable>";
+    }
+    console.error(
+      "[llm][debug] groq non-2xx response",
+      JSON.stringify({
+        trace: traceName,
+        model: this.model,
+        status: response.status,
+        body,
+      })
+    );
   }
 
   private mapHttpError(response: Response): LlmTransient | LlmRateLimited {

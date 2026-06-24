@@ -35,6 +35,10 @@ type Phase =
 export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
+  // DEBUG (diagnose "generation always fails"): the closed-enum reason from the
+  // attempt row (or an HTTP marker), surfaced in the failure copy so the cause
+  // is visible IN THE WEBSITE — not only in the console/Vercel logs.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [weeklyHours, setWeeklyHours] = useState("6");
   const [eventType, setEventType] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -76,10 +80,12 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
           return;
         }
         if (data?.status === "infeasible") {
+          setErrorCode(data?.error_code ?? "infeasible");
           setPhase("infeasible");
           return;
         }
         if (data?.status === "failed") {
+          setErrorCode(data?.error_code ?? "failed");
           setPhase("failed");
           return;
         }
@@ -93,6 +99,7 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
     const hours = Number(weeklyHours);
     if (!Number.isFinite(hours) || hours <= 0 || hours > 40) return;
     setPhase("submitting");
+    setErrorCode(null);
     try {
       const res = await fetch("/api/plans", {
         method: "POST",
@@ -110,17 +117,21 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
         return;
       }
       if (res.status !== 202) {
+        setErrorCode(`http_${res.status}`);
         setPhase("failed");
         return;
       }
       const body = (await res.json()) as { request_id?: string };
       if (!body.request_id) {
+        setErrorCode("no_request_id");
         setPhase("failed");
         return;
       }
       setPhase("generating");
       void pollAttempt(body.request_id);
-    } catch {
+    } catch (err) {
+      console.error("[generate-plan] submit failed", err);
+      setErrorCode("network_error");
       setPhase("failed");
     }
   }, [athleteId, weeklyHours, eventType, eventDate, pollAttempt]);
@@ -226,6 +237,7 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
         <p style={{ fontSize: 13, color: "var(--color-danger)", margin: "16px 0 0" }}>
           We couldn&apos;t build a safe plan from these inputs — try more weekly
           hours or a later event date.
+          {errorCode && <DebugCode code={errorCode} />}
         </p>
       )}
       {(phase === "failed" || phase === "timeout") && (
@@ -233,6 +245,7 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
           {phase === "timeout"
             ? "This is taking longer than expected. Your plan may still appear on the calendar shortly — or try again."
             : "Plan generation hit a snag. Nothing was changed — try again."}
+          {errorCode && <DebugCode code={errorCode} />}
         </p>
       )}
 
@@ -256,5 +269,27 @@ export default function GeneratePlanCard({ athleteId }: { athleteId: string }) {
         {phase === "submitting" ? "Starting…" : "Generate my plan"}
       </button>
     </div>
+  );
+}
+
+// DEBUG: a small, muted "reason code" line shown under a failure so the cause
+// is visible in the website (e.g. generation_failed, http_500, network_error).
+// Diagnostic, not athlete-facing copy — it maps 1:1 to the closed-enum code on
+// the ai_generation_attempts row and the [generate-plan][debug] server logs.
+function DebugCode({ code }: { code: string }) {
+  return (
+    <span
+      data-testid="generate-plan-error-code"
+      style={{
+        display: "block",
+        marginTop: 6,
+        fontSize: 11,
+        fontFamily: "var(--font-mono, ui-monospace, monospace)",
+        color: "var(--color-ink-muted)",
+        opacity: 0.8,
+      }}
+    >
+      reason: {code}
+    </span>
   );
 }

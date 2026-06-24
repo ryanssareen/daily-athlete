@@ -244,9 +244,13 @@ export const generatePlan = inngest.createFunction(
       // failed with a closed-enum code. event.data is the failure envelope.
       const data = PlanGenerateEventDataSchema.parse(event.data.event.data);
       const admin = createAdminClient();
-      // Closed-enum code only — never error.message / prompt / output.
+      // The DB row + Inngest history still store only the closed-enum code (no
+      // PII). But DEBUG (diagnose "generation always fails"): previously the
+      // real terminal error was discarded here (`void error`), which is exactly
+      // why prod failures were undiagnosable. Surface the actual error after
+      // retries are exhausted to Vercel logs. PII-free by construction.
       const code: GenerateErrorCode = "generation_failed";
-      void error;
+      const e = error as Error;
       await step.run("mark-failed", () =>
         markAttempt(admin, data.athlete_id, data.request_id, {
           status: "failed",
@@ -258,6 +262,10 @@ export const generatePlan = inngest.createFunction(
         athlete_id: data.athlete_id,
         request_id: data.request_id,
         error_code: code,
+        error_type: e?.constructor?.name ?? null,
+        error_name: e?.name ?? null,
+        error_message: e?.message ?? String(error),
+        stack: e?.stack ?? null,
       });
     },
   },
@@ -270,6 +278,25 @@ export const generatePlan = inngest.createFunction(
       try {
         return await runGeneratePlan({ admin, client: createLlmClient(), event: data });
       } catch (err) {
+        // DEBUG (diagnose "generation always fails no matter what"): the real
+        // cause is otherwise erased on this path — LlmTransient/RetryAfter keep
+        // only an HTTP status, and onFailure persists only a closed enum. Log
+        // the actual error (name/message/type/stack) to Vercel logs on EVERY
+        // throw so the cause is recoverable from logs. Errors reaching here are
+        // PII-free by construction (config + llm/*.ts never put the prompt or
+        // athlete inputs in a message); we still never log attempt.inputs.
+        const e = err as Error;
+        console.error(
+          "[generate-plan][debug] generation threw",
+          JSON.stringify({
+            athlete_id: data.athlete_id,
+            request_id: data.request_id,
+            error_type: e?.constructor?.name ?? null,
+            error_name: e?.name ?? null,
+            error_message: e?.message ?? String(err),
+            stack: e?.stack ?? null,
+          })
+        );
         // Map typed LLM failures to Inngest retry semantics (mirrors
         // backfill-strava.ts / adaptive-run.ts). Fixed codes only.
         if (err instanceof LlmRateLimited) {
