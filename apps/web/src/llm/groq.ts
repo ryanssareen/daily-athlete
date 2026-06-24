@@ -25,9 +25,16 @@ import { appendSchemaHint, combineSignals, extractJson } from "./transport";
 
 const GROQ_BASE_URL = "https://api.groq.com";
 const REQUEST_TIMEOUT_MS = 120_000; // bounded; the Inngest step deadline absorbs the rest
-// A whole-plan generation for a multi-month event runs well past 8k output
-// tokens of strict JSON; llama-3.3-70b-versatile supports 32k completions.
-const DEFAULT_MAX_TOKENS = 32_768;
+// Output-token cap. The model supports 32k completions and a long multi-month
+// plan can need well past 8k tokens of strict JSON — but Groq counts
+// max_completion_tokens against the account's per-minute token budget (TPM), and
+// the free `on_demand` tier caps TPM at 12k. Requesting 32k there fails the
+// WHOLE call with HTTP 413 (rate_limit_exceeded) before any output is produced
+// (observed in prod: "Limit 12000, Requested 33253"). Cap at 8k so a single
+// request fits the free tier; long plans may truncate, which is handled below
+// via finish_reason==="length". Raise this back toward 32k once the Groq
+// account is on a paid tier (console.groq.com/settings/billing).
+const DEFAULT_MAX_TOKENS = 8_000;
 
 interface GroqClientOptions {
   apiKey: string;
