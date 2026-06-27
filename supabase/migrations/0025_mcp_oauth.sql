@@ -149,9 +149,16 @@ ALTER TABLE public.workout_edits
 -- Self-INSERT: 0019 created only self/coach SELECT policies, so appendWorkoutEdit
 -- needed the service-role admin client. The connector executes tools under the
 -- athlete's own JWT (R5: no service-role in the tool path), so it needs to write
--- its own audit row. Scoped to the caller's own athlete_id.
+-- its own audit row. Attribution is PINNED so a user-JWT insert cannot forge a
+-- coach/ai_review entry or blame another user: the row must be the caller's own
+-- athlete_id, actor_role='agent', and actor_user_id=self. (In-app athlete/coach/
+-- ai_review edits keep using the service-role path, which bypasses this policy.)
 CREATE POLICY workout_edits_self_insert ON public.workout_edits
-    FOR INSERT WITH CHECK (auth.uid() = athlete_id);
+    FOR INSERT WITH CHECK (
+        auth.uid() = athlete_id
+        AND actor_role = 'agent'
+        AND actor_user_id = auth.uid()
+    );
 
 -- ---------------------------------------------------------------------------
 -- 5. delete_user_cascade: document the new tables' teardown

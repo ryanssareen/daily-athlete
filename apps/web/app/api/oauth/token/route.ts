@@ -56,7 +56,8 @@ export async function POST(req: Request): Promise<Response> {
   if (grant === "refresh_token") {
     const refreshToken = form.get("refresh_token");
     if (!refreshToken) return oauthError("invalid_request", "missing refresh_token");
-    const res = await rotateRefresh(admin, refreshToken);
+    // Bind to client_id when the client sends it (public clients should).
+    const res = await rotateRefresh(admin, refreshToken, form.get("client_id") ?? undefined);
     if (res.result !== "ok") {
       // Both reuse (theft -> family revoked) and invalid surface identically.
       return oauthError("invalid_grant", "refresh token invalid");

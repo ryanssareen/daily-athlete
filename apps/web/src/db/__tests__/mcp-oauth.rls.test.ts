@@ -133,6 +133,30 @@ describe("workout_edits self-INSERT (migration 0025)", () => {
     const { error } = await athlete.client.from("workout_edits").insert({
       athlete_id: stranger.id, // RLS WITH CHECK (auth.uid() = athlete_id) denies
       actor_role: "agent",
+      actor_user_id: athlete.id,
+      field_diff: {},
+    });
+    expect(error).not.toBeNull();
+  });
+
+  it("athlete cannot forge a non-agent actor_role on their own audit row", async () => {
+    const athlete = await createTestUser();
+    const { error } = await athlete.client.from("workout_edits").insert({
+      athlete_id: athlete.id,
+      actor_role: "coach", // policy pins actor_role='agent'
+      actor_user_id: athlete.id,
+      field_diff: {},
+    });
+    expect(error).not.toBeNull();
+  });
+
+  it("athlete cannot pin a different actor_user_id on their own audit row", async () => {
+    const athlete = await createTestUser();
+    const stranger = await createTestUser();
+    const { error } = await athlete.client.from("workout_edits").insert({
+      athlete_id: athlete.id,
+      actor_role: "agent",
+      actor_user_id: stranger.id, // policy pins actor_user_id=auth.uid()
       field_diff: {},
     });
     expect(error).not.toBeNull();

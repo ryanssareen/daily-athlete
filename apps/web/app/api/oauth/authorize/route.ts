@@ -11,6 +11,7 @@
 import { createClient } from "@/auth/server";
 import { config } from "@/config";
 import { createAdminClient } from "@/db/admin";
+import { canonicalResource } from "@/mcp/identity";
 import { createAuthCode } from "@/oauth/codes";
 import { getClient } from "@/oauth/clients";
 import { isS256Method } from "@/oauth/pkce";
@@ -117,6 +118,10 @@ export async function GET(req: Request): Promise<Response> {
   const resource = p.get("resource");
   if (!resource) {
     return redirectError(redirectUri, clientState, "invalid_target", "missing resource parameter");
+  }
+  // The token will be audience-bound to this; it must name THIS MCP server.
+  if (resource.replace(/\/+$/, "") !== canonicalResource(req)) {
+    return redirectError(redirectUri, clientState, "invalid_target", "resource does not match this server");
   }
 
   // 3. Require a Supabase session; delegate to same-origin sign-in if absent.

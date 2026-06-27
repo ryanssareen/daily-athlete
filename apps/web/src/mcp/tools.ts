@@ -34,6 +34,12 @@ function fail(code: string, message?: string): CallToolResult {
     isError: true,
   };
 }
+// DB failures: log the raw driver message server-side, return only a generic
+// code to the model (never leak PostgREST/schema internals into a tool payload).
+function dbFail(code: string, error: { message?: string } | null): CallToolResult {
+  if (error?.message) console.warn(`[mcp] ${code}: ${error.message}`);
+  return fail(code);
+}
 
 interface Ctx {
   supabase: SupabaseClient;
@@ -54,13 +60,18 @@ async function appendAgentEdit(
   plannedWorkoutId: string,
   fieldDiff: Record<string, unknown>
 ): Promise<void> {
-  await supabase.from("workout_edits").insert({
+  const { error } = await supabase.from("workout_edits").insert({
     athlete_id: userId,
     planned_workout_id: plannedWorkoutId,
     actor_role: "agent",
     actor_user_id: userId,
     field_diff: fieldDiff,
   });
+  // The mutation already landed; never silently drop a failed audit append —
+  // surface it in logs so the provenance gap is observable.
+  if (error) {
+    console.warn(`[mcp] audit append failed for planned_workout ${plannedWorkoutId}: ${error.message}`);
+  }
 }
 
 export function registerAllTools(server: McpServer): void {
@@ -80,7 +91,7 @@ export function registerAllTools(server: McpServer): void {
         .from("athlete_profiles")
         .select(PROFILE_SELECT)
         .maybeSingle();
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       if (!data) return ok({ manual_fields: {}, updated_at: null });
       return ok(data);
     }
@@ -105,7 +116,7 @@ export function registerAllTools(server: McpServer): void {
       if (args.from) q = q.gte("started_at", args.from);
       if (args.to) q = q.lte("started_at", `${args.to}T23:59:59Z`);
       const { data, error } = await q;
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       return ok({ workouts: (data ?? []).map(projectCompleted) });
     }
   );
@@ -126,7 +137,7 @@ export function registerAllTools(server: McpServer): void {
         .eq("id", args.id)
         .is("deleted_at", null)
         .maybeSingle();
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok(projectCompleted(data));
     }
@@ -151,7 +162,7 @@ export function registerAllTools(server: McpServer): void {
       if (args.from) q = q.gte("scheduled_date", args.from);
       if (args.to) q = q.lte("scheduled_date", args.to);
       const { data, error } = await q;
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       return ok({ workouts: data ?? [] });
     }
   );
@@ -172,7 +183,7 @@ export function registerAllTools(server: McpServer): void {
         .eq("id", args.id)
         .is("deleted_at", null)
         .maybeSingle();
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok(data);
     }
@@ -193,7 +204,7 @@ export function registerAllTools(server: McpServer): void {
         .select(PLAN_SELECT)
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       return ok({ plans: data ?? [] });
     }
   );
@@ -214,7 +225,7 @@ export function registerAllTools(server: McpServer): void {
         .eq("id", args.id)
         .is("deleted_at", null)
         .maybeSingle();
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok(data);
     }
@@ -239,7 +250,7 @@ export function registerAllTools(server: McpServer): void {
         .is("deleted_at", null)
         .gte("started_at", since)
         .order("started_at", { ascending: true });
-      if (error) return fail("read_failed", error.message);
+      if (error) return dbFail("read_failed", error);
       const inputs: LoadWorkoutInput[] = (data ?? []).map((w) => ({
         started_at: w.started_at as string,
         duration_s: (w.duration_s as number | null) ?? null,
@@ -278,7 +289,7 @@ export function registerAllTools(server: McpServer): void {
         .from("athlete_profiles")
         .select("manual_fields")
         .maybeSingle();
-      if (readErr) return fail("read_failed", readErr.message);
+      if (readErr) return dbFail("read_failed", readErr);
       const merged: Record<string, unknown> = {
         ...((cur?.manual_fields as Record<string, unknown> | null) ?? {}),
       };
@@ -291,7 +302,7 @@ export function registerAllTools(server: McpServer): void {
         .update({ manual_fields: merged })
         .select(PROFILE_SELECT)
         .maybeSingle();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok(data);
     }
@@ -326,7 +337,7 @@ export function registerAllTools(server: McpServer): void {
         })
         .select(COMPLETED_SELECT)
         .single();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       return ok(projectCompleted(data));
     }
   );
@@ -359,7 +370,7 @@ export function registerAllTools(server: McpServer): void {
         .is("deleted_at", null)
         .select(COMPLETED_SELECT)
         .maybeSingle();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok(projectCompleted(data));
     }
@@ -375,12 +386,14 @@ export function registerAllTools(server: McpServer): void {
     },
     async (args, extra) => {
       const { supabase } = ctxFrom(extra);
-      // Best-effort: refuse if a match exists (unmatch is in-app only in v1).
-      const { data: match } = await supabase
+      // Refuse if a match exists (unmatch is in-app only in v1). Fail SAFE: if
+      // the match state can't be read, refuse rather than risk orphaning a match.
+      const { data: match, error: matchErr } = await supabase
         .from("workout_matches")
         .select("id")
         .eq("completed_workout_id", args.id)
         .limit(1);
+      if (matchErr) return dbFail("write_failed", matchErr);
       if (match && match.length > 0) {
         return fail("requires_in_app", "this workout is matched to a plan day; unmatch it in the app first");
       }
@@ -391,7 +404,7 @@ export function registerAllTools(server: McpServer): void {
         .is("deleted_at", null)
         .select("id")
         .maybeSingle();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       if (!data) return fail("not_found_or_forbidden");
       return ok({ deleted: true, id: args.id });
     }
@@ -414,6 +427,18 @@ export function registerAllTools(server: McpServer): void {
     },
     async (args, extra) => {
       const ctx = ctxFrom(extra);
+      // planned_workouts.athlete_id is not SQL-tied to plans.athlete_id, so
+      // verify the plan is the caller's before attaching (RLS scopes this read).
+      if (args.plan_id) {
+        const { data: plan, error: planErr } = await ctx.supabase
+          .from("plans")
+          .select("id")
+          .eq("id", args.plan_id)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (planErr) return dbFail("write_failed", planErr);
+        if (!plan) return fail("not_found_or_forbidden", "plan not found");
+      }
       const { data, error } = await ctx.supabase
         .from("planned_workouts")
         .insert({
@@ -431,7 +456,7 @@ export function registerAllTools(server: McpServer): void {
         })
         .select(PLANNED_SELECT)
         .single();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       await appendAgentEdit(ctx, data.id as string, { created: true });
       return ok(data);
     }
@@ -472,7 +497,7 @@ export function registerAllTools(server: McpServer): void {
         .is("deleted_at", null)
         .select(PLANNED_SELECT)
         .maybeSingle();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       if (!data) {
         // Distinguish stale version from missing/forbidden row.
         const { data: cur } = await ctx.supabase
@@ -516,7 +541,7 @@ export function registerAllTools(server: McpServer): void {
         .is("deleted_at", null)
         .select(PLANNED_SELECT)
         .maybeSingle();
-      if (error) return fail("write_failed", error.message);
+      if (error) return dbFail("write_failed", error);
       if (!data) {
         const { data: cur } = await ctx.supabase
           .from("planned_workouts")
@@ -536,13 +561,14 @@ export function registerAllTools(server: McpServer): void {
     "workouts_planned_delete",
     {
       title: "Delete a planned workout",
-      description: "Soft-delete a planned workout from your calendar.",
-      inputSchema: { id: z.string().uuid() },
+      description:
+        "Soft-delete a planned workout. Pass the current `version` to guard against deleting a concurrently-edited workout.",
+      inputSchema: { id: z.string().uuid(), version: z.number().int().optional() },
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
     async (args, extra) => {
       const ctx = ctxFrom(extra);
-      const { data, error } = await ctx.supabase
+      let del = ctx.supabase
         .from("planned_workouts")
         .update({
           deleted_at: new Date().toISOString(),
@@ -551,11 +577,22 @@ export function registerAllTools(server: McpServer): void {
           edited_at: new Date().toISOString(),
         })
         .eq("id", args.id)
-        .is("deleted_at", null)
-        .select("id")
-        .maybeSingle();
-      if (error) return fail("write_failed", error.message);
-      if (!data) return fail("not_found_or_forbidden");
+        .is("deleted_at", null);
+      if (args.version !== undefined) del = del.eq("version", args.version);
+      const { data, error } = await del.select("id").maybeSingle();
+      if (error) return dbFail("write_failed", error);
+      if (!data) {
+        if (args.version !== undefined) {
+          const { data: cur } = await ctx.supabase
+            .from("planned_workouts")
+            .select("version")
+            .eq("id", args.id)
+            .is("deleted_at", null)
+            .maybeSingle();
+          if (cur) return fail("stale_retry", `version is now ${cur.version}; re-read and retry`);
+        }
+        return fail("not_found_or_forbidden");
+      }
       await appendAgentEdit(ctx, args.id, { deleted: true });
       return ok({ deleted: true, id: args.id });
     }

@@ -14,6 +14,7 @@ import "server-only";
 //     never the service-role admin client (R5).
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getPublicOrigin } from "mcp-handler";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
 import { config } from "@/config";
@@ -21,6 +22,14 @@ import { createAdminClient } from "@/db/admin";
 
 import { mintSupabaseJwt } from "@/oauth/crypto";
 import { verifyAccessToken } from "@/oauth/tokens";
+
+/** This server's canonical MCP resource identifier (RFC 8707 audience). */
+export function canonicalResource(req: Request): string {
+  return `${getPublicOrigin(req).replace(/\/+$/, "")}/api/mcp`;
+}
+function normalizeResource(r: string): string {
+  return r.replace(/\/+$/, "");
+}
 
 export interface McpIdentity {
   userId: string;
@@ -66,7 +75,7 @@ export function rlsClientFromAuth(authInfo: AuthInfo | undefined): {
 
 /** `withMcpAuth` verifyToken: bearer -> user -> account-state gate -> AuthInfo. */
 export async function verifyToken(
-  _req: Request,
+  req: Request,
   bearerToken?: string
 ): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
@@ -74,6 +83,12 @@ export async function verifyToken(
 
   const verified = await verifyAccessToken(admin, bearerToken);
   if (!verified) return undefined;
+
+  // RFC 8707 audience enforcement: the token must have been issued for THIS
+  // resource. Prevents a token minted for another audience being replayed here.
+  if (normalizeResource(verified.resource) !== normalizeResource(canonicalResource(req))) {
+    return undefined;
+  }
 
   // Authoritative account-state gate (we bypass GoTrue, so the ban can't help us).
   // service-role: explicit user filter.
