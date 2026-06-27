@@ -107,6 +107,7 @@ export default async function AthleteProfilePage({ searchParams }: PageProps) {
                 {stravaErrorMessage(stravaError)}
               </p>
             )}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
               href="/api/integrations/strava/authorize"
               style={{
