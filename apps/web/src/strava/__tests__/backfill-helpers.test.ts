@@ -14,9 +14,9 @@ import type { StravaActivity } from "@/strava/schemas";
 // Mock the per-activity DB writers + matcher so processActivityPage can be
 // exercised without a live Supabase. buildSummaryStats / normalizeSport stay
 // real (pure functions).
-const insertSpy = vi.fn(async () => "cw-id");
-const hydrationSpy = vi.fn(async () => {});
-const matchSpy = vi.fn(async () => {});
+const insertSpy = vi.fn(async (..._args: unknown[]) => "cw-id");
+const hydrationSpy = vi.fn(async (..._args: unknown[]) => {});
+const matchSpy = vi.fn(async (..._args: unknown[]) => {});
 
 vi.mock("@/db/completed-workouts", () => ({
   insertOrUpdateStravaCompletedWorkout: (...args: unknown[]) => insertSpy(...args),

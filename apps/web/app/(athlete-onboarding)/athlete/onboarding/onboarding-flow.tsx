@@ -1011,7 +1011,8 @@ function backfillFailureMessage(backfill: BackfillStatusColumn): string {
 
 // Import-progress screen shown after in-flow OAuth. Split out from
 // StravaScreen so it can own the staleness timer (hooks) cleanly.
-function StravaImportScreen({
+// Exported for render tests (see onboarding-strava-import.test.tsx).
+export function StravaImportScreen({
   email,
   backfill,
   onRetry,
