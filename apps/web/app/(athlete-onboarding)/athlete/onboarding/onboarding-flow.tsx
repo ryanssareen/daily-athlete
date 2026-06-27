@@ -976,6 +976,151 @@ function stravaErrorMessage(code: string): string {
   }
 }
 
+// Build the failure message for the import step from the REAL backfill
+// status — the closed `error_code` selects the framing, and `error_detail`
+// (the actual error the worker caught) is surfaced verbatim where we have
+// it, rather than a one-size-fits-all "Import failed" template.
+function backfillFailureMessage(backfill: BackfillStatusColumn): string {
+  const detail = backfill.error_detail?.trim();
+  switch (backfill.error_code) {
+    case "needs_reauth":
+      return "Strava asked us to reconnect. Reconnect to finish importing your history.";
+    case "key_rotation":
+      return "We couldn’t decrypt your stored Strava token. Please reconnect Strava.";
+    case "rate_limited":
+      return (
+        detail ??
+        "Strava’s rate limit was hit. It resets within ~15 minutes — tap Try again after that."
+      );
+    case "timed_out":
+      return (
+        detail ??
+        "The import ran out of time before finishing. Tap Try again to pull the rest."
+      );
+    case "network":
+      return detail ?? "We couldn’t reach Strava. Check your connection and try again.";
+    case "watchdog_demoted":
+      return "The import stalled and was stopped. Tap Try again to restart it.";
+    default:
+      // Surface the genuine underlying message when we have one.
+      return detail
+        ? `Import failed: ${detail}`
+        : "Import failed. You can continue and we’ll retry in the background.";
+  }
+}
+
+// Import-progress screen shown after in-flow OAuth. Split out from
+// StravaScreen so it can own the staleness timer (hooks) cleanly.
+function StravaImportScreen({
+  email,
+  backfill,
+  onRetry,
+  onContinue,
+}: {
+  email: string;
+  backfill: BackfillStatusColumn;
+  onRetry: () => void;
+  onContinue: () => void;
+}) {
+  const total = backfill.estimated_total ?? 200;
+  const done = backfill.completed ?? 0;
+  const isFailed =
+    backfill.state === "failed" || backfill.state === "needs_reauth";
+  const pct =
+    backfill.state === "complete"
+      ? 100
+      : total > 0
+        ? Math.min(100, Math.round((done / total) * 100))
+        : 0;
+  const isDone = backfill.state === "complete" || pct >= 100;
+  const needsReconnect =
+    backfill.error_code === "needs_reauth" ||
+    backfill.error_code === "key_rotation";
+
+  // Staleness guard: if the bar hasn't advanced and no terminal state has
+  // arrived within 30s, tell the user it's taking longer than usual and let
+  // them continue — so the screen is never an indefinite silent spinner.
+  // The timer resets whenever `completed` advances or the state changes.
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (isDone || isFailed) {
+      setStale(false);
+      return;
+    }
+    setStale(false);
+    const t = window.setTimeout(() => setStale(true), 30_000);
+    return () => window.clearTimeout(t);
+  }, [isDone, isFailed, done, backfill.state]);
+
+  return (
+    <div className="panel">
+      <span className="strava-brand-pill">
+        <i aria-hidden="true" />
+        Connected{email ? ` · ${email}` : ""}
+      </span>
+      <h1 className="display">
+        {isDone
+          ? "Workouts imported."
+          : isFailed
+            ? "We hit a snag importing."
+            : "Pulling your recent workouts."}
+      </h1>
+      <p className="lead">
+        {isDone
+          ? "We've read your training history so your starting paces aren't guesses."
+          : isFailed
+            ? "Your Strava account is connected — we just couldn't finish reading your history this time."
+            : "We're reading your training history so your starting paces aren't guesses."}
+      </p>
+
+      <div className="strava-import">
+        <div className="lbl">
+          <span className="n">{done}</span>
+          <span className="total">of {total}</span>
+        </div>
+        <div className="progress-thin">
+          <i style={{ width: `${pct}%` }} />
+        </div>
+        {isFailed ? (
+          <p style={{ fontSize: 13, color: "var(--color-danger)", margin: 0 }}>
+            {backfillFailureMessage(backfill)}
+          </p>
+        ) : stale ? (
+          <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: 0 }}>
+            This is taking longer than usual. It&apos;s still running in the
+            background — you can keep waiting or continue and we&apos;ll finish
+            the import for you.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="actions">
+        {isFailed ? (
+          <div className="actions-row">
+            <button type="button" className="btn btn-secondary" onClick={onRetry}>
+              {needsReconnect ? "Reconnect Strava" : "Try again"}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={onContinue}>
+              Continue anyway
+              <ArrowRight />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!isDone && !stale}
+            onClick={onContinue}
+          >
+            {isDone ? "See my profile" : stale ? "Continue anyway" : "Working…"}
+            {(isDone || stale) && <ArrowRight />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StravaScreen({
   email,
   connectedInFlow,
@@ -1007,68 +1152,13 @@ function StravaScreen({
   // in this onboarding flow. A pre-existing token row is not enough —
   // we want the user to actively confirm Strava access here.
   if (connectedInFlow) {
-    const total = backfill.estimated_total ?? 200;
-    const done = backfill.completed ?? 0;
-    const pct =
-      backfill.state === "complete"
-        ? 100
-        : total > 0
-          ? Math.min(100, Math.round((done / total) * 100))
-          : 0;
-    const isDone = backfill.state === "complete" || pct >= 100;
-
     return (
-      <div className="panel">
-        <span className="strava-brand-pill">
-          <i aria-hidden="true" />
-          Connected{email ? ` · ${email}` : ""}
-        </span>
-        <h1 className="display">
-          {isDone
-            ? "Workouts imported."
-            : "Pulling your recent workouts."}
-        </h1>
-        <p className="lead">
-          {isDone
-            ? "We've read your training history so your starting paces aren't guesses."
-            : "We're reading your training history so your starting paces aren't guesses."}
-        </p>
-
-        <div className="strava-import">
-          <div className="lbl">
-            <span className="n">{done}</span>
-            <span className="total">of {total}</span>
-          </div>
-          <div className="progress-thin">
-            <i style={{ width: `${pct}%` }} />
-          </div>
-          {backfill.state === "failed" || backfill.state === "needs_reauth" ? (
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--color-danger)",
-                margin: 0,
-              }}
-            >
-              {backfill.state === "needs_reauth"
-                ? "Strava asked us to reconnect. Try the Connect button again."
-                : "Import failed. You can continue and we'll retry in the background."}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!isDone}
-            onClick={onNext}
-          >
-            {isDone ? "See my profile" : "Working…"}
-            {isDone && <ArrowRight />}
-          </button>
-        </div>
-      </div>
+      <StravaImportScreen
+        email={email}
+        backfill={backfill}
+        onRetry={onConnect}
+        onContinue={onNext}
+      />
     );
   }
 

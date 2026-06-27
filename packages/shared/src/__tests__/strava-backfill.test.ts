@@ -75,6 +75,30 @@ describe("BackfillStatusColumnSchema", () => {
     expect(parsed.state).toBe("needs_reauth");
   });
 
+  it("accepts a timed_out failure with a real error_detail and partial count", () => {
+    const parsed = BackfillStatusColumnSchema.parse({
+      provider: "strava",
+      state: "failed",
+      error_code: "timed_out",
+      completed: 120,
+      error_detail: "Imported 120 workouts before the import time budget ran out.",
+    });
+    expect(parsed.error_code).toBe("timed_out");
+    expect(parsed.completed).toBe(120);
+    expect(parsed.error_detail).toContain("120 workouts");
+  });
+
+  it("rejects an error_detail longer than the 500-char bound", () => {
+    expect(() =>
+      BackfillStatusColumnSchema.parse({
+        provider: "strava",
+        state: "failed",
+        error_code: "unknown",
+        error_detail: "x".repeat(501),
+      }),
+    ).toThrow();
+  });
+
   it("rejects unknown state values", () => {
     expect(() =>
       BackfillStatusColumnSchema.parse({ provider: "strava", state: "bogus" }),
@@ -155,6 +179,7 @@ describe("StravaBackfillErrorCodeSchema", () => {
     "enqueue_failed",
     "network",
     "corrupt_state",
+    "timed_out",
     "unknown",
   ])("accepts the documented code %s", (code) => {
     expect(StravaBackfillErrorCodeSchema.parse(code)).toBe(code);

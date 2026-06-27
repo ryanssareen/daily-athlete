@@ -38,57 +38,98 @@ export async function markBackfillInProgress(
   });
 }
 
+// How many activities to persist concurrently. Each activity costs ~2 DB
+// round-trips deep (the insert+hydration pair runs in parallel, then the
+// match). Strava→Supabase round-trips dominate wall-clock, so processing a
+// page strictly serially (the old behaviour) meant ~200 × 3 sequential
+// round-trips — enough to blow Vercel's 60s function budget mid-page and
+// leave the run hard-killed at `completed: 0`. A bounded pool collapses that
+// to ~(200/8) sequential batches without flooding the connection pooler.
+const PROCESS_CONCURRENCY = 8;
+
+/** Persist one activity: completed_workouts row + hydration payload + match. */
+async function processActivity(
+  admin: SupabaseClient,
+  userId: string,
+  activity: StravaActivity
+): Promise<void> {
+  const sport = normalizeSport(activity.sport_type);
+  const row = {
+    athlete_id: userId,
+    source: "strava" as const,
+    strava_activity_id: activity.id,
+    started_at: activity.start_date,
+    sport,
+    distance_m: activity.distance != null ? Math.round(activity.distance) : null,
+    duration_s: activity.moving_time ?? activity.elapsed_time ?? null,
+    summary_stats: buildSummaryStats(activity),
+  };
+
+  // The completed-workout upsert and the hydration insert are independent of
+  // each other; the match needs the resulting workout id, so it follows.
+  const [completedWorkoutId] = await Promise.all([
+    insertOrUpdateStravaCompletedWorkout(admin, row),
+    insertHydrationPayload(admin, { userId, activity }),
+  ]);
+
+  // Non-fatal: a match failure must not abort the backfill loop.
+  try {
+    await matchStravaToPlanned(admin, {
+      athleteId: userId,
+      completedWorkoutId,
+      sport,
+      startedAt: activity.start_date,
+      durationS: row.duration_s,
+    });
+  } catch {
+    // Log structured context only — never log raw activity payload.
+    console.info(
+      "[backfill.match] failed",
+      JSON.stringify({ athlete_id: userId, strava_activity_id: activity.id })
+    );
+  }
+}
+
 /**
  * Persist a page of activities. Returns the count of rows inserted/updated.
  * Caps at `cap` so total never exceeds MAX_ACTIVITIES.
  * Does NOT return any activity data — Inngest Cloud stores step returns
  * unencrypted, so raw Strava payloads must never leave this function.
+ *
+ * Processes the page in bounded-concurrency batches. After each batch it
+ * reports cumulative progress via `onProgress` so the poller sees the bar
+ * advance (instead of frozen at 0) and progress is durable even if a later
+ * batch is interrupted. `shouldStop` is checked BETWEEN batches so the
+ * caller can bail out cleanly before the function's time budget runs out;
+ * the count returned then reflects only the batches that actually landed.
  */
 export async function processActivityPage({
   admin,
   userId,
   activities,
   cap,
+  onProgress,
+  shouldStop,
 }: {
   admin: SupabaseClient;
   userId: string;
   activities: StravaActivity[];
   cap: number;
+  onProgress?: (processedInPage: number) => void | Promise<void>;
+  shouldStop?: () => boolean;
 }): Promise<number> {
   const toProcess = activities.slice(0, cap);
-  for (const activity of toProcess) {
-    const sport = normalizeSport(activity.sport_type);
-    const row = {
-      athlete_id: userId,
-      source: "strava" as const,
-      strava_activity_id: activity.id,
-      started_at: activity.start_date,
-      sport,
-      distance_m: activity.distance != null ? Math.round(activity.distance) : null,
-      duration_s: activity.moving_time ?? activity.elapsed_time ?? null,
-      summary_stats: buildSummaryStats(activity),
-    };
-    const completedWorkoutId = await insertOrUpdateStravaCompletedWorkout(admin, row);
-    await insertHydrationPayload(admin, { userId, activity });
+  let processed = 0;
 
-    // Non-fatal: a match failure must not abort the backfill loop.
-    try {
-      await matchStravaToPlanned(admin, {
-        athleteId: userId,
-        completedWorkoutId,
-        sport,
-        startedAt: activity.start_date,
-        durationS: row.duration_s,
-      });
-    } catch {
-      // Log structured context only — never log raw activity payload.
-      console.info(
-        "[backfill.match] failed",
-        JSON.stringify({ athlete_id: userId, strava_activity_id: activity.id })
-      );
-    }
+  for (let i = 0; i < toProcess.length; i += PROCESS_CONCURRENCY) {
+    if (shouldStop?.()) break;
+    const batch = toProcess.slice(i, i + PROCESS_CONCURRENCY);
+    await Promise.all(batch.map((activity) => processActivity(admin, userId, activity)));
+    processed += batch.length;
+    if (onProgress) await onProgress(processed);
   }
-  return toProcess.length;
+
+  return processed;
 }
 
 export async function markBackfillComplete({

@@ -45,6 +45,11 @@ export const StravaBackfillErrorCodeSchema = z.enum([
   "enqueue_failed",
   "network",
   "corrupt_state",
+  // The serverless backfill noticed it was about to blow its function time
+  // budget and exited cleanly with a real `completed` count. Distinct from
+  // "watchdog_demoted", which the cron writes when a run was hard-killed
+  // WITHOUT recording any terminal state.
+  "timed_out",
   "unknown",
 ]);
 
@@ -77,6 +82,16 @@ export const BackfillStatusColumnSchema = z
     started_at: z.string().datetime({ offset: true }).optional(),
     completed_at: z.string().datetime({ offset: true }).optional(),
     error_code: StravaBackfillErrorCodeSchema.optional(),
+    // Human-readable failure detail for the UI and structured logs. UNLIKE
+    // `error_code` (a closed enum for branching), this carries the ACTUAL
+    // message from the error the worker caught — e.g. "strava_http_503" or
+    // "Strava /athlete/activities unreachable: fetch timed out" — so the
+    // onboarding/settings UI can show what really went wrong instead of a
+    // generic template. The worker only ever populates this from its OWN
+    // controlled error strings (never a raw Strava response body), and the
+    // length bound keeps a stray token-bearing string from being persisted
+    // wholesale even if one ever leaked into a message.
+    error_detail: z.string().max(500).optional(),
     attempt: z.number().int().positive().optional(),
   })
   .strict();
