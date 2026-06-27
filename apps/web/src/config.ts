@@ -57,7 +57,6 @@ interface RawEnv {
   BREVO_API_KEY?: string;
   EMAIL_SENDER?: string;
   MCP_OAUTH_STATE_SIGNING_KEY?: string;
-  MCP_TOKEN_KEYS?: string;
   SUPABASE_JWT_SECRET?: string;
 }
 
@@ -126,21 +125,21 @@ export interface AppConfig {
   };
   mcpOAuth: {
     // Hand-rolled OAuth 2.1 AS + MCP resource server (apps/web/src/oauth,
-    // apps/web/src/mcp). All three are fatal-in-prod: the connector cannot
-    // operate without them and there is no safe degraded mode for an auth
-    // server. See docs/plans/2026-06-27-001-feat-mcp-athlete-stats-connector-plan.md.
+    // apps/web/src/mcp). Both are fatal-in-prod: the connector cannot operate
+    // without them and there is no safe degraded mode for an auth server. See
+    // docs/plans/2026-06-27-001-feat-mcp-athlete-stats-connector-plan.md.
     //
     // 32-byte HMAC-SHA256 key for the OAuth `state` nonce (64 hex chars),
     // same shape as STRAVA_OAUTH_STATE_SIGNING_KEY.
     stateSigningKey: string | undefined;
-    // Versioned AES-256-GCM keys (`1:<64-hex>,...`) for encrypting issued
-    // refresh-token material at rest, same shape as STRAVA_TOKEN_KEYS.
-    tokenKeysRaw: string | undefined;
     // The project's legacy HS256 JWT secret. The token bridge mints a
     // short-lived Supabase-compatible JWT signed with this so each MCP tool
     // call runs under the user's identity via RLS. The anon key decodes to
     // alg:HS256, so the project is on the shared-secret model and minting is
     // viable. Normalized to undefined on placeholder.
+    //
+    // Issued MCP access/refresh tokens are stored as SHA-256 hashes (verify-only,
+    // never recovered), so no separate token-encryption key is needed.
     supabaseJwtSecret: string | undefined;
   };
 }
@@ -419,35 +418,6 @@ function validateMcpOAuthStateSigningKeyProd(v: Validator): void {
   }
 }
 
-function validateMcpTokenKeysProd(v: Validator): void {
-  // Versioned AES-256-GCM keys for encrypting issued MCP refresh-token
-  // material at rest. Format `version:64-hex,...` (same shape as
-  // BACKUP_ENCRYPTION_KEYS / STRAVA_TOKEN_KEYS). The authoritative strict
-  // parse lives at the crypto call site; this keeps the same shape rules so a
-  // config that boots also passes the stricter check on first use.
-  const raw = v.raw.MCP_TOKEN_KEYS;
-  if (!raw) {
-    v.errors.push("MCP_TOKEN_KEYS is required in production");
-    return;
-  }
-  if (isPlaceholder(raw)) {
-    v.errors.push("MCP_TOKEN_KEYS contains placeholder value");
-    return;
-  }
-  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
-  if (entries.length === 0) {
-    v.errors.push("MCP_TOKEN_KEYS parsed to zero entries");
-    return;
-  }
-  for (const entry of entries) {
-    if (!/^\d+:[0-9a-fA-F]{64}$/.test(entry)) {
-      v.errors.push(`MCP_TOKEN_KEYS entry "${entry}" must be "version:64-hex"`);
-    } else if (isAllZeroHex(entry.slice(entry.indexOf(":") + 1))) {
-      v.errors.push("MCP_TOKEN_KEYS contains an all-zero (placeholder) key");
-    }
-  }
-}
-
 function validateInngestSigningKeyProd(v: Validator): void {
   // Inngest HMAC verification for the serve endpoint. The new AI generation
   // worker archives an athlete's active plan and spends model tokens, so an
@@ -547,7 +517,6 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateLlmProd(v);
     validateLangfuseProd(v);
     validateMcpOAuthStateSigningKeyProd(v);
-    validateMcpTokenKeysProd(v);
     requireProd(
       v,
       "SUPABASE_JWT_SECRET",
@@ -647,7 +616,6 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     },
     mcpOAuth: {
       stateSigningKey: raw.MCP_OAUTH_STATE_SIGNING_KEY,
-      tokenKeysRaw: raw.MCP_TOKEN_KEYS,
       supabaseJwtSecret:
         raw.SUPABASE_JWT_SECRET && !isPlaceholder(raw.SUPABASE_JWT_SECRET)
           ? raw.SUPABASE_JWT_SECRET

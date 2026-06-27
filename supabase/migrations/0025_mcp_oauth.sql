@@ -95,7 +95,11 @@ ALTER TABLE public.oauth_authorization_codes ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.oauth_access_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     -- SHA-256 hash of the opaque access token (lookup by hash; never plaintext).
-    token_hash TEXT NOT NULL UNIQUE,
+    access_token_hash TEXT NOT NULL UNIQUE,
+    -- SHA-256 hash of the paired opaque refresh token. Verify-only: a presented
+    -- refresh token is hashed and matched here; the plaintext is never recovered,
+    -- so hashing (not encryption) is correct and needs no key management.
+    refresh_token_hash TEXT UNIQUE,
     client_id TEXT NOT NULL REFERENCES public.oauth_clients(client_id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     -- Rotation lineage: all tokens minted from one authorization share a family.
@@ -104,12 +108,9 @@ CREATE TABLE public.oauth_access_tokens (
     scope TEXT,
     -- RFC 8707 audience binding (canonical MCP URL), re-checked on every call.
     resource TEXT NOT NULL,
-    -- Refresh-token material, encrypted at rest (AES-256-GCM, MCP_TOKEN_KEYS).
-    -- Stored as bytea via the `\x<hex>` literal conversion (see
-    -- docs/solutions/strava-token-crypto.md for the supabase-js BYTEA trap).
-    refresh_token_encrypted BYTEA,
-    refresh_key_version INT,
+    -- Access-token expiry (short, ~1h) and refresh-token expiry (longer).
     expires_at TIMESTAMPTZ NOT NULL,
+    refresh_expires_at TIMESTAMPTZ,
     -- Soft-invalidation: rotated/revoked tokens are stamped, never deleted, so a
     -- later replay is detectable (theft signal), not indistinguishable from new.
     revoked_at TIMESTAMPTZ,
