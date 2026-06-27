@@ -15,6 +15,15 @@ import { createClient } from "@/auth/supabase";
 // page works for athletes and coaches.
 const POST_SIGN_IN_PATH = "/";
 
+// Honor a same-origin `?next=` (used by the MCP OAuth /authorize flow to return
+// the user to the consent screen after login). Open-redirect-safe: only a path
+// beginning with a single "/" is accepted; everything else falls back home.
+function resolveNext(): string {
+  if (typeof window === "undefined") return POST_SIGN_IN_PATH;
+  const raw = new URLSearchParams(window.location.search).get("next");
+  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : POST_SIGN_IN_PATH;
+}
+
 type Status = "idle" | "sending" | "error";
 
 export default function SignInPage() {
@@ -33,7 +42,7 @@ export default function SignInPage() {
       setErrorMsg(error.message);
       setStatus("error");
     } else {
-      window.location.href = POST_SIGN_IN_PATH;
+      window.location.href = resolveNext();
     }
   };
 
@@ -44,7 +53,7 @@ export default function SignInPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(POST_SIGN_IN_PATH)}`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(resolveNext())}`,
       },
     });
     if (error) {
