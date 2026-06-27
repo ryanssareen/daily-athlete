@@ -27,6 +27,8 @@ const baseProdEnv: Record<string, string> = {
   ADMIN_SECRET: "admin-password-stub-secret",
   ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
   BACKUP_ENCRYPTION_KEYS: `1:${VALID_KEY}`,
+  MCP_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
+  SUPABASE_JWT_SECRET: "supabase-jwt-secret-stub",
 };
 
 async function importFresh(env: Record<string, string | undefined>) {
@@ -50,6 +52,8 @@ async function importFresh(env: Record<string, string | undefined>) {
     "SUPABASE_MANAGEMENT_TOKEN",
     "SUPABASE_PROJECT_REF",
     "ADMIN_BACKUP_BUCKET",
+    "MCP_OAUTH_STATE_SIGNING_KEY",
+    "SUPABASE_JWT_SECRET",
   ];
   for (const k of wipe)
     delete (process.env as Record<string, string | undefined>)[k];
