@@ -33,12 +33,11 @@ export const PlannedWorkoutStatusSchema = z.enum([
 ]);
 export type PlannedWorkoutStatus = z.infer<typeof PlannedWorkoutStatusSchema>;
 
-// Edit attribution kind. Pinned in Zod at v1 to {athlete, coach, ai_review}
-// even though the SQL column is plain TEXT with no CHECK constraint -- the
-// SQL is intentionally open to support a future vocabulary expansion
-// without a migration; Zod is the enforced contract at API boundaries.
-// See the migration's comment block for the design rationale.
-export const EditedByKindSchema = z.enum(["athlete", "coach", "ai_review"]);
+// Edit attribution kind. The SQL column is plain TEXT (no CHECK); Zod is the
+// enforced contract at API boundaries. `agent` marks edits made through the MCP
+// connector (the athlete acting via an external AI), distinct from in-app
+// athlete/coach edits and the ai_review adaptive engine.
+export const EditedByKindSchema = z.enum(["athlete", "coach", "ai_review", "agent"]);
 export type EditedByKind = z.infer<typeof EditedByKindSchema>;
 
 // Periodization phase (block) tag. Generation writes this per workout

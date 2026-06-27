@@ -56,6 +56,8 @@ interface RawEnv {
   ADMIN_BACKUP_BUCKET?: string;
   BREVO_API_KEY?: string;
   EMAIL_SENDER?: string;
+  MCP_OAUTH_STATE_SIGNING_KEY?: string;
+  SUPABASE_JWT_SECRET?: string;
 }
 
 export interface AppConfig {
@@ -120,6 +122,25 @@ export interface AppConfig {
     // still succeeds.
     brevoApiKey: string | undefined;
     sender: string | undefined;
+  };
+  mcpOAuth: {
+    // Hand-rolled OAuth 2.1 AS + MCP resource server (apps/web/src/oauth,
+    // apps/web/src/mcp). Both are fatal-in-prod: the connector cannot operate
+    // without them and there is no safe degraded mode for an auth server. See
+    // docs/plans/2026-06-27-001-feat-mcp-athlete-stats-connector-plan.md.
+    //
+    // 32-byte HMAC-SHA256 key for the OAuth `state` nonce (64 hex chars),
+    // same shape as STRAVA_OAUTH_STATE_SIGNING_KEY.
+    stateSigningKey: string | undefined;
+    // The project's legacy HS256 JWT secret. The token bridge mints a
+    // short-lived Supabase-compatible JWT signed with this so each MCP tool
+    // call runs under the user's identity via RLS. The anon key decodes to
+    // alg:HS256, so the project is on the shared-secret model and minting is
+    // viable. Normalized to undefined on placeholder.
+    //
+    // Issued MCP access/refresh tokens are stored as SHA-256 hashes (verify-only,
+    // never recovered), so no separate token-encryption key is needed.
+    supabaseJwtSecret: string | undefined;
   };
 }
 
@@ -368,6 +389,35 @@ function validateBrevoProd(v: Validator): void {
   }
 }
 
+function validateMcpOAuthStateSigningKeyProd(v: Validator): void {
+  // 32-byte HMAC-SHA256 key for the MCP OAuth state nonce
+  // (apps/web/src/oauth/state.ts). 64 hex chars (= 32 bytes), same shape as
+  // STRAVA_OAUTH_STATE_SIGNING_KEY. /authorize refuses to sign and the
+  // callback refuses to verify when missing — a hard fail in production.
+  const raw = v.raw.MCP_OAUTH_STATE_SIGNING_KEY;
+  if (!raw) {
+    v.errors.push("MCP_OAUTH_STATE_SIGNING_KEY is required in production");
+    return;
+  }
+  if (isPlaceholder(raw)) {
+    v.errors.push("MCP_OAUTH_STATE_SIGNING_KEY contains placeholder value");
+    return;
+  }
+  if (isAllZeroHex(raw)) {
+    v.errors.push("MCP_OAUTH_STATE_SIGNING_KEY is all-zero (placeholder)");
+    return;
+  }
+  if (!/^[0-9a-fA-F]+$/.test(raw)) {
+    v.errors.push("MCP_OAUTH_STATE_SIGNING_KEY contains non-hex characters");
+    return;
+  }
+  if (raw.length !== 64) {
+    v.errors.push(
+      `MCP_OAUTH_STATE_SIGNING_KEY must be 64 hex chars (32 bytes); got ${raw.length}`
+    );
+  }
+}
+
 function validateInngestSigningKeyProd(v: Validator): void {
   // Inngest HMAC verification for the serve endpoint. The new AI generation
   // worker archives an athlete's active plan and spends model tokens, so an
@@ -466,6 +516,12 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateInngestSigningKeyProd(v);
     validateLlmProd(v);
     validateLangfuseProd(v);
+    validateMcpOAuthStateSigningKeyProd(v);
+    requireProd(
+      v,
+      "SUPABASE_JWT_SECRET",
+      "Supabase JWT secret (HS256, for the MCP token bridge)"
+    );
   } else {
     if (!raw.NEXT_PUBLIC_SUPABASE_URL) {
       v.warnings.push(
@@ -475,6 +531,16 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     if (!raw.STRAVA_OAUTH_STATE_SIGNING_KEY) {
       v.warnings.push(
         "STRAVA_OAUTH_STATE_SIGNING_KEY missing (dev/test) -- /api/integrations/strava/init will reject"
+      );
+    }
+    if (!raw.MCP_OAUTH_STATE_SIGNING_KEY) {
+      v.warnings.push(
+        "MCP_OAUTH_STATE_SIGNING_KEY missing (dev/test) -- the MCP OAuth /authorize flow will reject"
+      );
+    }
+    if (!raw.SUPABASE_JWT_SECRET) {
+      v.warnings.push(
+        "SUPABASE_JWT_SECRET missing (dev/test) -- MCP tool calls cannot mint an RLS-scoped session"
       );
     }
   }
@@ -547,6 +613,13 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     email: {
       brevoApiKey: raw.BREVO_API_KEY,
       sender: raw.EMAIL_SENDER,
+    },
+    mcpOAuth: {
+      stateSigningKey: raw.MCP_OAUTH_STATE_SIGNING_KEY,
+      supabaseJwtSecret:
+        raw.SUPABASE_JWT_SECRET && !isPlaceholder(raw.SUPABASE_JWT_SECRET)
+          ? raw.SUPABASE_JWT_SECRET
+          : undefined,
     },
   };
 }

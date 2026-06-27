@@ -23,6 +23,8 @@ const baseProdEnv: Record<string, string> = {
   ADMIN_SECRET: "admin-secret",
   ADMIN_SESSION_SIGNING_KEY: VALID_KEY,
   BACKUP_ENCRYPTION_KEYS: `1:${VALID_KEY}`,
+  MCP_OAUTH_STATE_SIGNING_KEY: VALID_KEY,
+  SUPABASE_JWT_SECRET: "supabase-jwt-secret-stub",
 };
 
 const MANAGED_KEYS = [

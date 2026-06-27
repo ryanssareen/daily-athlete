@@ -11,8 +11,9 @@
 
 import { z } from "zod";
 
-// Who made the edit. `ai_review` rows carry a weekly_review_id back-reference.
-export const WorkoutEditActorRoleSchema = z.enum(["athlete", "coach", "ai_review"]);
+// Who made the edit. `ai_review` rows carry a weekly_review_id back-reference;
+// `agent` marks edits made through the MCP connector (athlete via an external AI).
+export const WorkoutEditActorRoleSchema = z.enum(["athlete", "coach", "ai_review", "agent"]);
 export type WorkoutEditActorRole = z.infer<typeof WorkoutEditActorRoleSchema>;
 
 // Field-level diff of the plannable columns that changed. Permissive JSONB at
