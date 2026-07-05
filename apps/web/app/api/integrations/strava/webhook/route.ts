@@ -30,7 +30,7 @@ import { insertOrUpdateStravaCompletedWorkout } from "@/db/completed-workouts";
 import { matchStravaToPlanned } from "@/strava/auto-match";
 import { buildSummaryStats } from "@/strava/build-summary-stats";
 import { createStravaClient } from "@/strava/client";
-import { classifyError, StravaReauthRequired, StravaRateLimited } from "@/strava/errors";
+import { classifyError } from "@/strava/errors";
 import { normalizeSport } from "@/strava/sport-normalization";
 import { StravaActivitySchema } from "@/strava/schemas";
 
@@ -88,9 +88,32 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const { object_type, object_id, aspect_type, owner_id, subscription_id } = parsed.data;
 
-  // Subscription ID check — missing env var would make this NaN !== NaN → always false
+  // Subscription ID gate. Any event whose subscription_id doesn't match our
+  // registered subscription is dropped. Both drop paths log a warning: a
+  // silent drop here previously turned a missing/rotated
+  // STRAVA_WEBHOOK_SUBSCRIPTION_ID into an INVISIBLE, multi-week auto-sync
+  // outage (issue #97) — the config warning fired at boot, but nothing tied
+  // it to actual dropped events. subscription_id is a non-secret integer.
   const expectedSubId = config.strava.webhookSubscriptionId;
-  if (expectedSubId === undefined || subscription_id !== expectedSubId) {
+  if (expectedSubId === undefined) {
+    // Misconfiguration, not a hostile event: the env var is unset, so EVERY
+    // event is being dropped and no activity can auto-sync. Loud on purpose.
+    console.warn(
+      "[strava.webhook] dropped_event_no_subscription_id_configured",
+      JSON.stringify({ subscription_id, object_type, aspect_type })
+    );
+    return NextResponse.json({ ok: true });
+  }
+  if (subscription_id !== expectedSubId) {
+    console.warn(
+      "[strava.webhook] dropped_event_subscription_id_mismatch",
+      JSON.stringify({
+        received: subscription_id,
+        expected: expectedSubId,
+        object_type,
+        aspect_type,
+      })
+    );
     return NextResponse.json({ ok: true });
   }
 
@@ -169,16 +192,12 @@ async function handleCreate(
 ): Promise<void> {
   const stravaClient = createStravaClient(userId, admin);
 
-  let res: Response;
-  try {
-    res = await stravaClient.fetch(`/activities/${activityId}`);
-  } catch (err) {
-    if (err instanceof StravaReauthRequired || err instanceof StravaRateLimited) {
-      // Backfill will cover eventual consistency; no retry here
-      throw err;
-    }
-    throw err;
-  }
+  // If this fetch throws (StravaReauthRequired, StravaRateLimited, a network
+  // error, or a 403 from an Inactive Strava app), the event is LOST: there is
+  // no retry and no cron that re-pulls missed activities — the caller's
+  // after() block only logs `after_error`. Recovering missed activities
+  // requires a manual backfill re-run. See issue #97 (reconcile-cron follow-up).
+  const res = await stravaClient.fetch(`/activities/${activityId}`);
 
   if (!res.ok) {
     throw new Error(`Strava /activities/${activityId} returned ${res.status}`);
