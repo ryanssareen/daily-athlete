@@ -244,10 +244,45 @@ describe("POST /api/integrations/strava/webhook", () => {
     expect(afterCallback).toBeNull();
   });
 
-  it("returns 200 silently when subscription_id does not match", async () => {
+  it("returns 200 and logs a mismatch warning when subscription_id does not match", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const res = await POST(makePOST(makeEvent({ subscription_id: 99999 })));
     expect(res.status).toBe(200);
     expect(afterCallback).toBeNull();
+
+    // Regression guard for issue #97: a dropped event MUST be observable.
+    const call = warnSpy.mock.calls.find(
+      (args) => args[0] === "[strava.webhook] dropped_event_subscription_id_mismatch"
+    );
+    expect(call).toBeDefined();
+    const payload = JSON.parse(call![1] as string);
+    expect(payload).toMatchObject({ received: 99999, expected: 12345 });
+    warnSpy.mockRestore();
+  });
+
+  it("logs a no-subscription-id warning and drops the event when STRAVA_WEBHOOK_SUBSCRIPTION_ID is unset", async () => {
+    // The exact failure mode behind issue #97: env var never set →
+    // config.strava.webhookSubscriptionId === undefined → every event dropped.
+    // Re-import the route with the var unset so config re-reads a fresh env.
+    vi.resetModules();
+    const prev = process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+    delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { POST: FreshPOST } = await import("../route");
+      const res = await FreshPOST(makePOST(makeEvent({ aspect_type: "create" })));
+      expect(res.status).toBe(200);
+      const call = warnSpy.mock.calls.find(
+        (args) =>
+          args[0] === "[strava.webhook] dropped_event_no_subscription_id_configured"
+      );
+      expect(call).toBeDefined();
+    } finally {
+      warnSpy.mockRestore();
+      if (prev === undefined) delete process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID;
+      else process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID = prev;
+      vi.resetModules();
+    }
   });
 
   it("hard-deletes strava_tokens row and returns 200 for deauth event", async () => {
