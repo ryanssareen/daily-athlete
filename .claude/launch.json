@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js (web)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@da2/web", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Expo (mobile)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@da2/mobile", "start"],
+      "port": 8081
+    },
+    {
+      "name": "Inngest dev server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["inngest-cli@latest", "dev"],
+      "port": 8288
+    },
+    {
+      "name": "Supabase local",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["supabase", "start"],
+      "port": 54321
+    }
+  ]
+}
