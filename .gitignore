@@ -66,3 +66,4 @@ coverage/
 .coverage
 htmlcov/
 /.context/
+.env*.local
