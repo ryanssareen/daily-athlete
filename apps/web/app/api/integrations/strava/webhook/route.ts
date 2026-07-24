@@ -119,11 +119,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     try {
       // Resolve Strava athlete ID → internal user ID
       // service-role: explicit user filter required
-      const { data: tokenRow } = await admin
+      const { data: tokenRow, error: tokenErr } = await admin
         .from("strava_tokens")
         .select("user_id")
         .eq("athlete_strava_id", owner_id)
         .maybeSingle();
+
+      // A failed lookup is not a missing owner. Ignoring this error made
+      // .maybeSingle()'s multi-row failure indistinguishable from a
+      // disconnected athlete, silently discarding every event for an
+      // athlete_strava_id that had duplicate rows. Route it to after_error
+      // instead; classifyError() still keeps err.message out of the log.
+      if (tokenErr) {
+        throw new Error(`strava_tokens lookup failed: ${tokenErr.message}`);
+      }
 
       if (!tokenRow) {
         // Expected when an athlete has disconnected Strava before the event arrives
