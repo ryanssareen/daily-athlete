@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@babel/runtime": "^7.29.2",
     "@da2/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@supabase/supabase-js": "^2.46.0",
