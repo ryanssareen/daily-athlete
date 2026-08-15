@@ -38,6 +38,19 @@ function formatDate(iso: string): string {
   });
 }
 
+// event_date is a DATE-only string ("YYYY-MM-DD"), not a timestamp. Parsing
+// it with `new Date(str)` reads it as UTC midnight, which renders as the
+// PREVIOUS day in any timezone west of UTC once toLocaleDateString converts
+// to local time. Parse the components directly instead.
+function formatEventDate(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 /**
  * Plan history list for /plans. Each row links to /plans/[id]. Renders the
  * empty state (no plans yet, with a CTA back to /plan for generation) when
@@ -106,7 +119,7 @@ export function PlanHistoryList({ plans }: { plans: PlanRow[] }) {
                 {plan.event_date && (
                   <span style={{ fontWeight: 400, color: "var(--color-ink-muted)" }}>
                     {" "}
-                    · {formatDate(plan.event_date)}
+                    · {formatEventDate(plan.event_date)}
                   </span>
                 )}
               </div>

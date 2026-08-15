@@ -22,6 +22,19 @@ function formatDate(iso: string): string {
   });
 }
 
+// event_date is a DATE-only string ("YYYY-MM-DD"), not a timestamp. Parsing
+// it with `new Date(str)` reads it as UTC midnight, which renders as the
+// PREVIOUS day in any timezone west of UTC once toLocaleDateString converts
+// to local time. Parse the components directly instead.
+function formatEventDate(dateOnly: string): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default async function PlanDetailPage({
   params,
 }: {
@@ -105,7 +118,7 @@ export default async function PlanDetailPage({
       </h1>
       <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "0 0 24px" }}>
         {plan.status === "active" ? "Active" : "Archived"}
-        {plan.event_date && ` · Event: ${formatDate(plan.event_date)}`}
+        {plan.event_date && ` · Event: ${formatEventDate(plan.event_date)}`}
         {` · Created ${formatDate(plan.created_at)}`}
       </p>
       <PlanActions
