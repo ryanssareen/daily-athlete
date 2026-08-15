@@ -1,10 +1,16 @@
-// Pure-unit tests for POST /api/plans (Unit 5 + 7), fully mocked (mirrors
+// Pure-unit tests for GET + POST /api/plans, fully mocked (mirrors
 // app/api/weekly-review/__tests__/post-route.test.ts): auth, the
 // entitlement-OR-trial gate, the coach link gate, the attempt-row insert, and
 // the best-effort enqueue. No real DB / Inngest / env.
 //
-// The load-bearing invariant under test: a non-owner targeting another athlete
-// gets 403 BEFORE the access (paid-status) query runs — no payment oracle.
+// GET: db/plans.ts (listPlans) is mocked directly rather than re-faking the
+// Supabase query builder -- listPlans has its own DB-backed coverage in
+// src/db/__tests__/plans-lifecycle.test.ts; here we only test the route's
+// auth gate and response envelope.
+//
+// POST — the load-bearing invariant under test: a non-owner targeting another
+// athlete gets 403 BEFORE the access (paid-status) query runs — no payment
+// oracle.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   sendShouldThrow: false,
   sentPayloads: [] as unknown[],
   send: vi.fn(),
+  listPlansResult: [] as unknown[],
+  listPlansError: null as Error | null,
+  listPlansCalledWith: null as string | null,
 }));
 
 vi.mock("@/auth/server", () => ({
@@ -74,6 +83,19 @@ vi.mock("@/db/admin", () => ({
   }),
 }));
 
+vi.mock("@/db/plans", () => ({
+  listPlans: async (_admin: unknown, athleteId: string) => {
+    mocks.listPlansCalledWith = athleteId;
+    if (mocks.listPlansError) throw mocks.listPlansError;
+    return mocks.listPlansResult;
+  },
+}));
+
+async function invokeGet(): Promise<Response> {
+  const { GET } = await import("../route");
+  return GET(new Request("http://localhost:3000/api/plans", { method: "GET" }));
+}
+
 async function invoke(body: unknown): Promise<Response> {
   const { POST } = await import("../route");
   return POST(
@@ -103,6 +125,43 @@ beforeEach(() => {
     if (mocks.sendShouldThrow) throw new Error("queue down");
     mocks.sentPayloads.push(payload);
     return { ids: ["evt-1"] };
+  });
+  mocks.listPlansResult = [];
+  mocks.listPlansError = null;
+  mocks.listPlansCalledWith = null;
+});
+
+describe("GET /api/plans", () => {
+  it("unauthenticated → 401", async () => {
+    mocks.authUser = null;
+    const res = await invokeGet();
+    expect(res.status).toBe(401);
+  });
+
+  it("authenticated athlete with 3 plans (1 active, 2 archived) → 200 with all 3, newest first", async () => {
+    mocks.listPlansResult = [
+      { id: "p3", status: "active" },
+      { id: "p2", status: "archived" },
+      { id: "p1", status: "archived" },
+    ];
+    const res = await invokeGet();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.plans.map((p: { id: string }) => p.id)).toEqual(["p3", "p2", "p1"]);
+    expect(mocks.listPlansCalledWith).toBe(ATHLETE);
+  });
+
+  it("authenticated athlete with 0 plans → 200 with empty array, not 404", async () => {
+    mocks.listPlansResult = [];
+    const res = await invokeGet();
+    expect(res.status).toBe(200);
+    expect((await res.json()).plans).toEqual([]);
+  });
+
+  it("listPlans failure → 500", async () => {
+    mocks.listPlansError = new Error("db down");
+    const res = await invokeGet();
+    expect(res.status).toBe(500);
   });
 });
 

@@ -1,3 +1,5 @@
+// GET /api/plans — list the caller's own plans (history view, plan Unit 2).
+//
 // POST /api/plans — request an AI-generated training plan (Unit 5).
 //
 // Agent-native, resource-shaped entry point. Authorizes, gates on entitlement
@@ -20,8 +22,29 @@ import { resolveAuth } from "@/auth/bearer";
 import { createClient as createServerClient } from "@/auth/server";
 import { resolveGenerationAccess } from "@/auth/trial";
 import { createAdminClient } from "@/db/admin";
+import { listPlans } from "@/db/plans";
 import { inngest } from "@/inngest/client";
 import { PLAN_GENERATE_EVENT } from "@/inngest/functions/generate-plan";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request): Promise<NextResponse> {
+  const supabase = await createServerClient();
+  const { user, error: authErr } = await resolveAuth(supabase, request);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+  let plans;
+  try {
+    plans = await listPlans(admin, user.id);
+  } catch {
+    return NextResponse.json({ error: "internal" }, { status: 500 });
+  }
+
+  return NextResponse.json({ plans }, { status: 200 });
+}
 
 function logRequest(event: {
   name: string;

@@ -47,6 +47,11 @@ export default async function AthleteReviewPage({
   if (!planErr && !activePlan) {
     return (
       <div style={{ width: "100%", padding: "8px 0 80px" }}>
+        <div style={{ textAlign: "right", marginBottom: 12 }}>
+          <Link href="/plans" style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
+            View plan history →
+          </Link>
+        </div>
         <div
           data-testid="state-no-plan"
           style={{
@@ -117,6 +122,11 @@ export default async function AthleteReviewPage({
 
   return (
     <div style={{ width: "100%", padding: "8px 0 80px" }}>
+      <div style={{ textAlign: "right", marginBottom: 12 }}>
+        <Link href="/plans" style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
+          View plan history →
+        </Link>
+      </div>
       <ProposalReview
         athleteId={session.user.id}
         reviewId={id}
