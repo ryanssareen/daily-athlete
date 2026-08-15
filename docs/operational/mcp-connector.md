@@ -13,15 +13,15 @@ Before connecting, the following must be in place on the server:
 
 ## Connect Claude.ai
 
-1. Open [Claude.ai](https://claude.ai) → Settings → Integrations (or "Connectors")
-2. Click **Add custom connector**
-3. Enter the MCP server URL:
+1. Open [Claude.ai](https://claude.ai) → Settings → Connectors → Add custom connector
+2. Enter the MCP server URL:
    ```
-   https://da2-one.vercel.app/api/mcp
+   https://thedailyathlete.in/api/mcp
    ```
-4. Claude performs automatic discovery (RFC 9728 / RFC 8414), then opens the OAuth consent flow
-5. Sign in with your Daily-Athlete account and click **Approve**
-6. Done — the connector appears in your Claude conversation tool list
+   Any of the project's production domains work (`thedailyathlete.in`, `www.thedailyathlete.in`, or `da2-one.vercel.app`) — all three serve Production directly with no redirect between them. Historically `thedailyathlete.in` 307-redirected to `www.thedailyathlete.in` at the Vercel domain level; that broke discovery, since MCP clients are not required to follow a redirect when fetching `.well-known` metadata (RFC 9728 §3.1 expects it served directly at the resource's own origin). Fixed by setting `thedailyathlete.in` to "Connect to an environment → Production" instead of "Redirect to Another Domain" in Vercel → Project → Settings → Domains. If you ever add another domain to this project, connect it the same way — don't set it to redirect.
+3. Claude performs automatic discovery (RFC 9728 / RFC 8414), then opens the OAuth consent flow
+4. Sign in with your Daily-Athlete account and click **Approve**
+5. Done — the connector appears in your Claude conversation tool list
 
 ## Available tools
 
