@@ -1,4 +1,4 @@
-# App Store Listing Copy — Daily Athlete (v1.0.0)
+# App Store Listing Copy — The Daily Athlete (v0.1.0)
 
 > Authoritative source for the text fields on the App Store Connect version
 > page. Paste from here into App Store Connect at submission; keep this file
@@ -7,7 +7,7 @@
 ## App Name (≤30 chars)
 
 ```
-Daily Athlete
+The Daily Athlete
 ```
 
 (13 chars; matches `CFBundleDisplayName` in `daily-athlete/ios/Runner/Info.plist`.)
@@ -35,7 +35,7 @@ v1.0 launch — bring your Strava workouts and your plan together. Mark workouts
 ## Description (≤4000 chars)
 
 ```
-Daily Athlete is an endurance training companion for runners, cyclists, and triathletes who want a plan that stays in sync with what they actually do.
+The Daily Athlete is an endurance training companion for runners, cyclists, and triathletes who want a plan that stays in sync with what they actually do.
 
 Bring your training and your life together:
 - See your week at a glance with a color-coded calendar (Day, Week, Month, and Year views)
@@ -65,7 +65,7 @@ Coming soon:
 - Performance manager chart (CTL/ATL/TSB)
 - Annual training plan editor
 
-Daily Athlete is built by a small team. Feedback, bug reports, and feature
+The Daily Athlete is built by a small team. Feedback, bug reports, and feature
 requests are read directly by the people building the app — reach us at
 support@da2.coach.
 ```
@@ -80,7 +80,7 @@ training,coach,endurance,running,cycling,triathlon,strava,workout,fitness,plan
 
 (80 chars.) Notes:
 
-- Do not include the app name itself ("Daily Athlete") — Apple already
+- Do not include the app name itself ("The Daily Athlete") — Apple already
   indexes the title; repeating it wastes space.
 - Avoid competitor brand names (`TrainingPeaks`, `TrainerRoad`) — App Review
   rejects on Guideline 5.2.1.
@@ -160,7 +160,7 @@ Email: rsareen@gmail.com
 ### Notes to App Review (private to Apple)
 
 ```
-Daily Athlete is an endurance training companion app. Sign-in options:
+The Daily Athlete is an endurance training companion app. Sign-in options:
 email + password (Supabase Auth), Continue with Google, or Continue with
 Apple. The Strava integration is optional; the app's core features
 (calendar, manual logging, planned workouts) work without it.
@@ -212,7 +212,7 @@ Release**. Rationale:
 
 ## What's New in This Version
 
-For v1.0.0 (initial submission): leave blank or use a brief launch line.
+For v0.1.0 (initial submission): leave blank or use a brief launch line.
 Apple requires this field for updates, not for the first version.
 
 For future releases, use a 2–4 line summary of user-visible changes:

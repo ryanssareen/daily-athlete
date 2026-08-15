@@ -40,7 +40,7 @@ export default function AdminOverviewPage() {
           <div className="page-eyebrow">Operator console</div>
           <h1 className="page-title">Overview</h1>
           <p className="page-desc">
-            Operational tooling for Daily Athlete — backups, exports, and the
+            Operational tooling for The Daily Athlete — backups, exports, and the
             user directory.
           </p>
         </div>

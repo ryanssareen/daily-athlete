@@ -1,5 +1,5 @@
 // Color + label palette for HR and power zones in the workout-detail
-// page's Zone Distribution section. Ported from the DA2 2.0 design
+// page's Zone Distribution section. Ported from the design
 // bundle's `workout-details/utils.js` (POWER_ZONES / HR_ZONES). Six
 // power zones follow Coggan's standard model; five HR zones follow
 // the standard 60/70/80/90/100% HRmax buckets.

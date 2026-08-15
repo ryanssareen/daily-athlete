@@ -6,7 +6,7 @@ topic: admin-dashboard
 # Admin Dashboard
 
 ## Problem Frame
-The solo operator needs lightweight, safe operational tooling for Daily Athlete
+The solo operator needs lightweight, safe operational tooling for The Daily Athlete
 (Next.js `apps/web`). The app is pre-launch (first TestFlight cycle), so v1
 prioritizes what's useful now — backup visibility/safety and read-only user
 visibility — and defers capabilities that target a user base that doesn't exist yet

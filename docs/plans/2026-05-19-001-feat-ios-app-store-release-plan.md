@@ -68,7 +68,7 @@ Flutter, ADA credentials in hand).
   Universal Links are added later — currently not required).
 - R8. A Distribution certificate + App Store provisioning profile exists for
   the App ID; Xcode automatic signing succeeds for Release archive builds.
-- R9. The app record exists in App Store Connect with: name "Daily Athlete",
+- R9. The app record exists in App Store Connect with: name "The Daily Athlete",
   bundle ID `com.da2.dailyAthlete`, primary language, category, age rating
   questionnaire completed, and a hosted privacy policy URL.
 - R10. A signed Release archive is uploaded to TestFlight and passes Apple's
@@ -120,7 +120,7 @@ Flutter, ADA credentials in hand).
 - Env documentation: `daily-athlete/.env.local.example` already documents the
   three required `--dart-define` keys with production URL examples.
 - iOS configuration:
-  - `daily-athlete/ios/Runner/Info.plist` — has `CFBundleDisplayName = "Daily Athlete"`,
+  - `daily-athlete/ios/Runner/Info.plist` — has `CFBundleDisplayName = "The Daily Athlete"`,
     URL scheme `da2` registered, portrait + landscape orientations declared.
   - `daily-athlete/ios/Runner.xcodeproj/project.pbxproj` —
     `PRODUCT_BUNDLE_IDENTIFIER = com.da2.dailyAthlete` (Runner) and
@@ -130,7 +130,7 @@ Flutter, ADA credentials in hand).
     ~10KB suggesting these may still be the Flutter template defaults.
     Replace with the finalized design.
 - Android configuration: `daily-athlete/android/app/src/main/AndroidManifest.xml`
-  — `applicationName="Daily Athlete"`, `da2://` intent filter. Out of scope
+  — `applicationName="The Daily Athlete"`, `da2://` intent filter. Out of scope
   for this plan but listed for completeness.
 - Strava brand compliance: `daily-athlete/lib/features/settings/strava_connect_section.dart`
   already renders the required "Powered by Strava" mark when the connection
@@ -458,7 +458,7 @@ referencing missing assets.
   version + build number). Confirm or set this explicitly; do not leave
   the template value if it is unchanged.
 - Verify: `daily-athlete/ios/Runner/Info.plist` — `CFBundleDisplayName`
-  is "Daily Athlete" (already correct).
+  is "The Daily Athlete" (already correct).
 - Verify: `daily-athlete/ios/Runner/Base.lproj/LaunchScreen.storyboard`
   — opens cleanly in Xcode and references only existing image set names.
 
@@ -776,7 +776,7 @@ App Review.
 App Store Connect → My Apps → "+" → New App. Fill out:
 
 - **Platform:** iOS
-- **Name:** Daily Athlete (≤30 chars displayed in App Store; matches
+- **Name:** The Daily Athlete (≤30 chars displayed in App Store; matches
   `CFBundleDisplayName`)
 - **Primary language:** English (U.S.) unless other primary intended
 - **Bundle ID:** `com.da2.dailyAthlete` (the dropdown lists the App ID
@@ -999,7 +999,7 @@ Help — Apple updates these):
   like beta launches, new features.
 - **Description** (≤4000 chars): plain-language explanation of what the
   app does, who it's for, and what users can do. Sections to cover:
-  what is Daily Athlete; for athletes / for coaches; integrations
+  what is The Daily Athlete; for athletes / for coaches; integrations
   (Strava); privacy stance (your data, not sold). Do not include
   pricing or promotional language ("$1.99 limited time" — banned).
 - **Keywords** (≤100 chars total, comma-separated, not visible to users):
@@ -1121,7 +1121,7 @@ phased release for the rollout.
    a connected Strava using a separate test Strava account). Record
    credentials in App Store Connect → App Review Information.
 
-2. **Attach the build.** App Store Connect → Apps → Daily Athlete →
+2. **Attach the build.** App Store Connect → Apps → The Daily Athlete →
    "+ Version or Platform" → select iOS → enter the version (1.0.0).
    In the "Build" section, attach the TestFlight build from Unit 9.
 

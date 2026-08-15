@@ -1,6 +1,6 @@
 # Backup restore runbook
 
-Guarded, manual restore procedure for Daily Athlete. **There is no in-place
+Guarded, manual restore procedure for The Daily Athlete. **There is no in-place
 "restore" button** — restore is destructive and blast-radius-heavy, so it is a
 deliberate operator runbook. Which path applies depends on the Supabase tier.
 

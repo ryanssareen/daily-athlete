@@ -57,10 +57,10 @@ function buildEmail(params: NotifyModerationParams): {
 
   if (params.action === "disable") {
     return {
-      subject: "Your Daily Athlete account has been disabled",
+      subject: "Your account at The Daily Athlete has been disabled",
       html:
         `<p>Hi,</p>` +
-        `<p>Your Daily Athlete account has been disabled because of ${cause}. ` +
+        `<p>Your account at The Daily Athlete has been disabled because of ${cause}. ` +
         `You won't be able to sign in while it's disabled.</p>` +
         note +
         appeal +
@@ -70,10 +70,10 @@ function buildEmail(params: NotifyModerationParams): {
 
   const graceDays = params.graceDays ?? DEFAULT_GRACE_DAYS;
   return {
-    subject: "Your Daily Athlete account is scheduled for deletion",
+    subject: "Your account at The Daily Athlete is scheduled for deletion",
     html:
       `<p>Hi,</p>` +
-      `<p>Your Daily Athlete account has been scheduled for deletion because of ${cause}. ` +
+      `<p>Your account at The Daily Athlete has been scheduled for deletion because of ${cause}. ` +
       `You won't be able to sign in. Your data will be kept for ${graceDays} days, ` +
       `during which the account can still be restored.</p>` +
       note +

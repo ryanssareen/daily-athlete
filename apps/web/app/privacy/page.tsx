@@ -24,7 +24,7 @@ export default function PrivacyPolicyPage() {
             platform that generates personalized, race-specific training plans and adapts them
             based on your actual workout performance. This Privacy Policy explains how we collect,
             use, store, and protect your personal information when you use our website, mobile
-            apps, and services at <strong>da2-one.vercel.app</strong> and the Daily Athlete iOS
+            apps, and services at <strong>da2-one.vercel.app</strong> and The Daily Athlete iOS
             app (collectively, the &quot;Service&quot;).
           </P>
           <P>

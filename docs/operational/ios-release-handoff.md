@@ -1,6 +1,6 @@
 # iOS App Store Release — Handoff Notes
 
-> Snapshot of where the Daily Athlete iOS release work stands as of 2026-05-19.
+> Snapshot of where the The Daily Athlete iOS release work stands as of 2026-05-19.
 > Read this first when resuming on a different machine. Pairs with the
 > implementation plan at
 > [`docs/plans/2026-05-19-001-feat-ios-app-store-release-plan.md`](../plans/2026-05-19-001-feat-ios-app-store-release-plan.md).
@@ -36,7 +36,7 @@ unblock at once).
   web auth)
   - Domain: `gukhwozgnunbqzllobbd.supabase.co`
   - Return URL: `https://gukhwozgnunbqzllobbd.supabase.co/auth/v1/callback`
-- **Sign in with Apple Key:** Key ID `554PR43X56`, name "Daily Athlete Sign
+- **Sign in with Apple Key:** Key ID `554PR43X56`, name "The Daily Athlete Sign
   in with Apple". Private key `.p8` is **local-only at
   `secrets/AuthKey_554PR43X56.p8`** (gitignored, do not commit). If you're
   on a different machine you'll need to either re-download it (you can't —
@@ -46,7 +46,7 @@ unblock at once).
 
 App ID `6770878604`, status `1.0 Prepare for Submission`.
 
-- App Information saved: name "Daily Athlete", subtitle "Train smarter,
+- App Information saved: name "The Daily Athlete", subtitle "Train smarter,
   every day.", primary category Health & Fitness, secondary Sports, content
   rights = no third-party
 - Age Rating: **4+**
@@ -212,7 +212,7 @@ In order:
 2. **Install Xcode 26.5+** from the Mac App Store (~12 GB, takes time).
 3. **Install Flutter** (we used `flutter 3.41.9` stable). Put on PATH.
 4. **Sign Xcode into Apple ID** (Settings → Accounts → +). Confirm the
-   Daily Athlete team `R7HV9V7LDY` shows up.
+   The Daily Athlete team `R7HV9V7LDY` shows up.
 5. **Create local Apple Development cert** via Xcode Settings → Accounts →
    Manage Certificates → + → Apple Development.
 6. **Copy the `.p8` key to `secrets/AuthKey_554PR43X56.p8`** from your
@@ -341,7 +341,7 @@ Do NOT commit:
 
 Paste this into the AI assistant:
 
-> Resuming iOS release work for the Daily Athlete Flutter app at
+> Resuming iOS release work for the The Daily Athlete Flutter app at
 > `/Users/ryan/Documents/da2/daily-athlete`. Read
 > `docs/operational/ios-release-handoff.md` for context, then continue
 > from the "Resume checklist" section.

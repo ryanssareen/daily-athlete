@@ -547,8 +547,8 @@ Stored in `apps/web/src/strava/sport-normalization.ts` as a hand-authored object
   | `opening` | Disabled CTA with spinner "Opening Strava…" | OAuth result → `posting`, OAuth cancel → `not_connected` |
   | `posting` | Spinner "Linking your account…" | POST 200 → `connected`, POST 409 → `account_conflict`, POST 5xx → `network_error`, POST 4xx → `auth_error` |
   | `connected` | "Connected to Strava" + small "Powered by Strava" mark (Strava brand requirement) + "Backfill in progress — Phase C lands the progress indicator" placeholder | Static (Phase B); Phase C2 replaces placeholder with live progress |
-  | `account_conflict` | "This Strava account is already linked to another Daily Athlete user. Contact support." + Try again button | Try again → `not_connected` |
-  | `network_error` | "Couldn't reach Daily Athlete." + Retry button | Retry → `posting` |
+  | `account_conflict` | "This Strava account is already linked to another The Daily Athlete user. Contact support." + Try again button | Try again → `not_connected` |
+  | `network_error` | "Couldn't reach The Daily Athlete." + Retry button | Retry → `posting` |
   | `auth_error` | "Couldn't connect. Try again." + Try again | Try again → `not_connected` |
   | `needs_reauth` (Phase C/D writes this state) | "Strava connection expired" + Reconnect button | UI surface deferred to C2 |
 

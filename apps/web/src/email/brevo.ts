@@ -17,7 +17,7 @@ import "server-only";
 import { config } from "@/config";
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
-const SENDER_NAME = "Daily Athlete";
+const SENDER_NAME = "The Daily Athlete";
 
 export interface SendEmailParams {
   /** Recipient address. */

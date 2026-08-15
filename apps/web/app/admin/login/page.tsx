@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
               gap: 4,
             }}
           >
-            <span className="login-eyebrow">Daily Athlete</span>
+            <span className="login-eyebrow">The Daily Athlete</span>
             <h1 className="login-title">DA2 Admin</h1>
           </div>
         </div>
@@ -99,7 +99,6 @@ export default function AdminLoginPage() {
 
         <div className="login-foot">
           <span>Operator console</span>
-          <span>v2.0</span>
         </div>
       </form>
     </div>

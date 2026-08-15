@@ -72,8 +72,7 @@ function SiteNav() {
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
           <BrandMark />
           <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--color-ink)" }}>
-            Daily Athlete{" "}
-            <span style={{ color: "var(--color-ink-subtle)", fontWeight: 500 }}>2.0</span>
+            The Daily Athlete
           </span>
         </Link>
 
@@ -197,7 +196,7 @@ function Hero() {
       >
         {/* Copy */}
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-          <span className="eyebrow">Endurance training, version 2.0</span>
+          <span className="eyebrow">Endurance training</span>
           <h1
             style={{
               fontSize: "clamp(40px, 5.4vw, 66px)",
@@ -221,7 +220,7 @@ function Hero() {
               lineHeight: 1.6,
             }}
           >
-            Daily Athlete turns each run and ride into a clear story — planned vs actual,
+            The Daily Athlete turns each run and ride into a clear story — planned vs actual,
             intervals matched, the one takeaway that matters. No noise, no 40-metric dashboards.
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -1023,7 +1022,7 @@ function SiteFooter() {
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none" }}>
             <BrandMark />
             <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em" }}>
-              Daily Athlete <span style={{ color: "var(--color-ink-subtle)", fontWeight: 500 }}>2.0</span>
+              The Daily Athlete
             </span>
           </Link>
           <p style={{ fontSize: 13, color: "var(--color-ink-subtle)", margin: 0 }}>
@@ -1071,7 +1070,7 @@ function SiteFooter() {
             color: "var(--color-ink-subtle)",
           }}
         >
-          <span>© 2026 Daily Athlete</span>
+          <span>© 2026 The Daily Athlete</span>
           <span>Privacy · Terms</span>
         </div>
       </div>

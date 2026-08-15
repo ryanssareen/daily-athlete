@@ -36,7 +36,7 @@ export function AdminNav() {
       <div className="nav-brand">
         <span className="nav-brand-mark" />
         <span className="nav-brand-text">
-          <span className="nav-brand-name">Daily Athlete</span>
+          <span className="nav-brand-name">The Daily Athlete</span>
           <span className="nav-brand-tag">DA2 · Admin</span>
         </span>
       </div>

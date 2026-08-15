@@ -384,8 +384,8 @@ function StravaConnectBody({ state, onConnect, onRetry }: BodyProps) {
       return (
         <View style={styles.stack}>
           <Text style={[styles.body, styles.danger]}>
-            This Strava account is already linked to another Daily Athlete
-            user. Contact support to resolve.
+            This Strava account is already linked to another user at The Daily Athlete.
+            Contact support to resolve.
           </Text>
           <Pressable
             style={styles.secondaryButton}
@@ -402,7 +402,7 @@ function StravaConnectBody({ state, onConnect, onRetry }: BodyProps) {
       return (
         <View style={styles.stack}>
           <Text style={[styles.body, styles.danger]}>
-            Couldn&apos;t reach Daily Athlete.
+            Couldn&apos;t reach The Daily Athlete.
           </Text>
           <Pressable
             style={styles.secondaryButton}

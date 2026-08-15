@@ -7,7 +7,7 @@ import { getSportLabel } from "@/lib/sport-display";
 import SyncButton from "./SyncButton";
 
 /**
- * Workout-details hero, ported from the DA2 2.0 design bundle.
+ * Workout-details hero, ported from the design bundle.
  * Real-data only: every metric is gated on the underlying field being present.
  */
 

@@ -1,4 +1,4 @@
-# TestFlight Beta Checklist — Daily Athlete iOS
+# TestFlight Beta Checklist — The Daily Athlete iOS
 
 > Walk this list end-to-end on at least two device models (a recent iPhone +
 > a 2–3 year-old iPhone if available) before promoting a TestFlight build to
@@ -40,7 +40,7 @@ Record once per cycle:
       hanging.
 - [ ] The magic-link email arrives within ~60 seconds.
 - [ ] Tap the link **on the same iOS device**. iOS routes it to the
-      Daily Athlete app via `da2://auth/callback`.
+      The Daily Athlete app via `da2://auth/callback`.
 - [ ] The app lands on the Dashboard tab. No "wrong content flash"
       before the role-aware content renders.
 
