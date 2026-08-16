@@ -97,26 +97,42 @@ function getFirstName(displayName: string | null, email: string): string {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
-function formatDate(iso: string): string {
+// started_at is a real timestamp (an instant); render its calendar date in
+// the athlete's own timezone, not UTC -- otherwise a workout that happened
+// late evening local time but after midnight UTC (or vice versa) shows
+// under the wrong day, same bug class getGreeting had. Exported for unit
+// testing, same pattern as getGreeting above.
+export function formatDate(iso: string, timezone: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
+    timeZone: timezone || "UTC",
   });
 }
 
-function formatPlannedDate(dateStr: string): string {
-  const todayStr = new Date().toISOString().split("T")[0];
-  const tomorrow = new Date();
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+function localDateString(date: Date, timezone: string): string {
+  // en-CA formats as YYYY-MM-DD, matching scheduled_date's own format.
+  return date.toLocaleDateString("en-CA", { timeZone: timezone || "UTC" });
+}
+
+// scheduled_date is a DATE-only string (already the athlete's intended
+// training-calendar day, not an instant to convert) -- the only timezone-
+// dependent part is deciding what "Today"/"Tomorrow" mean right now, which
+// must be evaluated in the athlete's own timezone rather than the server's
+// UTC clock. Component-parse the fallback date instead of round-tripping
+// through UTC (same fix as PlanHistoryList.tsx's formatEventDate). Exported
+// for unit testing, same pattern as getGreeting above.
+export function formatPlannedDate(dateStr: string, timezone: string): string {
+  const now = new Date();
+  const todayStr = localDateString(now, timezone);
+  const tomorrowStr = localDateString(new Date(now.getTime() + 24 * 60 * 60 * 1000), timezone);
   if (dateStr === todayStr) return "Today";
   if (dateStr === tomorrowStr) return "Tomorrow";
-  return new Date(dateStr + "T00:00:00Z").toLocaleDateString("en-US", {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
-    timeZone: "UTC",
   });
 }
 
@@ -410,7 +426,7 @@ export default async function AthleteDashboardPage() {
                         margin: 0,
                       }}
                     >
-                      {formatDate(w.started_at)}
+                      {formatDate(w.started_at, session.timezone)}
                     </p>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -542,7 +558,7 @@ export default async function AthleteDashboardPage() {
                           letterSpacing: "0.02em",
                         }}
                       >
-                        {formatPlannedDate(p.scheduled_date)}
+                        {formatPlannedDate(p.scheduled_date, session.timezone)}
                       </p>
                     </div>
                   </div>
