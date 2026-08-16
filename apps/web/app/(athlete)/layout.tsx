@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { AppShell } from "@/components/app-shell";
+import { TimezoneSync } from "@/components/timezone-sync";
 import { createAdminClient } from "@/db/admin";
 
 export default async function AthleteLayout({ children }: { children: ReactNode }) {
@@ -41,8 +42,11 @@ export default async function AthleteLayout({ children }: { children: ReactNode 
   const theme = cookieStore.get("da2-theme")?.value ?? "light";
 
   return (
-    <AppShell role="athlete" email={session.user.email ?? ""} theme={theme}>
-      {children}
-    </AppShell>
+    <>
+      <TimezoneSync currentTimezone={session.timezone} />
+      <AppShell role="athlete" email={session.user.email ?? ""} theme={theme}>
+        {children}
+      </AppShell>
+    </>
   );
 }
