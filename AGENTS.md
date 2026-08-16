@@ -44,6 +44,8 @@ Service-role usage is restricted to:
 
 In every service-role path, queries MUST explicitly filter by user — RLS is not running there. Add a `// service-role: explicit user filter required` comment so reviewers can scan for it.
 
+Caveat on the "right" example above: `@/auth/server`'s `createClient()` forwards the JWT only for **cookie** sessions. Routes that also accept Bearer auth (mobile) via `resolveAuth()` do NOT get that token attached to this client's Postgrest requests — an RLS-scoped write in such a route silently affects zero rows for a Bearer caller instead of erroring. Any route serving both auth surfaces (most of `apps/web/app/api/*`) should use the admin client + explicit `.eq("id"/"user_id", ...)` filter even for a simple self-service write, not just for the three service-role categories above. See `docs/solutions/athlete-timezone-capture.md` for the concrete case this was found in.
+
 Every athlete-data table needs a positive RLS test (own row visible) and a negative one (other user's row hidden). The default is to ship them in the same PR as the defining migration. Plan-driven deferral to a follow-up PR is acceptable when (1) the plan explicitly scopes the RLS tests to a separate unit, (2) the follow-up PR or tracking issue is opened or referenced at merge time, AND (3) the migration PR description calls out the deferral. The tests must land within the same Phase as the defining migration -- never leave an athlete-data table without RLS coverage across a Phase boundary.
 
 ## Database & migrations
@@ -103,7 +105,7 @@ When operating in this repo:
 A Wave/Phase implementation unit is "done" when:
 - Code is written and tests pass locally (or, if local toolchain is unavailable, syntax/structure checks pass and the unit is committed for CI to verify).
 - The plan checkbox is ticked.
-- A `docs/solutions/*.md` is added if the unit produced a non-obvious learning.
+- A `docs/solutions/*.md` is added if the unit produced a non-obvious learning. The directory is a searchable knowledge store (flat files, `title`/`date`/`status` frontmatter) — relevant to check when implementing or debugging in an area it already covers.
 - Any deferred decision is recorded in the plan's "Deferred to Implementation" section before the next unit starts.
 
 ## Compound-engineering workflow
