@@ -93,6 +93,20 @@ describe("PATCH /api/profile/timezone", () => {
     expect(mocks.updateCalls).toHaveLength(0);
   });
 
+  it("raw UTC offset (not a real IANA zone, but Intl.DateTimeFormat accepts it) → 400, no update issued", async () => {
+    const res = await invoke({ timezone: "+05:30" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toMatch(/unrecognized timezone/);
+    expect(mocks.updateCalls).toHaveLength(0);
+  });
+
+  it("sign-inverted Etc/GMT zone (Etc/GMT+12 is actually UTC-12) → 400, no update issued", async () => {
+    const res = await invoke({ timezone: "Etc/GMT+12" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toMatch(/unrecognized timezone/);
+    expect(mocks.updateCalls).toHaveLength(0);
+  });
+
   it("non-JSON body → 400", async () => {
     const res = await invoke("not-json{");
     expect(res.status).toBe(400);

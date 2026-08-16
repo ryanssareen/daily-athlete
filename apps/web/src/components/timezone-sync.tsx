@@ -2,6 +2,14 @@
 
 import { useEffect } from "react";
 
+// Exported for unit testing -- the pure decision behind the self-heal.
+export function shouldSyncTimezone(
+  detected: string | null | undefined,
+  current: string
+): boolean {
+  return Boolean(detected) && detected !== current;
+}
+
 /**
  * Self-heals public.users.timezone. It defaults to 'UTC' at row creation
  * (migration 0001) and nothing ever wrote the athlete's real timezone into
@@ -19,7 +27,7 @@ export function TimezoneSync({ currentTimezone }: { currentTimezone: string }) {
     } catch {
       return;
     }
-    if (!detected || detected === currentTimezone) return;
+    if (!shouldSyncTimezone(detected, currentTimezone)) return;
 
     fetch("/api/profile/timezone", {
       method: "PATCH",
