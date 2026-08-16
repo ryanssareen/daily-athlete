@@ -103,7 +103,7 @@ When operating in this repo:
 A Wave/Phase implementation unit is "done" when:
 - Code is written and tests pass locally (or, if local toolchain is unavailable, syntax/structure checks pass and the unit is committed for CI to verify).
 - The plan checkbox is ticked.
-- A `docs/solutions/*.md` is added if the unit produced a non-obvious learning.
+- A `docs/solutions/*.md` is added if the unit produced a non-obvious learning. The directory is a searchable knowledge store (flat files, `title`/`date`/`status` frontmatter) — relevant to check when implementing or debugging in an area it already covers.
 - Any deferred decision is recorded in the plan's "Deferred to Implementation" section before the next unit starts.
 
 ## Compound-engineering workflow
