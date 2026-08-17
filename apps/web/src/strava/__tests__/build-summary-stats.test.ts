@@ -113,4 +113,25 @@ describe("mergeEnrichment", () => {
     mergeEnrichment(base, null, null);
     expect(base).toEqual({ name: "x" });
   });
+
+  // #103: `hydrated_at` is the "never hydrate this row again" marker, so
+  // stamping it after a failed enrichment froze rows with no laps/zones and
+  // no retry path.
+  it("withholds hydrated_at when an enrichment endpoint threw", () => {
+    const merged = mergeEnrichment({ name: "x" }, null, null, true);
+    expect(merged.hydrated_at).toBeUndefined();
+    expect(merged.name).toBe("x");
+  });
+
+  it("still stamps hydrated_at when endpoints answered with no data", () => {
+    // 404 -> null and [] are both definitive answers, not failures; retrying
+    // them on every render would hammer Strava for activities that will
+    // never have zones.
+    const merged = mergeEnrichment({}, null, [], false);
+    expect(typeof merged.hydrated_at).toBe("string");
+  });
+
+  it("defaults to stamping hydrated_at when the flag is omitted", () => {
+    expect(typeof mergeEnrichment({}, null, null).hydrated_at).toBe("string");
+  });
 });

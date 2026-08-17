@@ -206,6 +206,9 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
     ? stats.average_heartrate : null;
   const maxHr = typeof stats.max_heartrate === "number" && Number.isFinite(stats.max_heartrate)
     ? stats.max_heartrate : null;
+  // Absent for rows backfilled before 85e4c80 added the flag — `null` there
+  // means "unknown", which the card words differently from a hard `false`.
+  const hasHeartrate = typeof stats.has_heartrate === "boolean" ? stats.has_heartrate : null;
 
   // Zones + laps section gating
   // HR zone is surfaced by HeartRateCard; pass only power zones to ZoneDistribution.
@@ -232,7 +235,13 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
           : isStrava && <MapEmpty isStrava />
       )}
 
-      <HeartRateCard avgHr={avgHr} maxHr={maxHr} hrZone={hrZone} />
+      <HeartRateCard
+        avgHr={avgHr}
+        maxHr={maxHr}
+        hrZone={hrZone}
+        hasHeartrate={hasHeartrate}
+        isStrava={isStrava}
+      />
 
       {zones && <ZoneDistribution zones={zones} />}
       {laps && <LapSplits laps={laps} sport={sport} />}

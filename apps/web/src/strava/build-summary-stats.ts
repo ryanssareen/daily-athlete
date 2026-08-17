@@ -71,20 +71,35 @@ export function buildSummaryStats(activity: StravaActivity): Record<string, unkn
 }
 
 /**
- * Merge enriched lap + zone data onto an existing `summary_stats` object,
- * stamping `hydrated_at`. Always produces a new object; never mutates the
- * input. Pass `null` for laps/zones when the endpoint returned no data
- * (404 / empty) so callers don't need to decide whether to attach an
- * empty array.
+ * Merge enriched lap + zone data onto an existing `summary_stats` object.
+ * Always produces a new object; never mutates the input. Pass `null` for
+ * laps/zones when the endpoint returned no data (404 / empty) so callers
+ * don't need to decide whether to attach an empty array.
+ *
+ * `hydrated_at` is the "don't hydrate this row again" marker: both
+ * `shouldHydrate()` and the conditional UPDATE in `hydrateStravaWorkout`
+ * key off its presence. Stamping it unconditionally meant a single
+ * transient /laps or /zones throw permanently froze the row with no
+ * enrichment and no retry path (#103).
+ *
+ * Pass `enrichmentFailed` when an endpoint *threw* — that is the only
+ * retryable case, and withholding the stamp is what lets the next page
+ * view try again. A 404 or `[]` is a definitive answer ("we looked,
+ * there's nothing"), so `laps`/`zones` being `null` is NOT on its own a
+ * reason to retry: treating it as one would re-hit Strava on every render
+ * for activities that will never have zones.
  */
 export function mergeEnrichment(
   base: Record<string, unknown>,
   laps: StravaLap[] | null,
-  zones: StravaZone[] | null
+  zones: StravaZone[] | null,
+  enrichmentFailed = false
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base };
   if (laps != null) merged.laps = laps;
   if (zones != null) merged.zones = zones;
-  merged.hydrated_at = new Date().toISOString();
+  if (!enrichmentFailed) {
+    merged.hydrated_at = new Date().toISOString();
+  }
   return merged;
 }

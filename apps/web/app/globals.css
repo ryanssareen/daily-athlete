@@ -685,6 +685,12 @@ a {
   margin: 10px 0 0;
   font-style: italic;
 }
+.wd-hr-empty {
+  font-size: 13px;
+  color: var(--color-ink-subtle);
+  margin: 0;
+  line-height: 1.5;
+}
 
 /* ---------- Lap Splits section ------------------------------------ */
 .wd-laps {

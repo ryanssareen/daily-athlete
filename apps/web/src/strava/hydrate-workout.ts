@@ -85,6 +85,15 @@ export async function hydrateStravaWorkout(args: HydrateArgs): Promise<HydrateRe
   const zones: StravaZone[] | null = zonesResult.status === "fulfilled" ? zonesResult.value : (logEnrichmentFailure("zones", zonesResult.reason), null);
   const athleteZones: StravaAthleteZones | null = athleteZonesResult.status === "fulfilled" ? athleteZonesResult.value : (logEnrichmentFailure("athlete_zones", athleteZonesResult.reason), null);
 
+  // A rejection means Strava never answered, so the enrichment is missing
+  // for a retryable reason. mergeEnrichment withholds `hydrated_at` in that
+  // case so the next render tries again instead of freezing the row with
+  // laps/zones permanently absent (#103). `athleteZones` is deliberately
+  // excluded: it is athlete-scoped, not activity-scoped, so a failure there
+  // is not a reason to re-fetch this activity's laps and zones.
+  const enrichmentFailed =
+    lapsResult.status === "rejected" || zonesResult.status === "rejected";
+
   // Derive FTP + HRmax + IF + TSS from the athlete zones we just fetched.
   // Snapshotted onto summary_stats so historic readings stay stable when
   // FTP later changes. Computed once here rather than mutated in place
@@ -100,7 +109,7 @@ export async function hydrateStravaWorkout(args: HydrateArgs): Promise<HydrateRe
   // Empty arrays are meaningful — they mean "we looked, there's nothing."
   // null means "we didn't look or the endpoint 404'd / errored." Persist
   // accordingly via mergeEnrichment.
-  const merged = mergeEnrichment(baseStats, laps, zones);
+  const merged = mergeEnrichment(baseStats, laps, zones, enrichmentFailed);
 
   // Conditional UPDATE: only write if no other concurrent render has
   // already hydrated this row. The `summary_stats->>'hydrated_at' IS NULL`

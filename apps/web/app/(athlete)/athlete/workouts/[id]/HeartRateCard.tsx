@@ -16,6 +16,15 @@ interface Props {
   avgHr: number | null;
   maxHr: number | null;
   hrZone: HrZoneEntry | null;
+  /**
+   * Strava's `has_heartrate` flag for this activity, when we have it.
+   * `false` is a definitive "recorded without an HR sensor"; `null` means
+   * we don't know (a manual workout, or a row backfilled before 85e4c80
+   * started persisting the flag).
+   */
+  hasHeartrate?: boolean | null;
+  /** Manual workouts never have HR to begin with — don't explain their absence. */
+  isStrava?: boolean;
 }
 
 function fmtTime(seconds: number): string {
@@ -32,8 +41,26 @@ export function isHrZoneEntry(value: unknown): value is HrZoneEntry {
   return v.type === "heartrate" && Array.isArray(v.distribution_buckets);
 }
 
-export function HeartRateCard({ avgHr, maxHr, hrZone }: Props) {
-  if (avgHr == null && maxHr == null) return null;
+export function HeartRateCard({ avgHr, maxHr, hrZone, hasHeartrate, isStrava }: Props) {
+  // Returning null here used to make the whole section vanish, leaving the
+  // athlete unable to tell "this ride had no HR strap" from "your Strava
+  // sync is broken" (#103). Say which it is instead.
+  if (avgHr == null && maxHr == null) {
+    if (!isStrava) return null;
+    return (
+      <section className="wd-hr">
+        <header className="wd-hr-head">
+          <div className="wd-section-eyebrow">Cardiovascular</div>
+          <h2 className="wd-section-title">Heart rate</h2>
+        </header>
+        <p className="wd-hr-empty">
+          {hasHeartrate === false
+            ? "Strava recorded this activity without a heart-rate sensor, so there is no HR data to show."
+            : "Strava has no heart-rate data for this activity."}
+        </p>
+      </section>
+    );
+  }
 
   const buckets = hrZone?.distribution_buckets ?? [];
   const totalSec = buckets.reduce((sum, b) => sum + b.time, 0);
