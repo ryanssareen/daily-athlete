@@ -18,6 +18,7 @@ import {
   type StravaAthleteZones,
 } from "@/strava/schemas";
 import { computeIF, computeTSS } from "@/lib/training-math";
+import { StravaError, StravaRateLimited } from "@/strava/errors";
 
 // Single source of truth for fully hydrating a completed_workouts row
 // from Strava: detail + laps + zones + athlete-zones (for FTP/HRmax),
@@ -85,14 +86,21 @@ export async function hydrateStravaWorkout(args: HydrateArgs): Promise<HydrateRe
   const zones: StravaZone[] | null = zonesResult.status === "fulfilled" ? zonesResult.value : (logEnrichmentFailure("zones", zonesResult.reason), null);
   const athleteZones: StravaAthleteZones | null = athleteZonesResult.status === "fulfilled" ? athleteZonesResult.value : (logEnrichmentFailure("athlete_zones", athleteZonesResult.reason), null);
 
-  // A rejection means Strava never answered, so the enrichment is missing
-  // for a retryable reason. mergeEnrichment withholds `hydrated_at` in that
-  // case so the next render tries again instead of freezing the row with
-  // laps/zones permanently absent (#103). `athleteZones` is deliberately
-  // excluded: it is athlete-scoped, not activity-scoped, so a failure there
-  // is not a reason to re-fetch this activity's laps and zones.
+  // Withhold `hydrated_at` only for failures worth retrying, so the next
+  // render tries again instead of freezing the row with laps/zones
+  // permanently absent (#103).
+  //
+  // Crucially this must be "retryable", not merely "rejected". A 4xx is a
+  // settled answer from Strava — /zones in particular returns one for
+  // subscription-gated activities — and treating that as retryable would
+  // re-hit Strava on every single detail-page render, forever, for an
+  // activity that can never produce zones.
+  //
+  // `athleteZones` is deliberately excluded: it is athlete-scoped, not
+  // activity-scoped, so a failure there is no reason to re-fetch this
+  // activity's laps and zones.
   const enrichmentFailed =
-    lapsResult.status === "rejected" || zonesResult.status === "rejected";
+    isRetryableFailure(lapsResult) || isRetryableFailure(zonesResult);
 
   // Derive FTP + HRmax + IF + TSS from the athlete zones we just fetched.
   // Snapshotted onto summary_stats so historic readings stay stable when
@@ -152,7 +160,39 @@ export async function hydrateStravaWorkout(args: HydrateArgs): Promise<HydrateRe
 
 function logEnrichmentFailure(endpoint: string, reason: unknown): void {
   const message = reason instanceof Error ? reason.message : String(reason);
-  console.warn(`[hydrate-workout] ${endpoint} enrichment failed: ${message}`);
+  const status = reason instanceof StravaError ? reason.status : undefined;
+  // Status and retryability are logged explicitly because a swallowed
+  // rejection is otherwise indistinguishable from "Strava answered 404" or
+  // "the athlete has nothing configured" once the value collapses to null.
+  console.warn(
+    `[hydrate-workout] ${endpoint} enrichment failed` +
+      ` (status=${status ?? "none"}, retryable=${isRetryableReason(reason)}): ${message}`
+  );
+}
+
+/**
+ * Whether a swallowed enrichment rejection should leave the row un-stamped
+ * so hydration is attempted again.
+ *
+ * Retryable: rate limits, network/timeout errors, 5xx, and anything we
+ * cannot classify (absent status) — all of these may succeed later.
+ * Not retryable: any other 4xx. Strava has answered definitively, and
+ * retrying burns rate limit on every render to get the same answer.
+ */
+export function isRetryableReason(reason: unknown): boolean {
+  if (reason instanceof StravaRateLimited) return true;
+  if (reason instanceof StravaError) {
+    if (reason.code === "network") return true;
+    if (reason.status == null) return true;
+    return reason.status >= 500;
+  }
+  // Non-Strava throws (aborts, JSON/Zod parse failures) are unclassified;
+  // treat as retryable so a transient blip is not baked in permanently.
+  return true;
+}
+
+export function isRetryableFailure(result: PromiseSettledResult<unknown>): boolean {
+  return result.status === "rejected" && isRetryableReason(result.reason);
 }
 
 interface DeriveArgs {

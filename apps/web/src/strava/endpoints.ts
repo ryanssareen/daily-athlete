@@ -36,7 +36,8 @@ export async function fetchActivityLaps(
   if (!res.ok) {
     throw new StravaError(
       "unexpected",
-      `Strava /activities/${activityId}/laps returned ${res.status}`
+      `Strava /activities/${activityId}/laps returned ${res.status}`,
+      res.status
     );
   }
   const raw = await res.json();
@@ -59,7 +60,8 @@ export async function fetchActivityZones(
   if (!res.ok) {
     throw new StravaError(
       "unexpected",
-      `Strava /activities/${activityId}/zones returned ${res.status}`
+      `Strava /activities/${activityId}/zones returned ${res.status}`,
+      res.status
     );
   }
   const raw = await res.json();
@@ -80,7 +82,8 @@ export async function fetchAthleteZones(
   if (!res.ok) {
     throw new StravaError(
       "unexpected",
-      `Strava /athlete/zones returned ${res.status}`
+      `Strava /athlete/zones returned ${res.status}`,
+      res.status
     );
   }
   const raw = await res.json();
