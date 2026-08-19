@@ -8,6 +8,8 @@ import { adaptiveDetectors } from "./adaptive-detectors";
 import { adaptiveRun } from "./adaptive-run";
 import { adminBackupExport } from "./admin-backup-export";
 import { generatePlan } from "./generate-plan";
+import { periodReviewDelivery } from "./period-review-delivery";
+import { periodReviewScheduler } from "./period-review-scheduler";
 import { weeklyReviewExpirySweeper } from "./weekly-review-expiry-sweeper";
 import { weeklyReviewScheduler } from "./weekly-review-scheduler";
 
@@ -18,4 +20,6 @@ export const functions: InngestFunction.Any[] = [
   adaptiveRun,
   adaptiveDetectors,
   generatePlan,
+  periodReviewScheduler,
+  periodReviewDelivery,
 ];
