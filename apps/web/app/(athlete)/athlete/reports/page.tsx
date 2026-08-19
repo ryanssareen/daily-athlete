@@ -1,10 +1,14 @@
 // Reports — the athlete's list of completed weekly and monthly periods (U7).
 //
-// A Server Component. It calls the same assembly the API route does rather than
-// fetching its own API over HTTP: a server component already has a cookie
-// session, so a self-fetch would be a pointless round trip through the network
-// stack (and would need absolute-URL plumbing that breaks between local, preview
-// and production).
+// A Server Component. It calls the same batched summary builder the API route
+// does rather than fetching its own API over HTTP: a server component already
+// has a cookie session, so a self-fetch would be a pointless round trip through
+// the network stack (and would need absolute-URL plumbing that breaks between
+// local, preview and production).
+//
+// Summaries are batched (three queries for the whole list, see
+// @/ai/period-reviews/list). Assembling each period individually cost ~8
+// queries per row on an uncached, force-dynamic page.
 //
 // Unlike the API route, this passes the USER-JWT client -- a server component
 // always has a cookie session, so RLS runs as a real second layer underneath
@@ -14,34 +18,20 @@ import type { Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import type { PeriodKind } from "@da2/shared";
+import type { PeriodReviewSummary } from "@da2/shared";
 
-import { assemblePeriodReview, readAthleteTimezone } from "@/ai/period-reviews/assemble";
+import { readAthleteTimezone } from "@/ai/period-reviews/assemble";
 import { enumerateRecentPeriods } from "@/ai/period-reviews/calendar";
+import { listPeriodSummaries, type ListedPeriod } from "@/ai/period-reviews/list";
 import { hasActiveEntitlement } from "@/auth/entitlements";
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
-import {
-  formatDistance,
-  formatDuration,
-  periodLabel,
-} from "@/components/period-review/review-sections";
+import { formatDuration, periodLabel } from "@/components/period-review/review-sections";
 
 export const dynamic = "force-dynamic";
 
 const WEEKLY_LIMIT = 8;
 const MONTHLY_LIMIT = 6;
-
-interface Entry {
-  kind: PeriodKind;
-  periodKey: string;
-  bounds: { start: string; end: string };
-  sessions: number;
-  durationS: number;
-  distanceM: number | null;
-  load: number;
-  hasNarration: boolean;
-}
 
 export default async function ReportsPage() {
   const session = await getUserWithRoles();
@@ -56,7 +46,7 @@ export default async function ReportsPage() {
   const timezone = await readAthleteTimezone(admin, athleteId);
   const now = new Date();
 
-  const wanted: Array<{ kind: PeriodKind; key: string }> = [
+  const wanted: ListedPeriod[] = [
     ...enumerateRecentPeriods("weekly", timezone, now, WEEKLY_LIMIT).map((key) => ({
       kind: "weekly" as const,
       key,
@@ -81,36 +71,24 @@ export default async function ReportsPage() {
     ),
   );
 
-  const settled = await Promise.all(
-    wanted.map(async ({ kind, key }): Promise<Entry | null> => {
-      try {
-        const { facts } = await assemblePeriodReview({
-          supabase: admin,
-          athleteId,
-          kind,
-          periodKey: key,
-          timezone,
-        });
-        return {
-          kind,
-          periodKey: key,
-          bounds: facts.bounds,
-          sessions: facts.totals.sessions,
-          durationS: facts.totals.durationS,
-          distanceM: facts.totals.distanceM,
-          load: facts.totals.load,
-          hasNarration: narrated.has(`${kind}:${key}`),
-        };
-      } catch {
-        // One period failing must not take the page down.
-        return null;
-      }
-    }),
-  );
+  let entries: PeriodReviewSummary[];
+  try {
+    entries = await listPeriodSummaries({
+      supabase: admin,
+      athleteId,
+      timezone,
+      periods: wanted,
+      narrated,
+    });
+  } catch {
+    // The whole list failing is rare (both reads are fatal by design); render
+    // the empty state rather than a crashed page.
+    entries = [];
+  }
 
-  const entries = settled
-    .filter((e): e is Entry => e !== null)
-    .sort((a, b) => b.bounds.start.localeCompare(a.bounds.start) || a.kind.localeCompare(b.kind));
+  entries.sort(
+    (a, b) => b.bounds.start.localeCompare(a.bounds.start) || a.kind.localeCompare(b.kind),
+  );
 
   const hasAnyTraining = entries.some((e) => e.sessions > 0);
 
@@ -154,7 +132,7 @@ export default async function ReportsPage() {
                       ? "No sessions logged"
                       : `${e.sessions} session${e.sessions === 1 ? "" : "s"} · ${formatDuration(
                           e.durationS,
-                        )} · ${formatDistance(e.distanceM)} · load ${Math.round(e.load)}`}
+                        )} · load ${Math.round(e.load)}`}
                   </p>
                 </div>
                 <span style={{ fontSize: 12, color: "var(--color-ink-muted)", whiteSpace: "nowrap" }}>

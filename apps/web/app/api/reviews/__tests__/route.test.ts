@@ -21,10 +21,11 @@ const mocks = vi.hoisted(() => ({
   timezone: "Europe/London",
   narratedRows: [] as Array<{ kind: string; period_key: string }>,
   narratedReadError: null as { message: string } | null,
-  assembleCalls: [] as Record<string, unknown>[],
-  /** Period keys that should blow up when assembled, to prove one bad period
-   * does not take the whole list down. */
-  failingKeys: new Set<string>(),
+  listCalls: [] as Record<string, unknown>[],
+  listThrows: null as Error | null,
+  /** Every table read issued through the admin client, so the batching
+   * property can be asserted rather than assumed. */
+  tableReads: [] as string[],
   now: new Date("2026-08-20T12:00:00Z"),
 }));
 
@@ -84,6 +85,7 @@ function makeAdminFake() {
       if (table === "users") {
         return { select: () => new QueryFake(() => ({ data: { timezone: mocks.timezone }, error: null })) };
       }
+      mocks.tableReads.push(table);
       if (table === "period_reviews") {
         return {
           select: () =>
@@ -101,39 +103,29 @@ function makeAdminFake() {
 vi.mock("@/auth/server", () => ({ createClient: async () => makeAuthClientFake() }));
 vi.mock("@/db/admin", () => ({ createAdminClient: () => makeAdminFake() }));
 
-vi.mock("@/ai/period-reviews/assemble", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/ai/period-reviews/assemble")>();
+// The batched summary builder replaced the per-period assembly. Mocking it
+// here keeps this file about the ROUTE (enumeration, gating, ordering); the
+// batching itself is covered against its own fake in list.test.ts.
+vi.mock("@/ai/period-reviews/list", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/ai/period-reviews/list")>();
   return {
     ...actual,
-    assemblePeriodReview: vi.fn(async (args: Record<string, unknown>) => {
-      mocks.assembleCalls.push(args);
-      const key = args.periodKey as string;
-      if (mocks.failingKeys.has(key)) throw new Error(`assemble failed for ${key}`);
-      return {
-        context: {},
-        fingerprint: "fp",
-        factSheet: {},
-        facts: {
-          kind: args.kind,
-          periodKey: key,
-          // Constant bounds are fine: the route sorts on the REAL calendar's
-          // bounds for the key, not on whatever the facts carry.
-          bounds: { start: "2026-01-01", end: "2026-01-07" },
-          totals: {
-            sessions: 3,
-            durationS: 7200,
-            distanceM: 20000,
-            load: 150,
-            activeDays: 3,
-            loadConfidence: "power",
-          },
-          compliance: { prescribed: 3, completed: 3, unplanned: 0 },
-          duration: { status: "on_target", prescribed: 7200, actual: 7200, deltaPct: 0 },
-          load: { status: "on_target", prescribed: 150, actual: 150, deltaPct: 0 },
-          sports: [],
-          comparison: { available: false },
-        },
-      };
+    listPeriodSummaries: vi.fn(async (args: Record<string, unknown>) => {
+      mocks.listCalls.push(args);
+      if (mocks.listThrows) throw mocks.listThrows;
+      const periods = args.periods as Array<{ kind: string; key: string }>;
+      const narrated = args.narrated as Set<string>;
+      return periods.map((p) => ({
+        kind: p.kind,
+        periodKey: p.key,
+        // Constant bounds are fine: the route sorts on the REAL calendar's
+        // bounds for the key, not on whatever the summary carries.
+        bounds: { start: "2026-01-01", end: "2026-01-07" },
+        sessions: 3,
+        durationS: 7200,
+        load: 150,
+        hasNarration: narrated.has(`${p.kind}:${p.key}`),
+      }));
     }),
   };
 });
@@ -151,8 +143,9 @@ beforeEach(() => {
   mocks.timezone = "Europe/London";
   mocks.narratedRows = [];
   mocks.narratedReadError = null;
-  mocks.assembleCalls = [];
-  mocks.failingKeys = new Set();
+  mocks.listCalls = [];
+  mocks.listThrows = null;
+  mocks.tableReads = [];
 });
 
 describe("GET /api/reviews", () => {
@@ -206,12 +199,24 @@ describe("GET /api/reviews", () => {
     expect((await res.json()).periods.length).toBeGreaterThan(0);
   });
 
-  it("drops a period that fails to assemble rather than failing the list", async () => {
-    mocks.failingKeys = new Set(["2026-W33"]);
-    const body = await (await invoke("?kind=weekly")).json();
-    const keys = body.periods.map((p: { periodKey: string }) => p.periodKey);
-    expect(keys).not.toContain("2026-W33");
-    expect(keys.length).toBeGreaterThan(0);
+  // THE PROPERTY THE BATCHING FIX EXISTS FOR. The list previously assembled
+  // each period separately (~8 queries each, ~114 per page load); it must now
+  // make exactly ONE call covering all of them.
+  it("builds every period's summary in a single batched call", async () => {
+    await invoke();
+    expect(mocks.listCalls).toHaveLength(1);
+    expect((mocks.listCalls[0].periods as unknown[]).length).toBe(14);
+  });
+
+  it("does not scale its own table reads with the number of periods listed", async () => {
+    await invoke();
+    const periodReviewReads = mocks.tableReads.filter((t) => t === "period_reviews");
+    expect(periodReviewReads).toHaveLength(1);
+  });
+
+  it("returns 500 rather than a partial list when the batch read fails", async () => {
+    mocks.listThrows = new Error("db down");
+    expect((await invoke("?kind=weekly")).status).toBe(500);
   });
 
   it("carries a headline stat per period", async () => {
@@ -227,20 +232,17 @@ describe("GET /api/reviews", () => {
   it("refuses an unentitled caller with 402 and does no work", async () => {
     mocks.entitled = false;
     expect((await invoke()).status).toBe(402);
-    expect(mocks.assembleCalls).toEqual([]);
+    expect(mocks.listCalls).toEqual([]);
   });
 
-  it("scopes every assembly to the authenticated athlete", async () => {
+  it("scopes the batch to the authenticated athlete", async () => {
     await invoke();
-    expect(mocks.assembleCalls.length).toBeGreaterThan(0);
-    for (const call of mocks.assembleCalls) {
-      expect(call.athleteId).toBe(ATHLETE);
-    }
+    expect(mocks.listCalls[0].athleteId).toBe(ATHLETE);
   });
 
   it("resolves periods in the athlete's timezone", async () => {
     mocks.timezone = "Pacific/Auckland";
     await invoke("?kind=weekly");
-    expect(mocks.assembleCalls[0].timezone).toBe("Pacific/Auckland");
+    expect(mocks.listCalls[0].timezone).toBe("Pacific/Auckland");
   });
 });

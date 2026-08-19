@@ -16,6 +16,24 @@
 // same period twice, and this ordering is what makes that true rather than
 // likely.
 //
+// TRANSIENT vs TERMINAL is the axis the whole failure policy turns on:
+//
+//   TRANSIENT (a read blip, a rate limit, a provider 5xx) -> RELEASE the claim
+//     and throw, so the Inngest retry re-claims and genuinely re-attempts.
+//   TERMINAL (not entitled, opted out, nothing to report, unusable model
+//     output, a 4xx refusal) -> stamp a terminal status and stop.
+//
+// Getting this wrong in either direction is expensive: a terminal stamp on a
+// transient failure costs the athlete that period's digest permanently (the
+// ledger's unique index is not partial, so the row blocks every later attempt),
+// while releasing a terminal failure invites an endless retry loop against a
+// shared LLM budget.
+//
+// A claim can still be stranded by a process that DIES between claiming and
+// finishing. STALE_CLAIM_MS bounds that: a later attempt adopts a claim left in
+// `claimed` for over an hour, via a conditional UPDATE that two racing workers
+// cannot both win.
+//
 // R15/AE10 -- A FAILED NARRATION SENDS NOTHING. The API route degrades to
 // facts-with-a-retry-button because a human is watching and can ask again. Here
 // there is no one to ask: a digest email without its narration is a table of
@@ -26,7 +44,7 @@
 // is read inside the step and never logged, never returned, never stored in
 // Inngest history.
 
-import { NonRetriableError } from "inngest";
+import { NonRetriableError, RetryAfterError } from "inngest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -72,18 +90,37 @@ export type DeliveryOutcome =
 const PII_FREE_LOG = "[period-review.delivery]";
 
 /**
- * Claim (athlete, kind, period). Returns false when someone already has it.
+ * How long a claim may sit in `claimed` before another worker may take it over.
  *
- * A unique violation is the EXPECTED contention outcome, not an error: it means
- * another worker owns this period, so this one exits quietly. Any other error
- * propagates so Inngest retries.
+ * A claim is only ever stranded by a process that DIED between claiming and
+ * finishing — a crash, an OOM, a platform timeout kill. One hour is far longer
+ * than any healthy run (the LLM client's own timeout is 120s) so a takeover
+ * cannot race a live worker, and far shorter than the gap to the next period,
+ * so a crash does not cost the athlete their digest.
+ */
+export const STALE_CLAIM_MS = 60 * 60 * 1000;
+
+/**
+ * Take ownership of (athlete, kind, period), or report who has it.
+ *
+ * Three outcomes, because "someone else is working on it" and "my own previous
+ * attempt died" need different responses and used to be indistinguishable:
+ *   - "claimed"     — a fresh claim; nobody had this period.
+ *   - "taken_over"  — a previous attempt died mid-flight and left the row in
+ *                     `claimed` past STALE_CLAIM_MS; this worker adopts it.
+ *   - "held"        — a live worker owns it, or it already reached a terminal
+ *                     status. Exit quietly; this is normal contention.
+ *
+ * The takeover is a conditional UPDATE, so two workers racing to adopt the same
+ * stale claim cannot both win: Postgres serializes them and the second matches
+ * zero rows because the first moved `claimed_at`.
  */
 async function claim(
   admin: SupabaseClient,
   athleteId: string,
   kind: string,
   periodKey: string,
-): Promise<boolean> {
+): Promise<"claimed" | "taken_over" | "held"> {
   // service-role: explicit user filter required
   const { error } = await admin.from("period_review_deliveries").insert({
     athlete_id: athleteId,
@@ -92,9 +129,51 @@ async function claim(
     status: "claimed",
   });
 
-  if (!error) return true;
-  if (error.code === "23505") return false; // unique_violation — already claimed
-  throw new Error(`claim failed: ${error.message}`);
+  if (!error) return "claimed";
+  if (error.code !== "23505") throw new Error(`claim failed: ${error.message}`);
+
+  // A row exists. Adopt it only if it is a STALE claim -- never one that
+  // reached a terminal status (sent / skipped / failed), which must stay
+  // terminal so R13 holds.
+  const staleBefore = new Date(Date.now() - STALE_CLAIM_MS).toISOString();
+  // service-role: explicit user filter required
+  const { data: adopted, error: takeoverErr } = await admin
+    .from("period_review_deliveries")
+    .update({ claimed_at: new Date().toISOString(), failure_reason: null })
+    .eq("athlete_id", athleteId)
+    .eq("kind", kind)
+    .eq("period_key", periodKey)
+    .eq("status", "claimed")
+    .lt("claimed_at", staleBefore)
+    .select("id")
+    .maybeSingle();
+
+  if (takeoverErr) throw new Error(`claim takeover failed: ${takeoverErr.message}`);
+  return adopted ? "taken_over" : "held";
+}
+
+/**
+ * Release a claim so a retry (or the manual trigger) can take it again.
+ *
+ * Used for TRANSIENT failures only. Leaving the row behind as `failed` is what
+ * made a rate limit or a database blip permanently cost the athlete that
+ * period's digest -- the ledger's unique index is not partial, so a terminal
+ * row blocks every later attempt.
+ */
+async function releaseClaim(
+  admin: SupabaseClient,
+  athleteId: string,
+  kind: string,
+  periodKey: string,
+): Promise<void> {
+  // service-role: explicit user filter required
+  await admin
+    .from("period_review_deliveries")
+    .delete()
+    .eq("athlete_id", athleteId)
+    .eq("kind", kind)
+    .eq("period_key", periodKey)
+    .eq("status", "claimed");
 }
 
 /**
@@ -193,14 +272,23 @@ export async function runPeriodReviewDelivery(
     return { outcome: "opted_out" };
   }
 
-  const claimed = await claim(admin, athleteId, kind, periodKey);
-  if (!claimed) {
+  const claimOutcome = await claim(admin, athleteId, kind, periodKey);
+  if (claimOutcome === "held") {
     logger.info(`${PII_FREE_LOG} already claimed`, {
       athlete_id: athleteId,
       kind,
       period_key: periodKey,
     });
     return { outcome: "already_claimed" };
+  }
+  if (claimOutcome === "taken_over") {
+    // Worth a warning, not silence: it means a previous run died mid-flight,
+    // which is the condition the stale-claim index exists to surface.
+    logger.warn(`${PII_FREE_LOG} adopted a stale claim`, {
+      athlete_id: athleteId,
+      kind,
+      period_key: periodKey,
+    });
   }
 
   const timezone = await readAthleteTimezone(admin, athleteId);
@@ -215,8 +303,14 @@ export async function runPeriodReviewDelivery(
       timezone,
     });
   } catch (err) {
-    await finish(admin, athleteId, kind, periodKey, "failed", "assemble_failed");
-    if (err instanceof InvalidPeriodKeyError) throw new NonRetriableError("invalid period key");
+    if (err instanceof InvalidPeriodKeyError) {
+      // Permanently wrong input: terminal, and no retry can fix it.
+      await finish(admin, athleteId, kind, periodKey, "failed", "assemble_failed");
+      throw new NonRetriableError("invalid period key");
+    }
+    // A read failure is TRANSIENT. Release so the retry can re-claim and try
+    // again, rather than burning the athlete's period on a database blip.
+    await releaseClaim(admin, athleteId, kind, periodKey);
     throw err;
   }
 
@@ -238,10 +332,24 @@ export async function runPeriodReviewDelivery(
   try {
     narration = await narratePeriod(factSheet, createLlmClient());
   } catch (err) {
-    const rateLimited = isLlmBackOff(err);
-    const reason = rateLimited
-      ? "llm_rate_limited"
-      : err instanceof PeriodNarrationInvalidError || err instanceof LlmInvalidOutput
+    // TRANSIENT vs TERMINAL, and the claim follows that split. A rate limit
+    // clears on its own, so releasing and backing off gives the athlete their
+    // digest a few minutes later; stamping it terminal cost them the period
+    // outright. Unusable model output will not become usable on the next
+    // attempt inside the same budget, so that stays terminal.
+    if (isLlmBackOff(err)) {
+      await releaseClaim(admin, athleteId, kind, periodKey);
+      logger.warn(`${PII_FREE_LOG} narration rate-limited, releasing for retry`, {
+        athlete_id: athleteId,
+        kind,
+      });
+      // A real back-off, not an immediate retry: the shared LLM budget is
+      // exactly what a tight retry loop would exhaust.
+      throw new RetryAfterError("narration rate-limited", "5m");
+    }
+
+    const reason =
+      err instanceof PeriodNarrationInvalidError || err instanceof LlmInvalidOutput
         ? "llm_invalid_output"
         : "llm_failed";
     await finish(admin, athleteId, kind, periodKey, "failed", reason);
@@ -250,9 +358,7 @@ export async function runPeriodReviewDelivery(
       kind,
       reason,
     });
-    // Returned rather than thrown: a modeled outcome. Throwing would burn the
-    // retry on a condition the retry cannot fix inside the window that matters.
-    return { outcome: rateLimited ? "llm_rate_limited" : "llm_invalid_output" };
+    return { outcome: "llm_invalid_output" };
   }
 
   // Persist BEFORE sending, so the link in the email lands on a review already
@@ -275,7 +381,8 @@ export async function runPeriodReviewDelivery(
       generated_at: new Date().toISOString(),
     });
   } catch (err) {
-    await finish(admin, athleteId, kind, periodKey, "failed", "persist_failed");
+    // Transient database failure: release so the retry can re-claim.
+    await releaseClaim(admin, athleteId, kind, periodKey);
     throw err;
   }
 
@@ -290,16 +397,32 @@ export async function runPeriodReviewDelivery(
   const result = await sendPeriodDigest({ to, athleteId, sheet: factSheet, narration });
 
   if (!result.sent) {
+    // Same transient/terminal split. A provider 5xx or a network error clears;
+    // a 4xx refusal or a missing configuration will not, and retrying those
+    // just burns attempts.
+    const reason = result.reason ?? "email_failed";
+    const transient = reason === "error" || /^http_5\d\d$/.test(reason);
+
+    if (transient) {
+      await releaseClaim(admin, athleteId, kind, periodKey);
+      logger.warn(`${PII_FREE_LOG} send failed transiently, releasing for retry`, {
+        athlete_id: athleteId,
+        kind,
+        reason,
+      });
+      throw new RetryAfterError("email send failed transiently", "5m");
+    }
+
     // Mark FAILED, not sent: the ledger must never claim the athlete received
     // something they did not.
-    await finish(admin, athleteId, kind, periodKey, "failed", result.reason ?? "email_failed");
+    await finish(admin, athleteId, kind, periodKey, "failed", reason);
     logger.warn(`${PII_FREE_LOG} send failed`, {
       athlete_id: athleteId,
       kind,
-      reason: result.reason,
+      reason,
     });
     return {
-      outcome: result.reason === "not_configured" ? "email_not_configured" : "email_failed",
+      outcome: reason === "not_configured" ? "email_not_configured" : "email_failed",
     };
   }
 
@@ -324,11 +447,13 @@ export const periodReviewDelivery = inngest.createFunction(
   {
     id: "period-review-delivery",
     name: "Period review digest delivery",
-    // One retry. A rate-limited narration is not worth hammering -- the shared
-    // Groq budget is exactly what a retry storm would exhaust -- and a
-    // retrospective that arrives days late is worse than one that never
-    // arrives. The claim survives the retry, so a retry cannot double-send.
-    retries: 1,
+    // Retries now DO work: every transient path releases the claim before
+    // throwing, so the retry re-claims and genuinely re-attempts. (Before that,
+    // a retry hit 23505, returned `already_claimed`, and reported silent
+    // non-delivery as a green run.) Two, not more: the transient cases are a
+    // rate limit or a provider blip, both of which clear quickly or not at all,
+    // and each attempt costs a shared-budget LLM call.
+    retries: 2,
     // Cap the fan-out. The hourly scheduler can enqueue the whole opted-in
     // cohort for one timezone at once, and each run makes an LLM call against
     // the same shared budget that plan generation and per-workout reports draw

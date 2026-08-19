@@ -30,13 +30,14 @@ const mocks = vi.hoisted(() => ({
   sendResult: { sent: true } as { sent: boolean; reason?: string },
   sends: [] as Array<Record<string, unknown>>,
   /** The delivery ledger, modelling the unique index on the identity triple. */
-  ledger: new Map<string, { status: string; failure_reason: string | null }>(),
+  ledger: new Map<string, { status: string; failure_reason: string | null; claimedAt: string }>(),
   reviews: [] as Array<Record<string, unknown>>,
   email: "athlete@example.com" as string | null,
   deletedAt: null as string | null,
   optedInWeekly: true,
   optedInMonthly: true,
   persistError: null as { code?: string; message: string } | null,
+  claimedAt: new Date().toISOString(),
   finishError: null as { message: string } | null,
   /** Candidate rows for the scheduler-selection tests. */
   users: [] as Array<Record<string, unknown>>,
@@ -79,26 +80,73 @@ vi.mock("@/db/admin", () => ({
             if (mocks.ledger.has(key)) {
               return Promise.resolve({ error: { code: "23505", message: "duplicate key" } });
             }
-            mocks.ledger.set(key, { status: "claimed", failure_reason: null });
+            mocks.ledger.set(key, {
+              status: "claimed",
+              failure_reason: null,
+              claimedAt: mocks.claimedAt,
+            });
             return Promise.resolve({ error: null });
           },
           update(patch: Record<string, unknown>) {
+            // Filters are matched by COLUMN, not by count -- a count heuristic
+            // silently stops matching the moment a fourth filter is added.
+            const filters: Record<string, unknown> = {};
+            let staleBefore: string | null = null;
+            const key = () =>
+              `${filters.athlete_id}:${filters.kind}:${filters.period_key}`;
+
+            const builder = {
+              eq(col: string, val: unknown) {
+                filters[col] = val;
+                return builder;
+              },
+              lt(col: string, val: string) {
+                if (col === "claimed_at") staleBefore = val;
+                return builder;
+              },
+              select() {
+                return builder;
+              },
+              maybeSingle() {
+                // The stale-claim takeover. Only adopts a row that is still
+                // 'claimed' AND older than the cutoff, exactly like the real
+                // conditional UPDATE.
+                const existing = mocks.ledger.get(key());
+                const eligible =
+                  existing !== undefined &&
+                  (filters.status === undefined || existing.status === filters.status) &&
+                  (staleBefore === null || existing.claimedAt < staleBefore);
+                if (!eligible || !existing) return Promise.resolve({ data: null, error: null });
+                existing.claimedAt = new Date().toISOString();
+                return Promise.resolve({ data: { id: "d-1" }, error: null });
+              },
+              then(onF: (v: unknown) => unknown) {
+                const existing = mocks.ledger.get(key());
+                if (existing && !mocks.finishError) {
+                  existing.status = patch.status as string;
+                  existing.failure_reason = (patch.failure_reason as string | null) ?? null;
+                }
+                return Promise.resolve({ error: mocks.finishError }).then(onF);
+              },
+            };
+            return builder;
+          },
+          delete() {
             const filters: Record<string, unknown> = {};
             const builder = {
               eq(col: string, val: unknown) {
                 filters[col] = val;
-                if (Object.keys(filters).length === 3) {
-                  const key = `${filters.athlete_id}:${filters.kind}:${filters.period_key}`;
-                  const existing = mocks.ledger.get(key);
-                  if (existing) {
-                    existing.status = patch.status as string;
-                    existing.failure_reason = (patch.failure_reason as string | null) ?? null;
-                  }
-                }
                 return builder;
               },
               then(onF: (v: unknown) => unknown) {
-                return Promise.resolve({ error: mocks.finishError }).then(onF);
+                const key = `${filters.athlete_id}:${filters.kind}:${filters.period_key}`;
+                const existing = mocks.ledger.get(key);
+                // Mirrors the real DELETE's `.eq("status", "claimed")` guard:
+                // a terminal row is never released.
+                if (existing && (filters.status === undefined || existing.status === filters.status)) {
+                  mocks.ledger.delete(key);
+                }
+                return Promise.resolve({ error: null }).then(onF);
               },
             };
             return builder;
@@ -258,6 +306,7 @@ beforeEach(() => {
   mocks.optedInWeekly = true;
   mocks.optedInMonthly = true;
   mocks.persistError = null;
+  mocks.claimedAt = new Date().toISOString();
   mocks.finishError = null;
   mocks.users = [];
 });
@@ -341,8 +390,8 @@ describe("idempotency", () => {
 
   // A terminal 'failed' claim must still block a re-send: the index is not
   // partial on status.
-  it("does not re-send a period whose earlier delivery failed", async () => {
-    mocks.narrateThrows = new LlmRateLimited("429");
+  it("does not re-send a period whose earlier delivery failed terminally", async () => {
+    mocks.narrateThrows = new LlmInvalidOutput("no json");
     await runDelivery();
     expect(mocks.sends).toEqual([]);
 
@@ -358,6 +407,48 @@ describe("idempotency", () => {
     mocks.reviews = [];
     await runDelivery();
     expect(mocks.reviews).toEqual([]);
+  });
+
+  // A process that dies between claiming and finishing used to strand the row
+  // in `claimed` forever, with no reaper anywhere in the repo.
+  it("adopts a stale claim left behind by a crashed run", async () => {
+    const { STALE_CLAIM_MS } = await import("../period-review-delivery");
+    mocks.ledger.set(`${ATHLETE}:weekly:2026-W33`, {
+      status: "claimed",
+      failure_reason: null,
+      claimedAt: new Date(Date.now() - STALE_CLAIM_MS - 60_000).toISOString(),
+    });
+
+    const result = await runDelivery();
+    expect(result.outcome).toBe("sent");
+    expect(mocks.sends).toHaveLength(1);
+  });
+
+  // The takeover must never race a LIVE worker.
+  it("does not adopt a claim that is still fresh", async () => {
+    mocks.ledger.set(`${ATHLETE}:weekly:2026-W33`, {
+      status: "claimed",
+      failure_reason: null,
+      claimedAt: new Date().toISOString(),
+    });
+
+    const result = await runDelivery();
+    expect(result.outcome).toBe("already_claimed");
+    expect(mocks.sends).toEqual([]);
+  });
+
+  // A terminal row is not a stale claim, however old it is.
+  it("never adopts an old row that already reached a terminal status", async () => {
+    const { STALE_CLAIM_MS } = await import("../period-review-delivery");
+    mocks.ledger.set(`${ATHLETE}:weekly:2026-W33`, {
+      status: "sent",
+      failure_reason: null,
+      claimedAt: new Date(Date.now() - STALE_CLAIM_MS * 10).toISOString(),
+    });
+
+    const result = await runDelivery();
+    expect(result.outcome).toBe("already_claimed");
+    expect(mocks.sends).toEqual([]);
   });
 
   it("treats a different period as a separate delivery", async () => {
@@ -386,32 +477,42 @@ describe("idempotency", () => {
 // ---------------------------------------------------------------------------
 
 describe("narration failure", () => {
-  it("sends no email when the model is rate-limited", async () => {
+  // TRANSIENT: a rate limit clears, so the claim is RELEASED and the run
+  // throws — the retry then genuinely re-attempts. Stamping it terminal used to
+  // cost the athlete that period's digest outright.
+  it("releases the claim and throws when the model is rate-limited", async () => {
     mocks.narrateThrows = new LlmRateLimited("429");
-    const result = await runDelivery();
-    expect(result.outcome).toBe("llm_rate_limited");
+    await expect(runDelivery()).rejects.toThrow();
     expect(mocks.sends).toEqual([]);
+    expect(mocks.ledger.has(`${ATHLETE}:weekly:2026-W33`)).toBe(false);
+  });
+
+  it("lets a retry succeed after a rate-limited attempt", async () => {
+    mocks.narrateThrows = new LlmRateLimited("429");
+    await expect(runDelivery()).rejects.toThrow();
+
+    mocks.narrateThrows = null;
+    const retry = await runDelivery();
+    expect(retry.outcome).toBe("sent");
+    expect(mocks.sends).toHaveLength(1);
   });
 
   it("persists no partial review when narration fails", async () => {
     mocks.narrateThrows = new LlmRateLimited("429");
-    await runDelivery();
+    await expect(runDelivery()).rejects.toThrow();
     expect(mocks.reviews).toEqual([]);
   });
 
-  it("records a non-PII failure reason on the ledger", async () => {
-    mocks.narrateThrows = new LlmRateLimited("429");
-    await runDelivery();
-    const entry = mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`);
-    expect(entry?.status).toBe("failed");
-    expect(entry?.failure_reason).toBe("llm_rate_limited");
-  });
-
-  it("distinguishes unusable model output from a rate limit", async () => {
+  // TERMINAL: unusable output will not become usable on the next attempt
+  // inside the same budget, so the claim stays and the ledger records why.
+  it("keeps unusable model output terminal rather than retrying it", async () => {
     mocks.narrateThrows = new LlmInvalidOutput("no json");
     const result = await runDelivery();
     expect(result.outcome).toBe("llm_invalid_output");
     expect(mocks.sends).toEqual([]);
+    const entry = mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`);
+    expect(entry?.status).toBe("failed");
+    expect(entry?.failure_reason).toBe("llm_invalid_output");
   });
 });
 
@@ -454,11 +555,11 @@ describe("gating and edge cases", () => {
     expect(mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`)?.status).toBe("skipped");
   });
 
-  it("reports a persist failure rather than sending an email for an unsaved review", async () => {
+  it("releases the claim on a persist failure so the retry can re-attempt", async () => {
     mocks.persistError = { message: "insert exploded" };
     await expect(runDelivery()).rejects.toThrow();
     expect(mocks.sends).toEqual([]);
-    expect(mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`)?.status).toBe("failed");
+    expect(mocks.ledger.has(`${ATHLETE}:weekly:2026-W33`)).toBe(false);
   });
 
   // The email HAS gone out; the ledger just failed to record it. Reporting a
@@ -470,11 +571,23 @@ describe("gating and edge cases", () => {
     expect(mocks.sends).toHaveLength(1);
   });
 
-  it("marks the delivery failed, not sent, when the provider rejects the send", async () => {
+  it("marks the delivery failed, not sent, when the provider refuses the send", async () => {
     mocks.sendResult = { sent: false, reason: "http_429" };
     const result = await runDelivery();
     expect(result.outcome).toBe("email_failed");
     expect(mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`)?.status).toBe("failed");
+  });
+
+  it("releases the claim on a provider 5xx so the retry can re-attempt", async () => {
+    mocks.sendResult = { sent: false, reason: "http_503" };
+    await expect(runDelivery()).rejects.toThrow();
+    expect(mocks.ledger.has(`${ATHLETE}:weekly:2026-W33`)).toBe(false);
+  });
+
+  it("releases the claim on a network error during send", async () => {
+    mocks.sendResult = { sent: false, reason: "error" };
+    await expect(runDelivery()).rejects.toThrow();
+    expect(mocks.ledger.has(`${ATHLETE}:weekly:2026-W33`)).toBe(false);
   });
 
   it("reports an unconfigured mailer distinctly from a rejected send", async () => {
