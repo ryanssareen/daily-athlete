@@ -56,6 +56,46 @@ export function formatPace(
 }
 
 /**
+ * The CALENDAR DAY a UTC instant falls on in a given IANA timezone, as
+ * `YYYY-MM-DD`.
+ *
+ * Why this exists as its own helper rather than `iso.split("T")[0]`: a bare
+ * UTC date is not the day the athlete trained. For an athlete at UTC+5:30,
+ * anything started before 05:30 local lands on the PREVIOUS UTC date; for
+ * negative offsets, a late-evening session lands on the NEXT one. Anywhere we
+ * compare an instant against a stored calendar day — most importantly
+ * `planned_workouts.scheduled_date`, which is a bare DATE meaning "the day the
+ * athlete was meant to do this" — the comparison has to be made in the
+ * athlete's own timezone or it silently mis-files roughly one session in ten
+ * for an early-morning trainer.
+ *
+ * `en-CA` is used because its short date format is ISO-ordered
+ * (`YYYY-MM-DD`), which is the shape every caller wants; the locale is an
+ * implementation detail, not a user-facing choice. An unknown/invalid
+ * timezone falls back to UTC rather than throwing — a mis-dated match is
+ * recoverable, a crashed ingest is not.
+ */
+export function calendarDayInTimezone(startedAt: string, timezone: string | null | undefined): string {
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) return startedAt.split("T")[0];
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  }
+}
+
+/**
  * Formats a UTC ISO string into a human-readable date + time in the athlete's
  * local timezone. Example output: "May 12 · 7:14 AM"
  */

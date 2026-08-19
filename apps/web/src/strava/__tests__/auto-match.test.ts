@@ -577,3 +577,156 @@ describe("matchStravaToPlanned", () => {
     expect(match!.method).toBe("merged_from_manual");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Calendar-day attribution in the ATHLETE'S timezone
+//
+// `planned_workouts.scheduled_date` is a bare DATE meaning "the day the
+// athlete was meant to train", in their own local calendar. Deriving the
+// completed workout's day in UTC instead mis-files anyone who trains near
+// either end of their local day, and the failure is silent: "no planned
+// workout on that UTC day" is indistinguishable from "nothing was scheduled".
+//
+// Measured on production before this fix: 10 of one athlete's 102 workouts
+// fell on a different UTC day than their real IST training day.
+// ---------------------------------------------------------------------------
+
+async function setUserTimezone(userId: string, timezone: string): Promise<void> {
+  const admin = serviceClient();
+  const { error } = await admin.from("users").update({ timezone }).eq("id", userId);
+  if (error) throw new Error(`setUserTimezone failed: ${error.message}`);
+}
+
+describe("matchStravaToPlanned — athlete-timezone calendar day", () => {
+  it("matches an early-morning session at UTC+5:30 whose UTC date is the day before", async () => {
+    const user = await createTestUser();
+    await setUserTimezone(user.id, "Asia/Calcutta");
+
+    // 03:29 IST on the 16th == 21:59 UTC on the 15th. The athlete rode on the
+    // 16th and the plan says the 16th; only the UTC clock disagrees.
+    const startedAt = "2026-05-15T21:59:00Z";
+    const plannedId = await insertPlannedWorkout(user.id, {
+      sport: "bike",
+      scheduled_date: "2026-05-16",
+    });
+    const completedId = await insertStravaCompletedWorkout(user.id, {
+      sport: "bike",
+      started_at: startedAt,
+    });
+
+    const result = await matchStravaToPlanned(serviceClient(), {
+      athleteId: user.id,
+      completedWorkoutId: completedId,
+      sport: "bike",
+      startedAt,
+      durationS: 3600,
+    });
+
+    expect(result.matched).toBe(true);
+    expect(result.plannedWorkoutId).toBe(plannedId);
+  });
+
+  it("does NOT match the previous day's plan for that same session", async () => {
+    const user = await createTestUser();
+    await setUserTimezone(user.id, "Asia/Calcutta");
+
+    const startedAt = "2026-05-15T21:59:00Z"; // 2026-05-16 03:29 IST
+    await insertPlannedWorkout(user.id, { sport: "bike", scheduled_date: "2026-05-15" });
+    const completedId = await insertStravaCompletedWorkout(user.id, {
+      sport: "bike",
+      started_at: startedAt,
+    });
+
+    const result = await matchStravaToPlanned(serviceClient(), {
+      athleteId: user.id,
+      completedWorkoutId: completedId,
+      sport: "bike",
+      startedAt,
+      durationS: 3600,
+    });
+
+    // The old UTC-derived behaviour matched here. It was wrong: the athlete
+    // trained on the 16th, so the 15th's session is still outstanding.
+    expect(result.matched).toBe(false);
+  });
+
+  it("matches a late-evening session at UTC-5 whose UTC date is the next day", async () => {
+    const user = await createTestUser();
+    await setUserTimezone(user.id, "America/New_York");
+
+    // 20:30 EDT on the 15th == 00:30 UTC on the 16th.
+    const startedAt = "2026-05-16T00:30:00Z";
+    const plannedId = await insertPlannedWorkout(user.id, {
+      sport: "run",
+      scheduled_date: "2026-05-15",
+    });
+    const completedId = await insertStravaCompletedWorkout(user.id, {
+      sport: "run",
+      started_at: startedAt,
+    });
+
+    const result = await matchStravaToPlanned(serviceClient(), {
+      athleteId: user.id,
+      completedWorkoutId: completedId,
+      sport: "run",
+      startedAt,
+      durationS: 1800,
+    });
+
+    expect(result.matched).toBe(true);
+    expect(result.plannedWorkoutId).toBe(plannedId);
+  });
+
+  it("a UTC athlete is unaffected (the previous behaviour is preserved)", async () => {
+    const user = await createTestUser();
+    await setUserTimezone(user.id, "UTC");
+
+    const startedAt = "2026-05-15T07:00:00Z";
+    const plannedId = await insertPlannedWorkout(user.id, {
+      sport: "run",
+      scheduled_date: "2026-05-15",
+    });
+    const completedId = await insertStravaCompletedWorkout(user.id, {
+      sport: "run",
+      started_at: startedAt,
+    });
+
+    const result = await matchStravaToPlanned(serviceClient(), {
+      athleteId: user.id,
+      completedWorkoutId: completedId,
+      sport: "run",
+      startedAt,
+      durationS: 1800,
+    });
+
+    expect(result.matched).toBe(true);
+    expect(result.plannedWorkoutId).toBe(plannedId);
+  });
+
+  it("an explicit timezone param overrides the stored one (saves a lookup)", async () => {
+    const user = await createTestUser();
+    await setUserTimezone(user.id, "UTC");
+
+    const startedAt = "2026-05-15T21:59:00Z";
+    const plannedId = await insertPlannedWorkout(user.id, {
+      sport: "bike",
+      scheduled_date: "2026-05-16",
+    });
+    const completedId = await insertStravaCompletedWorkout(user.id, {
+      sport: "bike",
+      started_at: startedAt,
+    });
+
+    const result = await matchStravaToPlanned(serviceClient(), {
+      athleteId: user.id,
+      completedWorkoutId: completedId,
+      sport: "bike",
+      startedAt,
+      durationS: 3600,
+      timezone: "Asia/Calcutta",
+    });
+
+    expect(result.matched).toBe(true);
+    expect(result.plannedWorkoutId).toBe(plannedId);
+  });
+});
