@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   Sparkles,
+  FileText,
 } from "lucide-react";
 
 interface NavItem {
@@ -25,6 +26,7 @@ const athleteNav: NavItem[] = [
   { href: "/athlete/activities" as Route, label: "Activities", icon: Activity },
   { href: "/athlete/calendar" as Route, label: "Calendar", icon: CalendarDays },
   { href: "/plan" as Route, label: "Plan", icon: Sparkles },
+  { href: "/athlete/reports" as Route, label: "Reports", icon: FileText },
   { href: "/athlete/settings" as Route, label: "Settings", icon: Settings },
 ];
 

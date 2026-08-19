@@ -27,6 +27,21 @@ export interface SendEmailParams {
   html: string;
   /** Optional reply-to; defaults to the configured sender. */
   replyTo?: string;
+  /**
+   * Optional one-click unsubscribe URL.
+   *
+   * Set on bulk/periodic mail (the period-review digests), never on
+   * transactional mail like a moderation notice -- an account-action email is
+   * not something a user can opt out of, and advertising an unsubscribe on one
+   * would be misleading.
+   *
+   * Emitted as List-Unsubscribe + List-Unsubscribe-Post so mail clients can
+   * offer their own native unsubscribe affordance. That matters for
+   * deliverability as much as for the reader: providers weigh a visible,
+   * working unsubscribe against spam complaints, and this is the product's
+   * first bulk outbound mail.
+   */
+  unsubscribeUrl?: string;
 }
 
 export interface SendEmailResult {
@@ -47,6 +62,12 @@ export async function sendTransactionalEmail(
   const replyTo = params.replyTo ?? sender;
   try {
     const res = await fetch(BREVO_ENDPOINT, {
+      // Bound the call. Without a timeout a hung Brevo connection holds the
+      // delivery worker's step open until the platform kills it, which loses
+      // the run mid-flight with the ledger row still claimed. The catch below
+      // already maps an abort to { sent: false, reason: "error" }, so the
+      // never-throw contract is unchanged.
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         "api-key": apiKey,
@@ -59,6 +80,16 @@ export async function sendTransactionalEmail(
         replyTo: { email: replyTo },
         subject: params.subject,
         htmlContent: params.html,
+        ...(params.unsubscribeUrl
+          ? {
+              headers: {
+                "List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+                // Tells the client the URL accepts a POST, so its native
+                // button unsubscribes in one step instead of opening a page.
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+          : {}),
       }),
     });
 

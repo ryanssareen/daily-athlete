@@ -10,6 +10,7 @@ export * from "./athlete-profile";
 export * from "./completed-workout";
 export * from "./edit-op";
 export * from "./entitlement";
+export * from "./period-review";
 export * from "./plan";
 export * from "./plan-generation";
 export * from "./planned-workout";
