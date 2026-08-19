@@ -1,6 +1,9 @@
 import type { Route } from "next";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+
+import type { WorkoutReportResponse } from "@da2/shared";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
@@ -9,6 +12,10 @@ import { getWorkoutById } from "@/db/workouts";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { hydrateStravaWorkout } from "@/strava/hydrate-workout";
 import { StravaRateLimited, StravaReauthRequired } from "@/strava/errors";
+import { CompletedWorkoutNotFoundError, gatherReportContext } from "@/ai/reports/context";
+import { computeExecutionDelta } from "@/ai/reports/delta";
+import { computeFingerprint } from "@/ai/reports/fingerprint";
+import { toDeltaInput } from "@/ai/reports/to-delta-input";
 
 import { Hero } from "./Hero";
 import { MapCard, MapEmpty } from "./MapCard";
@@ -16,6 +23,7 @@ import { HeartRateCard, isHrZoneEntry } from "./HeartRateCard";
 import { ZoneDistribution } from "./ZoneDistribution";
 import { LapSplits } from "./LapSplits";
 import { StatsDetail } from "./StatsDetail";
+import { ReportSection } from "./ReportSection";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -149,6 +157,89 @@ async function stampHydrateError(
     .eq("athlete_id", userId);
 }
 
+// ─── Report section data (Unit U7) ─────────────────────────────────────────────
+
+interface StoredReportRow {
+  narrative: string | null;
+  takeaway: string | null;
+  verdict_code: string | null;
+  input_fingerprint: string;
+}
+
+/**
+ * Assembles the report GET payload directly, server-side, on this render —
+ * the same building blocks GET /api/workouts/[id]/report (Unit U6) composes
+ * (gatherReportContext -> computeExecutionDelta -> computeFingerprint, then
+ * a read of any stored `workout_reports` row) — rather than this Server
+ * Component fetching its own API route over HTTP. This is what makes the
+ * verdict/comparison appear on FIRST PAINT with no client-side loading state
+ * (KTD2): the delta is fully resolved before the page's HTML is ever sent.
+ *
+ * Never calls the LLM — same GET-path guarantee as the route (KTD2). A
+ * failure to ASSEMBLE degrades to `null`, which omits the whole report
+ * section rather than crashing the page (a workout that exists but errors on
+ * report assembly should not blank the rest of the workout-detail page). A
+ * failure of the OPTIONAL narrative read does not: the delta is already in
+ * hand by then and is served without prose.
+ *
+ * Reads under the user-JWT client (a Server Component always has a cookie
+ * session, so RLS is a live second layer here) — unlike the route, which
+ * must use the service role to serve cookie-less Bearer callers. The
+ * athlete_id filter below is explicit either way.
+ */
+async function loadReport(
+  supabase: SupabaseClient,
+  athleteId: string,
+  workoutId: string
+): Promise<WorkoutReportResponse | null> {
+  try {
+    const context = await gatherReportContext({ supabase, athleteId, completedWorkoutId: workoutId });
+    const delta = computeExecutionDelta(toDeltaInput(context));
+    const fingerprint = computeFingerprint(context);
+
+    const { data, error } = await supabase
+      .from("workout_reports")
+      .select("narrative, takeaway, verdict_code, input_fingerprint")
+      .eq("completed_workout_id", workoutId)
+      .eq("athlete_id", athleteId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    // OPTIONAL read, same posture as the GET route: the delta above is
+    // already computed and is the verdict-bearing half of the section, so a
+    // transient narrative-lookup failure degrades to "nothing stored yet"
+    // rather than dropping the whole report section off the page.
+    if (error) {
+      console.error("[workout-detail] workout_reports read failed", error.message);
+      return { delta, narration: null, stale: false, generatable: true };
+    }
+
+    const row = (data as StoredReportRow | null) ?? null;
+    const hasNarration = row !== null && row.narrative !== null && row.takeaway !== null;
+    if (!hasNarration) {
+      return { delta, narration: null, stale: false, generatable: true };
+    }
+
+    const stale = row!.input_fingerprint !== fingerprint;
+    // Stronger than stale: the stored prose explains a verdict CATEGORY the
+    // fresh delta no longer produces, so ReportSection suppresses it rather
+    // than badging it (see WorkoutReportResponseSchema's comment).
+    const verdictChanged = stale && row!.verdict_code !== null && row!.verdict_code !== delta.verdict.code;
+
+    return {
+      delta,
+      narration: { note: row!.narrative!, takeaway: row!.takeaway! },
+      stale,
+      generatable: true,
+      ...(verdictChanged ? { verdictChanged: true } : {}),
+    };
+  } catch (err) {
+    if (err instanceof CompletedWorkoutNotFoundError) return null;
+    console.error("[workout-detail] loadReport failed", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AthleteWorkoutDetailPage({ params, searchParams }: Props) {
@@ -183,6 +274,11 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
       });
     }
   }
+
+  // Report section (Unit U7): assembled AFTER hydration so a freshly-
+  // enriched summary_stats (laps/zones just arrived) is reflected in the
+  // fingerprint on this same render, not one render behind (AE5).
+  const report = await loadReport(supabase, session.user.id, workout.id);
 
   // Prefer the enriched stats when hydration succeeded; otherwise the
   // DB row's existing value. Build a shallow-cloned workout for the
@@ -253,6 +349,8 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
           to unlock detailed stats and the route map.
         </div>
       )}
+
+      {report && <ReportSection workoutId={workout.id} initialReport={report} />}
 
       <StatsDetail stats={stats} />
 

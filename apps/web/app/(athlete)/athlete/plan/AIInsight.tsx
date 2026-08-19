@@ -28,7 +28,7 @@ export function AIInsight({ data }: { data: PlannedWorkoutData }) {
       </div>
 
       <a className="insight-link" href="/athlete/week">
-        View this week's plan →
+        View this week&apos;s plan →
       </a>
     </section>
   );

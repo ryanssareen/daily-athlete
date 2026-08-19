@@ -692,6 +692,241 @@ a {
   line-height: 1.5;
 }
 
+/* ---------- Report section (Unit U7) ------------------------------ */
+.wd-report {
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 24px 28px;
+}
+.wd-report-head { margin-bottom: 16px; }
+
+/* Verdict: a 4px left-edge bar + tinted badge + mono eyebrow, deliberately
+   NOT a full-width coloured banner. partial_data and unplanned_effort are
+   ordinary outcomes, not errors -- a filled banner makes them read as
+   failures. The bar carries the tone; the eyebrow carries the category. */
+.wd-verdict {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding: 12px 0 12px 14px;
+  border-left: 4px solid var(--color-ink-subtle);
+  border-radius: 2px;
+}
+.wd-verdict-positive { border-left-color: var(--color-success); background: linear-gradient(90deg, var(--color-pine-soft) 0%, transparent 60%); }
+.wd-verdict-warning { border-left-color: var(--color-clay); background: linear-gradient(90deg, var(--color-clay-soft) 0%, transparent 60%); }
+.wd-verdict-neutral { border-left-color: var(--color-border-strong); background: linear-gradient(90deg, var(--color-canvas-soft) 0%, transparent 60%); }
+
+.wd-verdict-body { display: flex; flex-direction: column; gap: 4px; }
+.wd-verdict-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.wd-verdict-positive .wd-verdict-eyebrow { color: var(--color-success); }
+.wd-verdict-warning .wd-verdict-eyebrow { color: var(--color-clay-deep); }
+.wd-verdict-neutral .wd-verdict-eyebrow { color: var(--color-ink-subtle); }
+.wd-verdict-headline {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.wd-report-comparison {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+}
+/* Each row is a small meter: centre tick = prescribed, dot = actual. The
+   position IS the signal; the delta percent is secondary confirmation. */
+.wd-report-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "head delta" "meter delta";
+  column-gap: 16px;
+  row-gap: 8px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.wd-report-row:first-child { border-top: 1px solid var(--color-border); }
+.wd-report-row-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wd-report-row-label {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+.wd-report-row-values {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.wd-report-row-vs { color: var(--color-ink-subtle); font-size: 11px; }
+
+.wd-report-meter { grid-area: meter; position: relative; height: 10px; }
+.wd-report-meter-track {
+  position: absolute;
+  inset: 4px 0 auto 0;
+  height: 2px;
+  background: var(--color-border);
+  border-radius: 1px;
+}
+.wd-report-meter-tick {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: var(--color-border-strong);
+}
+.wd-report-meter-dot {
+  position: absolute;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--color-paper);
+}
+.wd-report-meter-dot-on_target { background: var(--color-pine); }
+.wd-report-meter-dot-under { background: var(--color-clay); }
+.wd-report-meter-dot-over { background: var(--color-clay-deep); }
+
+.wd-report-row-delta {
+  grid-area: delta;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 52px;
+  text-align: right;
+}
+.wd-report-row-delta-on_target { color: var(--color-success); }
+.wd-report-row-delta-under,
+.wd-report-row-delta-over { color: var(--color-clay-deep); }
+
+/* Unmatched: a thin metadata line, never an empty card. Whitespace alone
+   reads as "still loading" or "broken"; this reads as designed-that-way. */
+.wd-report-freeform {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-subtle);
+}
+.wd-report-freeform::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* Only the narrative is slow, so only the narrative gets a skeleton. The
+   verdict and comparison above it must never dim, shift, or be replaced
+   by a spinner -- they were computed without a model (KTD2). */
+.wd-report-skeleton { display: flex; flex-direction: column; gap: 10px; }
+.wd-report-skeleton span {
+  display: block;
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--color-canvas-soft) 25%, var(--color-canvas) 50%, var(--color-canvas-soft) 75%);
+  background-size: 200% 100%;
+  animation: wd-report-pulse 1.4s ease-in-out infinite;
+}
+.wd-report-skeleton span:nth-child(2) { width: 92%; }
+.wd-report-skeleton span:nth-child(3) { width: 74%; }
+@keyframes wd-report-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wd-report-skeleton span { animation: none; }
+}
+
+.wd-report-narrative { margin-top: 4px; }
+.wd-report-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  margin: 0 0 10px;
+}
+.wd-report-takeaway {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  margin: 0 0 12px;
+}
+.wd-report-stale-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.wd-report-stale-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-clay-soft);
+  color: var(--color-clay-deep);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.wd-report-retry-msg {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+  margin: 0 0 10px;
+}
+/* Shown INSTEAD of the stored note when the verdict category changed under
+   it (see ReportSection's `superseded` state). Reads as an explanation, not
+   an error — the verdict and comparison above it are perfectly good. */
+.wd-report-superseded {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-muted);
+  font-style: italic;
+  margin: 0 0 12px;
+}
+.wd-report-action {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+.wd-report-action:disabled {
+  cursor: not-allowed;
+  background: var(--color-canvas-soft);
+  color: var(--color-ink-muted);
+}
+.wd-report-error {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin: 10px 0 0;
+}
+
 /* ---------- Lap Splits section ------------------------------------ */
 .wd-laps {
   background: var(--color-paper);
