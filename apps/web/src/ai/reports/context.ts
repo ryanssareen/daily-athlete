@@ -95,7 +95,9 @@ export interface MatchedPlannedWorkout {
   /** Raw planned_load column. KTD4 fingerprint input `planned_load` --
    * distinct from (and NOT overwritten by) the derived `load` below. */
   planned_load: number | null;
-  /** Derived: structure.duration_s, defensively read (number or null). */
+  /** Derived prescribed duration in SECONDS: `structure.duration_s`, falling
+   * back to `structure.est_duration_min * 60`. Both spellings exist in
+   * production — see readStructureDurationSeconds. */
   duration_s: number | null;
   /** Derived: structure.load, falling back to the planned_load column. */
   load: number | null;
@@ -351,7 +353,7 @@ async function resolveMatch(
     status: row.status,
     structure: row.structure,
     planned_load: row.planned_load,
-    duration_s: readStructureNumber(row.structure, "duration_s"),
+    duration_s: readStructureDurationSeconds(row.structure),
     load: readStructureNumber(row.structure, "load") ?? row.planned_load,
     intensity_target: readStructureIntensityTarget(row.structure),
     match: {
@@ -405,6 +407,31 @@ interface RawPlannedWorkoutRow {
 // Mirrors adaptive/context.ts's readStructureNumber: defensive reads over the
 // permissive (`.passthrough()`) PlannedWorkoutStructureSchema (KTD8 -- a
 // coach-authored or hand-edited structure may be missing any of these keys).
+
+/**
+ * Prescribed duration in SECONDS, across both spellings that exist in
+ * production `planned_workouts.structure` payloads.
+ *
+ * `PlannedWorkoutStructureSchema` is `.passthrough()` (KTD8), and real plans
+ * exploit that: the prompt in ai/generation/prompts/generate-plan.ts asks for
+ * `duration_s`, but a large share of live rows instead carry
+ * `est_duration_min` alongside a sport-specific `sets` array. Reading only
+ * `duration_s` left the duration dimension "unavailable" on most real matched
+ * workouts, which cascaded into a `partial_data` verdict ("Not enough matched
+ * data to score this workout confidently") for workouts we could in fact
+ * score — the single biggest cause of an empty-feeling report in production.
+ *
+ * Minutes are converted here, at the read boundary, so every downstream
+ * consumer keeps working in seconds and no unit ambiguity escapes this file.
+ */
+function readStructureDurationSeconds(
+  structure: Record<string, unknown> | null
+): number | null {
+  const seconds = readStructureNumber(structure, "duration_s");
+  if (seconds != null) return seconds;
+  const minutes = readStructureNumber(structure, "est_duration_min");
+  return minutes != null ? minutes * 60 : null;
+}
 
 function readStructureNumber(
   structure: Record<string, unknown> | null,

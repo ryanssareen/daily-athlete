@@ -19,6 +19,8 @@
 // that is what makes the comparison historically correct for old workouts
 // even after the athlete's current FTP/HRmax has moved on.
 
+import { computeTSS } from "@/lib/training-math";
+
 import type {
   DimensionDelta,
   ExecutionDelta,
@@ -177,6 +179,42 @@ function readFirstNumber(
     if (v != null) return v;
   }
   return null;
+}
+
+/**
+ * Actual training load (TSS) for the completed workout.
+ *
+ * Mirrors `training-load/load-series.ts`'s `computeWorkoutTss` -- ON PURPOSE,
+ * and only as far as its POWER tiers:
+ *
+ *   1. Persisted `tss_equivalent` / `tss` (already power-derived at hydration).
+ *   2. Live power compute via the shared `computeTSS`, when normalized power
+ *      and a snapshotted FTP are both present. Nothing writes a persisted TSS
+ *      on most ingest paths today, so without this tier the load dimension was
+ *      unavailable even for rides that carry everything needed to compute it.
+ *
+ * It deliberately STOPS THERE and does not adopt that module's third tier,
+ * the duration proxy. Two reasons, both disqualifying for a comparison:
+ * the proxy is a linear function of duration, so a "load" dimension built on
+ * it would just restate the duration dimension under a second name and give
+ * a single fact two votes in the verdict; and the proxy is deliberately
+ * CONSERVATIVE (an easy-aerobic TSS/hour anchor), so comparing it against a
+ * real prescribed load would report "under-executed" on workouts the athlete
+ * actually nailed. An unavailable dimension (KTD8) is honest; a systematically
+ * pessimistic one is not.
+ */
+function resolveActualLoad(completed: DeltaCompletedWorkoutInput): number | null {
+  const stats = completed.summary_stats;
+
+  const persisted = readFirstNumber(stats, LOAD_ACTUAL_KEYS);
+  if (persisted != null) return persisted;
+
+  const np = readFirstNumber(stats, POWER_ACTUAL_KEYS);
+  const ftp = readNumber(stats, "ftp_at_workout");
+  const duration = finiteOrNull(completed.duration_s);
+  if (np == null || ftp == null || ftp <= 0 || duration == null) return null;
+
+  return computeTSS(duration, np, ftp);
 }
 
 /** Narrows to a finite number or null -- never lets a stray NaN/Infinity through. */
@@ -394,7 +432,7 @@ export function computeExecutionDelta(input: DeltaInput): ExecutionDelta {
   const stats = completed.summary_stats;
 
   const duration = scalarDimension(planned.structure.duration_s, completed.duration_s, DURATION_TOLERANCE_PCT);
-  const loadActual = readFirstNumber(stats, LOAD_ACTUAL_KEYS);
+  const loadActual = resolveActualLoad(completed);
   // `structure.load` FIRST, `planned_load` column second. This preference
   // order is not a coin flip -- it is what the rest of the codebase already
   // treats as authoritative (context.ts's `load` accessor and
