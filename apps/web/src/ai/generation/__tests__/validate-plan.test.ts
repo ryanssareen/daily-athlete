@@ -129,6 +129,83 @@ describe("validateGeneratedPlan — cold start (no recent baseline)", () => {
   });
 });
 
+describe("validateGeneratedPlan — midweek plan start (ISO-week stub)", () => {
+  // A plan starts TODAY, not on a Monday, so its first ISO-week bucket is
+  // short. Measuring week 2 against that stub compares window lengths rather
+  // than training load — live, this rejected essentially every generated plan
+  // (a 185 TSS five-day opener followed by an ordinary 250 TSS week read as a
+  // 35% ramp) for an athlete who had been training 240 TSS/week for months.
+
+  /** Build a plan whose first week starts partway through an ISO week. */
+  function planWithStub(stubTss: number, laterWeeklyTss: number[]): GeneratedPlan {
+    const WEDNESDAY = "2026-06-03"; // START (2026-06-01) is a Monday
+    const workouts: GeneratedWorkout[] = [];
+    // Opening stub: Wed/Thu/Sat of ISO week 1.
+    [0, 1, 3].forEach((off) => {
+      const per = stubTss / 3;
+      workouts.push({
+        scheduled_date: addDays(WEDNESDAY, off),
+        sport: "run",
+        structure: {
+          duration_s: 3600,
+          load: per,
+          intensity_target: { kind: "zone", value: 2 },
+          phase: "base",
+        },
+        rationale: "session",
+        planned_load: per,
+      });
+    });
+    // Full weeks from the following Monday.
+    const nextMonday = addDays(WEDNESDAY, 5);
+    laterWeeklyTss.forEach((wt, wi) => {
+      SESSION_OFFSETS.forEach((off) => {
+        const per = wt / SESSION_OFFSETS.length;
+        workouts.push({
+          scheduled_date: addDays(nextMonday, wi * 7 + off),
+          sport: "run",
+          structure: {
+            duration_s: 3600,
+            load: per,
+            intensity_target: { kind: "zone", value: 2 },
+            phase: "build",
+          },
+          rationale: "session",
+          planned_load: per,
+        });
+      });
+    });
+    return { event_type: null, event_date: null, workouts };
+  }
+
+  it("does not flag a normal week following a short opening stub", () => {
+    // Exactly the live failure: 185 stub -> 250 full week, athlete baseline 240.
+    const result = codes(planWithStub(185, [250]), {
+      seedCtl: 36,
+      seedAtl: 40,
+      recentWeeklyTss: 240,
+    });
+    expect(result).not.toContain("volume_ramp");
+  });
+
+  it("STILL flags a genuine spike above the athlete's own baseline", () => {
+    // The baseline floor must not become a licence to jump: 600 is far beyond
+    // both the stub and the athlete's 240 TSS/week history.
+    const result = codes(planWithStub(185, [600]), {
+      seedCtl: 36,
+      seedAtl: 40,
+      recentWeeklyTss: 240,
+    });
+    expect(result).toContain("volume_ramp");
+  });
+
+  it("with no athlete history, the intra-plan guard is unchanged", () => {
+    // Cold start: nothing to raise the baseline with, so the stub still governs.
+    const result = codes(planWithStub(100, [400]), { seedCtl: 0, seedAtl: 0 });
+    expect(result).toContain("volume_ramp");
+  });
+});
+
 describe("validateGeneratedPlan — taper window", () => {
   // Gentle ramp whose hardest weeks sit INSIDE the taper window = no real taper.
   const NO_TAPER = [300, 325, 350, 375, 400, 425, 450, 475, 500, 520, 520, 520];
