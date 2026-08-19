@@ -181,6 +181,63 @@ describe("gatherReportContext", () => {
     expect(ctx.match?.match.confidence).toBe(0.9);
   });
 
+  // PlannedWorkoutStructureSchema is `.passthrough()` (KTD8) and real plans
+  // exploit it: a large share of live rows carry `est_duration_min` (with a
+  // sport-specific `sets` array) rather than the `duration_s` the generation
+  // prompt asks for. Reading only `duration_s` left the duration dimension
+  // unavailable on most real matched workouts, which cascaded into a
+  // `partial_data` verdict for workouts that were perfectly scoreable.
+  it("derives the prescribed duration from est_duration_min when duration_s is absent", async () => {
+    const supabase = makeFakeSupabase({
+      completed_workouts: [completedRow()],
+      workout_matches: [matchRow()],
+      planned_workouts: [
+        plannedRow({
+          structure: { est_duration_min: 85, name: "Long Swim - CSS Focus", sets: [] },
+          planned_load: 65,
+        }),
+      ],
+    });
+    const ctx = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+    });
+
+    // Converted to SECONDS at the read boundary, so no unit ambiguity escapes.
+    expect(ctx.match?.duration_s).toBe(85 * 60);
+  });
+
+  it("prefers duration_s over est_duration_min when a row carries both", async () => {
+    const supabase = makeFakeSupabase({
+      completed_workouts: [completedRow()],
+      workout_matches: [matchRow()],
+      planned_workouts: [plannedRow({ structure: { duration_s: 3600, est_duration_min: 999 } })],
+    });
+    const ctx = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+    });
+
+    expect(ctx.match?.duration_s).toBe(3600);
+  });
+
+  it("leaves duration_s null when the structure carries neither spelling", async () => {
+    const supabase = makeFakeSupabase({
+      completed_workouts: [completedRow()],
+      workout_matches: [matchRow()],
+      planned_workouts: [plannedRow({ structure: { name: "Recovery spin" } })],
+    });
+    const ctx = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+    });
+
+    expect(ctx.match?.duration_s).toBeNull();
+  });
+
   it("yields match: null when the only match is soft-deleted", async () => {
     const supabase = makeFakeSupabase({
       completed_workouts: [completedRow()],

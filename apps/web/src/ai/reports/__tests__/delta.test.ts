@@ -487,3 +487,65 @@ describe("computeExecutionDelta — determinism", () => {
     expect(computeExecutionDelta(input)).toEqual(computeExecutionDelta(input));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Actual load resolution — the tiers this engine will and will not accept.
+//
+// Production reality (measured against live data): NOTHING on the common
+// ingest paths writes a persisted TSS, so before the live-power tier the load
+// dimension was unavailable even on rides carrying power and a snapshotted
+// FTP. The duration proxy is deliberately still refused — see resolveActualLoad.
+// ---------------------------------------------------------------------------
+
+describe("computeExecutionDelta — actual load resolution tiers", () => {
+  it("computes TSS live from normalized power + snapshotted FTP when nothing is persisted", () => {
+    // 3600s at NP 250 against FTP 250 == IF 1.0 == TSS 100, the canonical anchor.
+    const input = matched(
+      { duration_s: 3600, summary_stats: { normalized_power_w: 250, ftp_at_workout: 250 } },
+      { planned_load: 100 }
+    );
+
+    const delta = computeExecutionDelta(input);
+    if (!delta.matched) throw new Error("unreachable");
+    if (delta.dimensions.load.status === "unavailable") throw new Error("expected a load comparison");
+
+    expect(delta.dimensions.load.actual).toBeCloseTo(100, 6);
+    expect(delta.dimensions.load.status).toBe("on_target");
+  });
+
+  it("still prefers a persisted TSS over the live compute", () => {
+    const input = matched(
+      {
+        duration_s: 3600,
+        summary_stats: { tss_equivalent: 55, normalized_power_w: 250, ftp_at_workout: 250 },
+      },
+      { planned_load: 55 }
+    );
+
+    const delta = computeExecutionDelta(input);
+    if (!delta.matched) throw new Error("unreachable");
+    expect(delta.dimensions.load).toMatchObject({ actual: 55, status: "on_target" });
+  });
+
+  it("REFUSES the duration proxy: duration alone leaves load unavailable", () => {
+    // A duration-derived load would restate the duration dimension under a
+    // second name AND, being deliberately conservative, would report
+    // "under-executed" on a workout the athlete actually nailed.
+    const input = matched({ duration_s: 3600, summary_stats: {} }, { planned_load: 100 });
+
+    const delta = computeExecutionDelta(input);
+    if (!delta.matched) throw new Error("unreachable");
+    expect(delta.dimensions.load).toEqual({ status: "unavailable" });
+  });
+
+  it("a zero or missing FTP does not produce Infinity/NaN", () => {
+    for (const stats of [
+      { normalized_power_w: 250, ftp_at_workout: 0 },
+      { normalized_power_w: 250 },
+    ]) {
+      const delta = computeExecutionDelta(matched({ duration_s: 3600, summary_stats: stats }, { planned_load: 100 }));
+      if (!delta.matched) throw new Error("unreachable");
+      expect(delta.dimensions.load).toEqual({ status: "unavailable" });
+    }
+  });
+});
