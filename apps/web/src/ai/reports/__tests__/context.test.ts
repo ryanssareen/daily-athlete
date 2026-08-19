@@ -208,6 +208,30 @@ describe("gatherReportContext", () => {
     expect(ctx.match?.duration_s).toBe(85 * 60);
   });
 
+  // A third writer again: `total_duration_min`, beside a `blocks` array and
+  // `ftp_w`. A survey of live rows found all three spellings in use with no
+  // row carrying more than one, so covering all three is the difference
+  // between scoring every planned workout and scoring roughly half.
+  it("derives the prescribed duration from total_duration_min too", async () => {
+    const supabase = makeFakeSupabase({
+      completed_workouts: [completedRow()],
+      workout_matches: [matchRow()],
+      planned_workouts: [
+        plannedRow({
+          structure: { total_duration_min: 240, name: "Long Ride", blocks: [], ftp_w: 210 },
+          planned_load: 180,
+        }),
+      ],
+    });
+    const ctx = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+    });
+
+    expect(ctx.match?.duration_s).toBe(240 * 60);
+  });
+
   it("prefers duration_s over est_duration_min when a row carries both", async () => {
     const supabase = makeFakeSupabase({
       completed_workouts: [completedRow()],

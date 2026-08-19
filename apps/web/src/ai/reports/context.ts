@@ -409,28 +409,44 @@ interface RawPlannedWorkoutRow {
 // coach-authored or hand-edited structure may be missing any of these keys).
 
 /**
- * Prescribed duration in SECONDS, across both spellings that exist in
+ * Prescribed duration in SECONDS, across every spelling that exists in
  * production `planned_workouts.structure` payloads.
  *
  * `PlannedWorkoutStructureSchema` is `.passthrough()` (KTD8), and real plans
- * exploit that: the prompt in ai/generation/prompts/generate-plan.ts asks for
- * `duration_s`, but a large share of live rows instead carry
- * `est_duration_min` alongside a sport-specific `sets` array. Reading only
- * `duration_s` left the duration dimension "unavailable" on most real matched
- * workouts, which cascaded into a `partial_data` verdict ("Not enough matched
- * data to score this workout confidently") for workouts we could in fact
- * score — the single biggest cause of an empty-feeling report in production.
+ * exploit that thoroughly. The generation prompt asks for `duration_s`, but a
+ * survey of live rows found THREE spellings in use, each from a different
+ * writer, and no row carrying more than one:
+ *
+ *   duration_s          seconds  — what the prompt asks for
+ *   est_duration_min    minutes  — alongside a sport-specific `sets` array
+ *   total_duration_min  minutes  — alongside a `blocks` array and `ftp_w`
+ *
+ * Reading only `duration_s` left the duration dimension "unavailable" on most
+ * real matched workouts, which cascaded into a `partial_data` verdict ("Not
+ * enough matched data to score this workout confidently") for workouts that
+ * were perfectly scoreable — the single biggest cause of an empty-feeling
+ * report in production. Covering all three takes duration coverage to 100% of
+ * the planned workouts that exist.
+ *
+ * This is a READ-SIDE accommodation of a write-side inconsistency, not an
+ * endorsement of it; the durable fix is for generation to settle on one key.
+ * Until then the report should score what the athlete actually has.
  *
  * Minutes are converted here, at the read boundary, so every downstream
  * consumer keeps working in seconds and no unit ambiguity escapes this file.
  */
+const DURATION_MINUTE_KEYS = ["est_duration_min", "total_duration_min"] as const;
+
 function readStructureDurationSeconds(
   structure: Record<string, unknown> | null
 ): number | null {
   const seconds = readStructureNumber(structure, "duration_s");
   if (seconds != null) return seconds;
-  const minutes = readStructureNumber(structure, "est_duration_min");
-  return minutes != null ? minutes * 60 : null;
+  for (const key of DURATION_MINUTE_KEYS) {
+    const minutes = readStructureNumber(structure, key);
+    if (minutes != null) return minutes * 60;
+  }
+  return null;
 }
 
 function readStructureNumber(
