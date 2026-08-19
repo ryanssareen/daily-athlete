@@ -62,6 +62,12 @@ export async function sendTransactionalEmail(
   const replyTo = params.replyTo ?? sender;
   try {
     const res = await fetch(BREVO_ENDPOINT, {
+      // Bound the call. Without a timeout a hung Brevo connection holds the
+      // delivery worker's step open until the platform kills it, which loses
+      // the run mid-flight with the ledger row still claimed. The catch below
+      // already maps an abort to { sent: false, reason: "error" }, so the
+      // never-throw contract is unchanged.
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         "api-key": apiKey,

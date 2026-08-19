@@ -200,24 +200,54 @@ function makeAdminFake() {
             return { data: mocks.storedRow, error: mocks.storedReadError };
           });
         },
-        upsert(row: Record<string, unknown>, opts: Record<string, unknown>) {
-          mocks.upsertCalls.push({ row, opts });
+        // `.upsert()` is UNIMPLEMENTED on purpose. The identity index is
+        // PARTIAL, so a real .upsert({onConflict}) raises 42P10 at runtime —
+        // and a fake that accepted it is precisely what let that bug reach
+        // review. Calling it now fails loudly instead of blessing it.
+        upsert() {
+          throw new Error(
+            "period_reviews.upsert() is invalid: the identity index is PARTIAL and " +
+              "Postgres raises 42P10. Use persistPeriodReview (INSERT/23505/UPDATE).",
+          );
+        },
+        insert(row: Record<string, unknown>) {
+          mocks.upsertCalls.push({ row, opts: {} });
           if (mocks.upsertError) return Promise.resolve({ error: mocks.upsertError });
 
           const key = `${row.athlete_id}:${row.kind}:${row.period_key}`;
-          // Model the DB honestly: without the right ON CONFLICT target,
-          // supabase-js sends a plain INSERT and the unique index rejects the
-          // second write. This is what gives the concurrency test teeth.
-          if (opts.onConflict !== "athlete_id,kind,period_key") {
-            if (mocks.rowsByKey.has(key)) {
-              mocks.duplicateKeyWrites += 1;
-              return Promise.resolve({
-                error: { message: "duplicate key value violates unique constraint" },
-              });
-            }
+          // Model the partial unique index: a live row for this identity makes
+          // the INSERT fail with 23505, which is what drives the UPDATE branch.
+          if (mocks.rowsByKey.has(key)) {
+            return Promise.resolve({
+              error: { code: "23505", message: "duplicate key value violates unique constraint" },
+            });
           }
           mocks.rowsByKey.set(key, row);
           return Promise.resolve({ error: null });
+        },
+        update(patch: Record<string, unknown>) {
+          const filters: Record<string, unknown> = {};
+          const builder = {
+            eq(col: string, val: unknown) {
+              filters[col] = val;
+              return builder;
+            },
+            is() {
+              return builder;
+            },
+            select() {
+              return builder;
+            },
+            maybeSingle() {
+              const key = `${filters.athlete_id}:${filters.kind}:${filters.period_key}`;
+              const existing = mocks.rowsByKey.get(key);
+              if (!existing) return Promise.resolve({ data: null, error: null });
+              mocks.rowsByKey.set(key, { ...existing, ...patch });
+              mocks.upsertCalls.push({ row: patch, opts: { update: true } });
+              return Promise.resolve({ data: { id: "r-1" }, error: null });
+            },
+          };
+          return builder;
         },
       };
     },
@@ -499,8 +529,10 @@ describe("POST", () => {
       period_end: "2026-08-16",
       narrative: NARRATION.note,
       input_fingerprint: "fp-1",
-      deleted_at: null,
     });
+    // No explicit deleted_at: a fresh INSERT gets the column default. The
+    // resurrect-a-tombstone case the old upsert had to guard against cannot
+    // arise, because a soft-deleted row never conflicts with a partial index.
   });
 
   // AE4 — the cache short-circuit is what makes the quota sufficient rather
@@ -530,8 +562,12 @@ describe("POST", () => {
     expect(mocks.upsertCalls).toHaveLength(1);
   });
 
-  it("targets the identity triple on conflict so a concurrent write updates rather than duplicating", async () => {
+  // The regeneration path. Against a PARTIAL unique index this is where
+  // .upsert({onConflict}) raised 42P10; persistPeriodReview falls through to an
+  // UPDATE so exactly one live row survives.
+  it("updates in place on a second generation rather than duplicating", async () => {
     await invokePost();
+    mocks.storedRow = null; // force a cache miss so the second POST regenerates
     await invokePost();
     expect(mocks.duplicateKeyWrites).toBe(0);
     expect(mocks.rowsByKey.size).toBe(1);

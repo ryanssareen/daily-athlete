@@ -33,7 +33,12 @@ import { config } from "@/config";
 import { createAdminClient } from "@/db/admin";
 import { createLlmClient, isLlmBackOff, LlmInvalidOutput } from "@/llm";
 
-import { assemblePeriodReview, readAthleteTimezone } from "@/ai/period-reviews/assemble";
+import {
+  assemblePeriodReview,
+  readAthleteTimezone,
+  resolveModelLabel,
+} from "@/ai/period-reviews/assemble";
+import { persistPeriodReview } from "@/db/period-reviews";
 import { InvalidPeriodKeyError, isPeriodClosed } from "@/ai/period-reviews/calendar";
 import { narratePeriod, PeriodNarrationInvalidError } from "@/ai/period-reviews/narrate";
 
@@ -172,19 +177,6 @@ async function isOverGenerationQuota(
     return false;
   }
   return (count ?? 0) >= GENERATION_MAX_PER_WINDOW;
-}
-
-// Best-effort model label; `period_reviews.model` is informational. src/llm
-// does not surface which model served a call, so this mirrors
-// createLlmClient's own provider-resolution order.
-const FALLBACK_ANTHROPIC_MODEL_LABEL = "claude-opus-4-8";
-const FALLBACK_GROQ_MODEL_LABEL = "llama-3.3-70b-versatile";
-
-function resolveModelLabel(): string {
-  const { anthropicApiKey, groqApiKey, provider, model } = config.llm;
-  if (model) return model;
-  const resolved = provider ?? (anthropicApiKey ? "anthropic" : groqApiKey ? "groq" : undefined);
-  return resolved === "groq" ? FALLBACK_GROQ_MODEL_LABEL : FALLBACK_ANTHROPIC_MODEL_LABEL;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,13 +394,13 @@ export async function POST(
   // period_reviews has no client write policy (0029) -- service-role only.
   // athlete_id is the AUTHENTICATED caller, never client-supplied.
   //
-  // `deleted_at: null` is written EXPLICITLY: the unique index is PARTIAL on
-  // `deleted_at IS NULL`, so a soft-deleted row does not conflict and the
-  // upsert inserts a fresh one. Writing the column keeps the intent legible
-  // and guards the shape against a future index change.
-  // service-role: explicit user filter required
-  const { error: upsertErr } = await db.from("period_reviews").upsert(
-    {
+  // NOT `.upsert({ onConflict })`: the identity index is PARTIAL
+  // (`WHERE deleted_at IS NULL`), which PostgREST cannot express as an
+  // ON CONFLICT target -- Postgres raises 42P10 at runtime. persistPeriodReview
+  // implements the repo's documented INSERT-catch-23505-UPDATE workaround and
+  // is shared with the delivery worker so the two paths cannot diverge.
+  try {
+    await persistPeriodReview(db, {
       athlete_id: athleteId,
       kind,
       period_key: periodKey,
@@ -419,17 +411,13 @@ export async function POST(
       input_fingerprint: fingerprint,
       model: resolveModelLabel(),
       generated_at: generatedAt,
-      deleted_at: null,
-    },
-    { onConflict: "athlete_id,kind,period_key" },
-  );
-
-  if (upsertErr) {
-    console.error("[reviews] period_reviews upsert failed", {
+    });
+  } catch (err) {
+    console.error("[reviews] period_reviews persist failed", {
       athlete_id: athleteId,
       kind,
       period_key: periodKey,
-      message: upsertErr.message,
+      message: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }

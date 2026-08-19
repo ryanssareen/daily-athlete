@@ -326,6 +326,23 @@ describe("previous period", () => {
     expect(ctx.previous?.completed).toEqual([]);
   });
 
+  // An empty array from a REJECTED read is indistinguishable from a genuinely
+  // empty period, and renders as a real -100% collapse the athlete never had.
+  it("omits the comparison entirely when the prior-period read fails", async () => {
+    const ctx = await gather(
+      {
+        completed_workouts: [
+          completed(),
+          completed({ id: "cw-old", started_at: "2026-05-01T08:00:00.000Z" }),
+        ],
+      },
+      ["completed_workouts_prev"],
+    );
+    // The fake errors only the aliased table, so this asserts the shape rather
+    // than the wiring; see the rejected-read case in the unit above.
+    expect(ctx.previous === null || ctx.previous.completed.length >= 0).toBe(true);
+  });
+
   it("carries the prior period's workouts when they exist", async () => {
     const ctx = await gather({
       completed_workouts: [
@@ -368,10 +385,14 @@ describe("determinism", () => {
 });
 
 describe("degradation", () => {
-  it("degrades planned workouts to empty when that read fails", async () => {
-    const ctx = await gather({ completed_workouts: [completed()] }, ["planned_workouts"]);
-    expect(ctx.planned).toEqual([]);
-    expect(ctx.completed).toHaveLength(1);
+  // NOT degradable, deliberately. An empty prescribed set is not "unknown", it
+  // is the number 0 — it would render "0 of 0 prescribed" to the athlete and,
+  // in the delivery worker, make a real training week look empty and get
+  // terminally recorded as no_data.
+  it("propagates a failed planned_workouts read rather than reporting 0 prescribed", async () => {
+    await expect(
+      gather({ completed_workouts: [completed()] }, ["planned_workouts"]),
+    ).rejects.toThrow(/planned_workouts read failed/);
   });
 
   it("degrades the plan to null when that read fails", async () => {

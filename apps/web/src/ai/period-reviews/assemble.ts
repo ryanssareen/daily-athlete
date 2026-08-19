@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { PeriodFacts, PeriodKind } from "@da2/shared";
 
+import { config } from "@/config";
 import { computeWorkoutTss } from "@/training-load";
 
 import { aggregatePeriod, type AggregateCompletedWorkout } from "./aggregate";
@@ -91,6 +92,35 @@ export async function readAthleteTimezone(
     .eq("id", athleteId)
     .maybeSingle();
 
-  if (error || !data) return "UTC";
-  return (data.timezone as string | null) ?? "UTC";
+  // A transient read failure is NOT the same as "this athlete has no timezone".
+  // Silently substituting UTC would shift every period boundary and produce a
+  // review of the wrong days -- so the error propagates, and UTC remains the
+  // default only for an absent row or a null column (which is what the column
+  // itself defaults to in migration 0001).
+  if (error) {
+    throw new Error(`readAthleteTimezone failed: ${error.message}`);
+  }
+  return (data?.timezone as string | null) ?? "UTC";
+}
+
+// ---------------------------------------------------------------------------
+// Model label
+// ---------------------------------------------------------------------------
+
+// Best-effort label for `period_reviews.model`, which migration 0029 defines as
+// informational. `src/llm` does not surface which model actually served a call,
+// so this mirrors createLlmClient's own provider-resolution order.
+//
+// Lives here, beside assemblePeriodReview, for the same reason that function
+// does: the API route and the delivery worker both write this column, and two
+// copies would drift into labelling the same row differently depending on which
+// path produced it.
+const FALLBACK_ANTHROPIC_MODEL_LABEL = "claude-opus-4-8";
+const FALLBACK_GROQ_MODEL_LABEL = "llama-3.3-70b-versatile";
+
+export function resolveModelLabel(): string {
+  const { anthropicApiKey, groqApiKey, provider, model } = config.llm;
+  if (model) return model;
+  const resolved = provider ?? (anthropicApiKey ? "anthropic" : groqApiKey ? "groq" : undefined);
+  return resolved === "groq" ? FALLBACK_GROQ_MODEL_LABEL : FALLBACK_ANTHROPIC_MODEL_LABEL;
 }

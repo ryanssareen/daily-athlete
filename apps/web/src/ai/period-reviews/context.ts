@@ -24,10 +24,20 @@ import "server-only";
 // DEGRADATION POLICY, and the way it differs from the per-workout report: a
 // period with NO rows is a valid context, not a not-found. R5 is explicit that
 // an empty week reports the absence rather than erroring, so there is no
-// equivalent of CompletedWorkoutNotFoundError for "nothing happened". The only
-// fatal input is a MALFORMED PERIOD KEY (InvalidPeriodKeyError, thrown by the
-// calendar), which is a client error rather than a data condition. Every other
-// read degrades to null/empty.
+// equivalent of CompletedWorkoutNotFoundError for "nothing happened".
+//
+// What is FATAL here is the distinction that matters: a read whose failure
+// would put a WRONG NUMBER in front of the athlete, rather than a missing one.
+//   - a malformed period key (InvalidPeriodKeyError) -- a client error;
+//   - the completed_workouts read -- degrading it would report an empty week;
+//   - the planned_workouts read -- degrading it would report "0 prescribed",
+//     which is a fabricated compliance denominator, and in the delivery worker
+//     would terminally record a real training week as no_data.
+// The genuinely optional inputs -- plan, profile, matches, and the prior
+// period -- degrade to null/empty, because their absence removes context
+// rather than inventing a figure. The prior period additionally distinguishes
+// "read failed" from "was empty": only a successful read can claim a
+// comparison, since an empty array would render as a real -100% collapse.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -290,25 +300,41 @@ export async function gatherPeriodContext(
     completedRows.map((r) => r.id),
   );
 
-  const planned: AggregatePlannedWorkout[] =
-    plannedRes.status === "fulfilled" && !plannedRes.value.error
-      ? ((plannedRes.value.data ?? []) as RawPlannedRow[]).map((r) => ({
-          id: r.id,
-          sport: r.sport,
-          scheduled_date: r.scheduled_date,
-          planned_load: r.planned_load,
-          structure: r.structure,
-        }))
-      : [];
+  // The prescribed set is a REQUIRED input, not a degradable one. Degrading it
+  // to [] would report "0 of 0 prescribed" to the athlete -- a wrong number
+  // rather than a missing one -- and in the delivery worker it would make a
+  // real training week look empty and get terminally recorded as no_data. A
+  // read failure here is fatal for the same reason a completed_workouts
+  // failure is.
+  if (plannedRes.status !== "fulfilled" || plannedRes.value.error) {
+    const reason =
+      plannedRes.status === "fulfilled"
+        ? plannedRes.value.error?.message
+        : String(plannedRes.reason);
+    throw new Error(`gatherPeriodContext: planned_workouts read failed: ${reason}`);
+  }
+
+  const planned: AggregatePlannedWorkout[] = (
+    (plannedRes.value.data ?? []) as RawPlannedRow[]
+  ).map((r) => ({
+    id: r.id,
+    sport: r.sport,
+    scheduled_date: r.scheduled_date,
+    planned_load: r.planned_load,
+    structure: r.structure,
+  }));
 
   const hasPriorHistory =
     historyRes.status === "fulfilled" &&
     !historyRes.value.error &&
     (historyRes.value.data ?? []).length > 0;
 
+  // Only claim a comparison when the prior period was actually READ. A rejected
+  // read left as an empty array is indistinguishable from a genuinely empty
+  // period, and renders as a real -100% collapse the athlete never had.
   let previous: PeriodContext["previous"] = null;
-  if (hasPriorHistory) {
-    const prevRows = prevRes.status === "fulfilled" ? prevRes.value : [];
+  if (hasPriorHistory && prevRes.status === "fulfilled") {
+    const prevRows = prevRes.value;
     const prevMatches = await readMatches(
       supabase,
       prevRows.map((r) => r.id),

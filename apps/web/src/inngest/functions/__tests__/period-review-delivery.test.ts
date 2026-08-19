@@ -33,6 +33,11 @@ const mocks = vi.hoisted(() => ({
   ledger: new Map<string, { status: string; failure_reason: string | null }>(),
   reviews: [] as Array<Record<string, unknown>>,
   email: "athlete@example.com" as string | null,
+  deletedAt: null as string | null,
+  optedInWeekly: true,
+  optedInMonthly: true,
+  persistError: null as { code?: string; message: string } | null,
+  finishError: null as { message: string } | null,
   /** Candidate rows for the scheduler-selection tests. */
   users: [] as Array<Record<string, unknown>>,
 }));
@@ -93,7 +98,7 @@ vi.mock("@/db/admin", () => ({
                 return builder;
               },
               then(onF: (v: unknown) => unknown) {
-                return Promise.resolve({ error: null }).then(onF);
+                return Promise.resolve({ error: mocks.finishError }).then(onF);
               },
             };
             return builder;
@@ -102,9 +107,39 @@ vi.mock("@/db/admin", () => ({
       }
       if (table === "period_reviews") {
         return {
-          upsert(row: Record<string, unknown>) {
+          // The write path is INSERT-with-23505-fallback, never .upsert().
+          // `upsert` is deliberately left UNIMPLEMENTED here: the identity
+          // index is partial, so a real .upsert({onConflict}) raises 42P10 at
+          // runtime, and a fake that quietly accepted it is exactly what let
+          // that P0 reach review. Calling it now blows up loudly.
+          upsert() {
+            throw new Error(
+              "period_reviews.upsert() is invalid: the identity index is PARTIAL " +
+                "and Postgres raises 42P10. Use persistPeriodReview (INSERT/23505/UPDATE).",
+            );
+          },
+          insert(row: Record<string, unknown>) {
+            if (mocks.persistError) return Promise.resolve({ error: mocks.persistError });
             mocks.reviews.push(row);
             return Promise.resolve({ error: null });
+          },
+          update(patch: Record<string, unknown>) {
+            const builder = {
+              eq() {
+                return builder;
+              },
+              is() {
+                return builder;
+              },
+              select() {
+                return builder;
+              },
+              maybeSingle() {
+                mocks.reviews.push(patch);
+                return Promise.resolve({ data: { id: "r-1" }, error: null });
+              },
+            };
+            return builder;
           },
         };
       }
@@ -127,7 +162,13 @@ vi.mock("@/db/admin", () => ({
                 return Promise.resolve({
                   data:
                     filters.id === ATHLETE
-                      ? { timezone: mocks.timezone, email: mocks.email }
+                      ? {
+                          timezone: mocks.timezone,
+                          email: mocks.email,
+                          deleted_at: mocks.deletedAt,
+                          email_weekly_review: mocks.optedInWeekly,
+                          email_monthly_review: mocks.optedInMonthly,
+                        }
                       : null,
                   error: null,
                 });
@@ -213,6 +254,11 @@ beforeEach(() => {
   mocks.ledger = new Map();
   mocks.reviews = [];
   mocks.email = "athlete@example.com";
+  mocks.deletedAt = null;
+  mocks.optedInWeekly = true;
+  mocks.optedInMonthly = true;
+  mocks.persistError = null;
+  mocks.finishError = null;
   mocks.users = [];
 });
 
@@ -238,6 +284,46 @@ describe("delivery", () => {
       narrative: mocks.narration.note,
       input_fingerprint: "fp-1",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Consent re-check at send time
+// ---------------------------------------------------------------------------
+
+describe("consent", () => {
+  // The window between the scheduler tick and this run is small but real, and
+  // an Inngest backlog or a replayed manual trigger widens it arbitrarily.
+  // Mailing someone who just unsubscribed is the exact failure the opt-in
+  // posture exists to prevent.
+  it("does not mail an athlete who unsubscribed after the tick", async () => {
+    mocks.optedInWeekly = false;
+    const result = await runDelivery();
+    expect(result.outcome).toBe("opted_out");
+    expect(mocks.sends).toEqual([]);
+  });
+
+  it("does not mail a soft-deleted account", async () => {
+    mocks.deletedAt = "2026-08-18T00:00:00.000Z";
+    const result = await runDelivery();
+    expect(result.outcome).toBe("opted_out");
+    expect(mocks.sends).toEqual([]);
+  });
+
+  it("checks the cadence being delivered, not the other one", async () => {
+    mocks.optedInWeekly = true;
+    mocks.optedInMonthly = false;
+    const monthly = await runDelivery({ kind: "monthly", period_key: "2026-08" });
+    expect(monthly.outcome).toBe("opted_out");
+
+    const weekly = await runDelivery();
+    expect(weekly.outcome).toBe("sent");
+  });
+
+  it("does not even claim when consent is withdrawn", async () => {
+    mocks.optedInWeekly = false;
+    await runDelivery();
+    expect(mocks.ledger.size).toBe(0);
   });
 });
 
@@ -355,6 +441,30 @@ describe("gating and edge cases", () => {
   // But a missed block IS worth reporting.
   it("still sends when nothing was completed but sessions were prescribed", async () => {
     mocks.facts = factsFor(0, 4);
+    const result = await runDelivery();
+    expect(result.outcome).toBe("sent");
+    expect(mocks.sends).toHaveLength(1);
+  });
+
+  // The ledger is athlete-readable; recording a send that never happened would
+  // make any future "we emailed you" surface assert a falsehood.
+  it("records a skipped period as 'skipped', never as 'sent'", async () => {
+    mocks.facts = factsFor(0, 0);
+    await runDelivery();
+    expect(mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`)?.status).toBe("skipped");
+  });
+
+  it("reports a persist failure rather than sending an email for an unsaved review", async () => {
+    mocks.persistError = { message: "insert exploded" };
+    await expect(runDelivery()).rejects.toThrow();
+    expect(mocks.sends).toEqual([]);
+    expect(mocks.ledger.get(`${ATHLETE}:weekly:2026-W33`)?.status).toBe("failed");
+  });
+
+  // The email HAS gone out; the ledger just failed to record it. Reporting a
+  // clean success would hide a row stuck in 'claimed' after a real delivery.
+  it("still reports sent when the ledger update fails after a successful send", async () => {
+    mocks.finishError = { message: "ledger write failed" };
     const result = await runDelivery();
     expect(result.outcome).toBe("sent");
     expect(mocks.sends).toHaveLength(1);

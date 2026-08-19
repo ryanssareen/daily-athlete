@@ -26,8 +26,18 @@ import { createAdminClient } from "@/db/admin";
 import { inngest } from "@/inngest/client";
 
 export async function GET(request: Request): Promise<NextResponse> {
+  // Fail CLOSED on an unset secret. `authHeader !== \`Bearer ${undefined}\``
+  // compares against the literal string "Bearer undefined", so an environment
+  // missing CRON_SECRET would make this route publicly triggerable -- and this
+  // one enqueues real email. The check is explicit rather than relying on the
+  // template interpolation.
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    console.error("[period-review.cron] CRON_SECRET is not set; refusing");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

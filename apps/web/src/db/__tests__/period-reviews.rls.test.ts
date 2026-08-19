@@ -23,6 +23,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { persistPeriodReview } from "@/db/period-reviews";
+
 import { createTestUser, serviceClient } from "./setup";
 
 const WEEK_KEY = "2026-W33";
@@ -477,5 +479,162 @@ describe("users email preference columns", () => {
       .select("email_weekly_review")
       .eq("id", athlete.id);
     expect(data).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The real write path (regression guard for the 42P10 partial-index trap)
+// ---------------------------------------------------------------------------
+
+// THIS IS THE TEST THAT WAS MISSING. Every other test in this feature mocks
+// Supabase, so a write shape Postgres rejects outright looked fine everywhere:
+// `.upsert({ onConflict: "athlete_id,kind,period_key" })` cannot target
+// `period_reviews_identity_unique` because that index is PARTIAL
+// (`WHERE deleted_at IS NULL`), and Postgres raises
+//
+//   42P10: there is no unique or exclusion constraint matching the
+//          ON CONFLICT specification
+//
+// at runtime. Both write paths now go through persistPeriodReview, and these
+// tests exercise it against a real database so the class of bug cannot recur.
+describe("persistPeriodReview against real Postgres", () => {
+  it("inserts a first review", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+
+    await persistPeriodReview(admin, {
+      athlete_id: athlete.id,
+      kind: "weekly",
+      period_key: WEEK_KEY,
+      period_start: "2026-08-10",
+      period_end: "2026-08-16",
+      narrative: "first",
+      takeaway: "t1",
+      input_fingerprint: "fp-1",
+      model: "test-model",
+      generated_at: new Date().toISOString(),
+    });
+
+    const { data } = await admin
+      .from("period_reviews")
+      .select("narrative, input_fingerprint")
+      .eq("athlete_id", athlete.id)
+      .single();
+    expect(data?.narrative).toBe("first");
+  });
+
+  // The regeneration path. Before the fix this raised 42P10 rather than
+  // updating, so every second generation for a period failed.
+  it("updates in place on a second write for the same identity", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+    const row = {
+      athlete_id: athlete.id,
+      kind: "weekly" as const,
+      period_key: WEEK_KEY,
+      period_start: "2026-08-10",
+      period_end: "2026-08-16",
+      narrative: "first",
+      takeaway: "t1",
+      input_fingerprint: "fp-1",
+      model: "test-model",
+      generated_at: new Date().toISOString(),
+    };
+
+    await persistPeriodReview(admin, row);
+    await persistPeriodReview(admin, {
+      ...row,
+      narrative: "regenerated",
+      takeaway: "t2",
+      input_fingerprint: "fp-2",
+    });
+
+    const { data } = await admin
+      .from("period_reviews")
+      .select("narrative, takeaway, input_fingerprint")
+      .eq("athlete_id", athlete.id)
+      .is("deleted_at", null);
+
+    expect(data).toHaveLength(1); // updated, not duplicated
+    expect(data?.[0]?.narrative).toBe("regenerated");
+    expect(data?.[0]?.input_fingerprint).toBe("fp-2");
+  });
+
+  it("keeps weekly and monthly reviews separate", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+    const base = {
+      athlete_id: athlete.id,
+      narrative: "n",
+      takeaway: "t",
+      input_fingerprint: "fp",
+      model: null,
+      generated_at: new Date().toISOString(),
+    };
+
+    await persistPeriodReview(admin, {
+      ...base,
+      kind: "weekly",
+      period_key: WEEK_KEY,
+      period_start: "2026-08-10",
+      period_end: "2026-08-16",
+    });
+    await persistPeriodReview(admin, {
+      ...base,
+      kind: "monthly",
+      period_key: MONTH_KEY,
+      period_start: "2026-08-01",
+      period_end: "2026-08-31",
+    });
+
+    const { data } = await admin
+      .from("period_reviews")
+      .select("kind")
+      .eq("athlete_id", athlete.id);
+    expect(data).toHaveLength(2);
+  });
+
+  // The partial index means a soft-deleted row does not conflict, so a fresh
+  // review must INSERT rather than resurrect the tombstone.
+  it("inserts a fresh row when the previous one was soft-deleted", async () => {
+    const admin = serviceClient();
+    const athlete = await createTestUser();
+    const row = {
+      athlete_id: athlete.id,
+      kind: "weekly" as const,
+      period_key: WEEK_KEY,
+      period_start: "2026-08-10",
+      period_end: "2026-08-16",
+      narrative: "first",
+      takeaway: "t",
+      input_fingerprint: "fp-1",
+      model: null,
+      generated_at: new Date().toISOString(),
+    };
+
+    await persistPeriodReview(admin, row);
+    await admin
+      .from("period_reviews")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("athlete_id", athlete.id);
+
+    await persistPeriodReview(admin, { ...row, narrative: "second" });
+
+    const { data: live } = await admin
+      .from("period_reviews")
+      .select("narrative")
+      .eq("athlete_id", athlete.id)
+      .is("deleted_at", null);
+    expect(live).toHaveLength(1);
+    expect(live?.[0]?.narrative).toBe("second");
+  });
+});
+
+// The delivery ledger accepts the 'skipped' status added in migration 0031.
+describe("period_review_deliveries status vocabulary", () => {
+  it("accepts 'skipped' for a period that was deliberately not mailed", async () => {
+    const athlete = await createTestUser();
+    const { error } = await insertDelivery(athlete.id, { status: "skipped" });
+    expect(error).toBeNull();
   });
 });

@@ -85,7 +85,13 @@ export function usePeriodReview(kind: PeriodKind, periodKey: string): UsePeriodR
       const response = await api<PeriodReviewResponse>(path);
       dispatch({ type: "fetch_success", response });
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 404 || err.status === 400)) {
+      // 402 is its own state, not an error: an athlete who reaches this screen
+      // via a stale deep link or whose subscription lapsed mid-session needs
+      // the upgrade affordance, not "couldn't load". The list hook already
+      // makes this distinction; without it here the two screens disagree.
+      if (err instanceof ApiError && err.status === 402) {
+        dispatch({ type: "fetch_unentitled" });
+      } else if (err instanceof ApiError && (err.status === 404 || err.status === 400)) {
         dispatch({ type: "fetch_not_found" });
       } else {
         dispatch({ type: "fetch_error" });

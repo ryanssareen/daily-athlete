@@ -36,6 +36,13 @@ export default function PeriodReviewScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={colors.brand} accessibilityLabel="Loading review" />
         </View>
+      ) : phase === "unentitled" ? (
+        <View style={styles.center}>
+          <Text style={styles.h2}>Reviews are a paid feature</Text>
+          <Text style={styles.body}>
+            Upgrade to see how each week and month went against your plan.
+          </Text>
+        </View>
       ) : phase === "not_found" ? (
         <View style={styles.center}>
           <Text style={styles.h2}>Review unavailable</Text>

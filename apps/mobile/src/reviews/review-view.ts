@@ -62,7 +62,7 @@ export function periodSubtitle(p: PeriodReviewSummary): string {
 // Detail state
 // ---------------------------------------------------------------------------
 
-export type ReviewPhase = "loading" | "ready" | "not_found" | "error";
+export type ReviewPhase = "loading" | "ready" | "not_found" | "unentitled" | "error";
 
 export interface ReviewState {
   phase: ReviewPhase;
@@ -83,6 +83,7 @@ export type ReviewAction =
   | { type: "fetch_start" }
   | { type: "fetch_success"; response: PeriodReviewResponse }
   | { type: "fetch_not_found" }
+  | { type: "fetch_unentitled" }
   | { type: "fetch_error" }
   | { type: "generate_start" }
   | { type: "generate_success"; response: PeriodReviewResponse }
@@ -105,6 +106,8 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
       return { ...state, phase: "ready", response: action.response, generateOutcome: null };
     case "fetch_not_found":
       return { ...state, phase: "not_found" };
+    case "fetch_unentitled":
+      return { ...state, phase: "unentitled" };
     case "fetch_error":
       return { ...state, phase: state.response ? "ready" : "error" };
     case "generate_start":
