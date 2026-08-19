@@ -100,12 +100,27 @@ export function validateGeneratedPlan(
   // baseline for week 1). Catches the empty-baseline P0: a from-scratch plan's
   // own week-over-week jumps are checked, not skipped.
   for (let i = 0; i < weeks.length; i++) {
+    // The baseline is the LARGEST of: the plan's own recent weeks, and the
+    // athlete's pre-plan weekly load.
+    //
+    // Including the athlete's own baseline (rather than using it only for
+    // week 1) fixes a false positive that rejected essentially every generated
+    // plan. Weeks are bucketed by ISO week, but a plan starts TODAY, not on a
+    // Monday — so a plan beginning midweek has a short opening bucket. Live,
+    // a 185 TSS five-day stub followed by an ordinary 250 TSS week read as a
+    // 35% ramp and failed the 10% cap, even though the athlete had been
+    // training 240 TSS/week for months. Measuring the second week against the
+    // stub compares window lengths, not training load.
+    //
+    // Taking the max is the same reasoning the deload allowance already uses
+    // (see RAMP_BASELINE_WEEKS above): returning to a load the athlete has
+    // recently sustained is not a ramp. It only ever raises the baseline, so
+    // it cannot mask a genuine spike above everything the athlete has done —
+    // the intra-plan guard still fires on that, with or without history.
     const prior = weeks
       .slice(Math.max(0, i - RAMP_BASELINE_WEEKS), i)
       .map((w) => w.total);
-    const baseline = prior.length
-      ? Math.max(...prior)
-      : (ctx.recentWeeklyTss ?? 0);
+    const baseline = Math.max(...prior, ctx.recentWeeklyTss ?? 0);
     if (baseline > 0 && weeks[i].total > baseline * (1 + WEEKLY_VOLUME_RAMP_CAP) + EPS) {
       violations.push({
         code: "volume_ramp",

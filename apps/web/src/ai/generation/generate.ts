@@ -23,7 +23,7 @@ import { isLlmBackOff, type LlmClient } from "@/llm";
 import { checkPlanContent } from "./content-gate";
 import type { GenerationContext } from "./context";
 import { assessFeasibility } from "./feasibility";
-import { buildGenerationPrompt } from "./prompts/generate-plan";
+import { buildGenerationPrompt, PLAN_GENERATION_MAX_TOKENS } from "./prompts/generate-plan";
 import { realignPlanToToday } from "./realign-dates";
 import { validateGeneratedPlan } from "./validate-plan";
 
@@ -112,6 +112,11 @@ export async function generate(
           prompt,
           schema: GeneratedPlanSchema,
           traceName: "generate.plan",
+          // Bounded deliberately. Groq counts this against the per-minute
+          // token allowance UP FRONT, so an over-generous ceiling does not buy
+          // safety — it gets the request rejected before a token is generated.
+          // Sized against a measured 4-week plan (~5,400 completion tokens).
+          maxTokens: PLAN_GENERATION_MAX_TOKENS,
         });
         raw = result.json;
         console.info(

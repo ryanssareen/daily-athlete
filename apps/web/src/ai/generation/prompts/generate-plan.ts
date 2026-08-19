@@ -10,6 +10,7 @@
 import type { GeneratePlanInput } from "@da2/shared";
 
 import {
+  addDays,
   CTL_RAMP_CAP_PER_WEEK,
   WEEKLY_VOLUME_RAMP_CAP,
 } from "@/training-load";
@@ -25,6 +26,55 @@ export interface PromptFeedback {
 }
 
 const RAMP_PCT = Math.round(WEEKLY_VOLUME_RAMP_CAP * 100);
+
+/**
+ * How far ahead ONE generation call plans.
+ *
+ * This is a correctness bound before it is a cost bound. Asked for a whole
+ * season in a single JSON object, the model does not decline — it starts
+ * emitting and gets cut off mid-array, so the response fails to parse and the
+ * whole generation burns its retry budget producing nothing. Measured against
+ * the real model for an athlete with an event ~11 weeks out: unbounded, the
+ * reply hit the token ceiling with `finish_reason: "length"` and invalid JSON;
+ * bounded to 4 weeks it returned 28 valid workouts and stopped cleanly.
+ *
+ * Four weeks is also the honest coaching answer. A block is the unit a plan is
+ * actually written in, month-four detail is fiction that the athlete's real
+ * training will invalidate anyway, and the adaptive engine already exists to
+ * extend and revise. Emitting a season up front mostly manufactures precision
+ * nobody should trust.
+ *
+ * When the event falls INSIDE the horizon the plan runs to the event instead,
+ * taper and all — see `buildGenerationPrompt`.
+ */
+export const PLAN_HORIZON_WEEKS = 4;
+
+/**
+ * Output-token ceiling for one generation call.
+ *
+ * Sized from measurement, and squeezed between two hard walls. Observed
+ * completions for a 4-week plan ranged 4,993-6,000+ tokens across live runs,
+ * so anything at or under 6,000 truncates some of the time — and a truncated
+ * reply is not a shorter plan, it is invalid JSON and a wasted call. That sets
+ * the floor.
+ *
+ * The ceiling is the provider's per-minute allowance (8,000 on the free tier).
+ * Groq counts `max_completion_tokens` against it UP FRONT, alongside the
+ * prompt, so an over-generous value is not free — the request is rejected
+ * outright before a token is generated. With a ~1,000-token prompt, 6,500
+ * leaves ~500 tokens of slack for prompt growth (a long event name, injury
+ * free text) while clearing the observed output range.
+ */
+export const PLAN_GENERATION_MAX_TOKENS = 6_500;
+
+/**
+ * Fraction of the preceding week's load a deload week carries. Only ever
+ * REDUCES load, so it is unconditionally safe against the ramp cap — its job
+ * is recovery, and giving the model an explicit number stops it treating the
+ * final week as another build week.
+ */
+const DELOAD_FACTOR = 0.7;
+
 
 export function buildGenerationPrompt(
   input: GeneratePlanInput,
@@ -42,13 +92,72 @@ export function buildGenerationPrompt(
     `Periodize as phase-tagged blocks: base -> build -> peak -> taper.`,
     `Ramp weekly training load by at most ${RAMP_PCT}% week-over-week; keep the projected CTL ramp at or under ${CTL_RAMP_CAP_PER_WEEK}/week; include recovery/deload weeks.`,
     `Every workout needs duration_s (whole seconds), load (TSS-equivalent), an intensity_target, a phase, and a short rationale.`,
+    // COMPACTNESS is a correctness requirement, not tidiness. The whole plan
+    // must fit in one completion; a reply that runs past the token ceiling is
+    // truncated mid-array and fails to parse, so the generation produces
+    // nothing at all. Verbose per-workout prose is the only part that scales
+    // with plan length, so it is the part that must be bounded.
+    `BE COMPACT — this whole plan must fit in a single response. Keep each "rationale" to at most 12 words, OMIT the optional "description" field entirely, and keep "narrative" under 400 characters. Never pad. A reply that runs out of room is discarded.`,
     `Never give medical or diagnostic advice. Do not tell the athlete to train through pain or take any medication.`,
   ];
-  if (input.event_date) {
-    guardrails.push(`Taper in the final block; reduce load into the event on ${input.event_date}.`);
+  // HORIZON. `horizonEnd` is the last day this call is allowed to schedule.
+  // An event inside that window is planned all the way through, taper and all;
+  // an event beyond it gets the first block only, and explicitly must NOT
+  // taper yet — a taper four weeks into a twelve-week build would be actively
+  // harmful advice, not merely premature.
+  const horizonEnd = addDays(today, PLAN_HORIZON_WEEKS * 7 - 1);
+  const eventInsideHorizon = input.event_date != null && input.event_date <= horizonEnd;
+
+  if (input.event_date && eventInsideHorizon) {
+    guardrails.push(
+      `The event on ${input.event_date} falls inside this block: plan all the way through to it, and taper in the final week — reduce load into the event.`
+    );
+  } else if (input.event_date) {
+    guardrails.push(
+      `PLAN HORIZON — emit ONLY the training from ${today} through ${horizonEnd} (${PLAN_HORIZON_WEEKS} weeks). Do NOT emit the whole season; later blocks are generated separately as the athlete progresses. The event on ${input.event_date} is beyond this horizon, so do NOT taper in this block — keep building. Use the narrative to say where this block sits in the wider progression toward the event.`
+    );
   } else {
+    guardrails.push(
+      `PLAN HORIZON — emit ONLY the training from ${today} through ${horizonEnd} (${PLAN_HORIZON_WEEKS} weeks). Do NOT emit more; later blocks are generated separately.`
+    );
     guardrails.push(`No event date: build toward sustained fitness with no terminal taper.`);
   }
+  // WEEKLY LOAD BUDGET — one flat number the model cannot get wrong.
+  //
+  // Three framings were tried live against the real model and all three
+  // failed: the generic "at most 10% week-over-week" rule (it ramped 47%), a
+  // ladder of compounding per-week ceilings (it undershot week 1, then jumped
+  // 64%), and a relational "100-105% of the previous week's actual total"
+  // rule (it landed 14.6% up). Summing twenty-odd sessions and comparing the
+  // running total against a moving target is arithmetic this model does not
+  // do reliably, however the rule is phrased.
+  //
+  // A single absolute ceiling removes the arithmetic. It is also PROVABLY
+  // safe rather than merely likely to pass: validateGeneratedPlan compares
+  // each week against `max(prior plan weeks, recentWeeklyTss)`, so the
+  // baseline is never below the athlete's own history. Cap every week at
+  // baseline x (1 + ramp cap) and the check cannot fail — undershooting an
+  // earlier week no longer matters, which is exactly what broke the ladder.
+  //
+  // The cost is that a four-week block does not compound its ramp. That is
+  // fine: a block at roughly the athlete's established load with a deload is
+  // ordinary periodization, and the next block re-baselines against whatever
+  // they actually did.
+  const recentWeekly = ctx.load.recentWeeklyTss;
+  if (recentWeekly != null && recentWeekly > 0) {
+    const target = Math.round(recentWeekly);
+    const ceiling = Math.round(recentWeekly * (1 + WEEKLY_VOLUME_RAMP_CAP));
+    guardrails.push(
+      `WEEKLY LOAD BUDGET — the athlete currently trains about ${target} TSS/week. HARD LIMIT: no calendar week (Monday-Sunday) may have its planned_load values sum to more than ${ceiling}. Aim for roughly ${target} per full week, and make the final week a deload at about ${Math.round(
+        target * DELOAD_FACTOR
+      )}. Add up each week's planned_load before you answer and check it against ${ceiling} — a plan with any week over that limit is rejected outright.`
+    );
+  } else {
+    guardrails.push(
+      `No recent training baseline (cold start): start deliberately low — no calendar week may total more than 200 TSS of planned_load — and make the final week a deload. Add up each week before you answer.`
+    );
+  }
+
   if (input.mode === "time_crunched") {
     guardrails.push(
       `TIME-CRUNCHED mode: maximize adaptation per hour — polarize intensity, trim junk volume, and flag if the goal is unrealistic for ${input.weekly_hours} hours/week.`
@@ -94,6 +203,7 @@ export function buildGenerationPrompt(
 
   const profileLines: string[] = [
     `today (schedule week 1 on or after this date): ${today}`,
+    `plan through (do not schedule past this date): ${eventInsideHorizon ? input.event_date : horizonEnd}`,
     `weekly_hours_available: ${input.weekly_hours}`,
     // event_type is athlete-authored free text — it is emitted below inside
     // its own data delimiter (same posture as injury_history), never raw here.
