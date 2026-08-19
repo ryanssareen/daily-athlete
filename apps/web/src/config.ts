@@ -31,6 +31,7 @@ const NodeEnvSchema = z.enum(["development", "test", "production"]);
 interface RawEnv {
   NODE_ENV?: string;
   NEXT_PUBLIC_SUPABASE_URL?: string;
+  NEXT_PUBLIC_SITE_URL?: string;
   NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   STRAVA_CLIENT_ID?: string;
@@ -56,7 +57,6 @@ interface RawEnv {
   ADMIN_BACKUP_BUCKET?: string;
   BREVO_API_KEY?: string;
   EMAIL_SENDER?: string;
-  APP_BASE_URL?: string;
   EMAIL_UNSUBSCRIBE_SIGNING_KEY?: string;
   MCP_OAUTH_STATE_SIGNING_KEY?: string;
   SUPABASE_JWT_SECRET?: string;
@@ -124,11 +124,15 @@ export interface AppConfig {
     // still succeeds.
     brevoApiKey: string | undefined;
     sender: string | undefined;
-    // Public origin the app is served from, e.g. "https://app.thedailyathlete.com".
-    // Period-review digest emails need it for their deep links and their
-    // unsubscribe links -- a relative URL is meaningless in an inbox. Nothing
-    // else in the config carries a public origin (NEXT_PUBLIC_SUPABASE_URL is
-    // the database, not the app).
+    // Public origin the app is served from. Period-review digest emails need it
+    // for their deep links and their unsubscribe links -- a relative URL is
+    // meaningless in an inbox.
+    //
+    // Sourced from NEXT_PUBLIC_SITE_URL, which already exists and is already
+    // set in every environment (the sign-out redirect uses it). A second
+    // variable meaning "the app's public origin" would be one more thing to
+    // keep in step, and the failure mode of them disagreeing is email links
+    // pointing somewhere the athlete is not signed in.
     appBaseUrl: string | undefined;
     // 32-byte HMAC-SHA256 key (64 hex chars) signing unsubscribe capability
     // tokens, same shape as MCP_OAUTH_STATE_SIGNING_KEY. Unsubscribe must work
@@ -412,14 +416,14 @@ function validatePeriodReviewEmailProd(v: Validator): void {
   // moderation mail is pure prose with a reply-to, while a digest is a teaser
   // whose entire job is to link back into the app. A digest without a working
   // base URL is worse than no digest.
-  const base = v.raw.APP_BASE_URL;
+  const base = v.raw.NEXT_PUBLIC_SITE_URL;
   if (!base || isPlaceholder(base)) {
     v.warnings.push(
-      "APP_BASE_URL missing — period-review digest emails are disabled until set (their deep links would go nowhere)"
+      "NEXT_PUBLIC_SITE_URL missing — period-review digest emails are disabled until set (their deep links would go nowhere)"
     );
   } else if (!/^https:\/\//.test(base)) {
     v.warnings.push(
-      "APP_BASE_URL should be an absolute https origin (e.g. https://app.example.com) — email links may not resolve"
+      "NEXT_PUBLIC_SITE_URL should be an absolute https origin — email links may not resolve"
     );
   }
 
@@ -663,7 +667,9 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       brevoApiKey: raw.BREVO_API_KEY,
       sender: raw.EMAIL_SENDER,
       appBaseUrl:
-        raw.APP_BASE_URL && !isPlaceholder(raw.APP_BASE_URL) ? raw.APP_BASE_URL : undefined,
+        raw.NEXT_PUBLIC_SITE_URL && !isPlaceholder(raw.NEXT_PUBLIC_SITE_URL)
+          ? raw.NEXT_PUBLIC_SITE_URL
+          : undefined,
       unsubscribeSigningKey:
         raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY && !isPlaceholder(raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY)
           ? raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY
