@@ -56,7 +56,7 @@
 // KNOWN GAP (see this unit's report-back — out of U6's scope to alter U1/U4's
 // RLS/context posture): R11 says a linked coach can read a report at "the
 // data layer (RLS + API)". workout_reports itself has a coach-additive SELECT
-// policy (migration 0027), but this route scopes every read to
+// policy (migration 0028), but this route scopes every read to
 // `athlete_id = user.id`, so a coach 404s before reaching the row whose
 // policy would have admitted them. R11's "API" half is not reachable by a
 // coach yet; the coach-facing surface is a deferred follow-up that needs no
@@ -272,7 +272,7 @@ async function isOverGenerationQuota(
 
 // ---------------------------------------------------------------------------
 // Model label — best-effort, informational only (workout_reports.model is
-// explicitly "informational, not authoritative" per migration 0027).
+// explicitly "informational, not authoritative" per migration 0028).
 // `LlmClient`/`LlmResult` (src/llm) do not surface which model id actually
 // served a call, so this mirrors createLlmClient's own provider-resolution
 // order rather than reading it back off the client/result. Out of U6's file
@@ -455,12 +455,12 @@ export async function POST(
   }
 
   // Persist. workout_reports has no client INSERT/UPDATE policy (migration
-  // 0027) — writes are service-role only. `athlete_id` is the AUTHENTICATED
+  // 0028) — writes are service-role only. `athlete_id` is the AUTHENTICATED
   // caller resolved above, never a client-supplied value, and
   // `completed_workout_id` was only reachable via the athlete-scoped
   // `assemble()` read above (a cross-athlete workoutId already 404'd).
   // Concurrent POSTs for the same workout: upsert on the
-  // `workout_reports_completed_workout_unique` index (migration 0027) lets
+  // `workout_reports_completed_workout_unique` index (migration 0028) lets
   // Postgres serialize the conflict — the loser's upsert becomes an UPDATE of
   // the winner's row rather than a duplicate-key error, so exactly one row
   // survives regardless of call order.

@@ -176,7 +176,7 @@ Three deliberate strengthenings over the original sketch, all made during U2 and
 **Dependencies.** None.
 
 **Files.**
-- `supabase/migrations/0027_workout_reports.sql`
+- `supabase/migrations/0028_workout_reports.sql`
 - `apps/web/src/db/__tests__/workout-reports.rls.test.ts`
 
 **Approach.** One row per `completed_workout_id` (unique). Columns: `id`, `athlete_id` (FK `users`, ON DELETE CASCADE), `completed_workout_id` (FK `completed_workouts`, ON DELETE CASCADE, UNIQUE), `narrative TEXT`, `takeaway TEXT`, `verdict_code TEXT`, `input_fingerprint TEXT NOT NULL`, `model TEXT`, `generated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `created_at`, `deleted_at`. Soft-delete column present for consistency with the athlete-content convention in `AGENTS.md`, though no user-facing delete flow ships here.

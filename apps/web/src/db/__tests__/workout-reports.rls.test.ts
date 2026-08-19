@@ -1,11 +1,11 @@
-// DB integration tests for public.workout_reports (migration 0027).
+// DB integration tests for public.workout_reports (migration 0028).
 // Covers:
 //   - RLS positive + negative for athletes and linked coaches
 //   - No client write path (service-role only): athlete INSERT/UPDATE/DELETE
 //     are all rejected
 //   - Unique constraint: one report per completed_workout_id
 //   - completed_workouts parent delete cascades the report away (hard delete
-//     via the FK, and SOFT delete via the 0027 trigger)
+//     via the FK, and SOFT delete via the 0028 trigger)
 //   - verdict_code CHECK rejects a code outside the closed VerdictCode enum
 //   - workout_reports is absent from the supabase_realtime publication (KTD6)
 //
@@ -248,7 +248,7 @@ describe("workout_reports cascade", () => {
   });
 });
 
-describe("workout_reports soft-delete cascade (0027 trigger)", () => {
+describe("workout_reports soft-delete cascade (0028 trigger)", () => {
   // The FK CASCADE only fires on a HARD delete. The delete path that exists
   // today (the MCP `workouts_completed_delete` tool) stamps
   // completed_workouts.deleted_at, which no FK can observe — without the
