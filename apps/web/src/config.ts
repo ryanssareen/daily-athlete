@@ -56,6 +56,8 @@ interface RawEnv {
   ADMIN_BACKUP_BUCKET?: string;
   BREVO_API_KEY?: string;
   EMAIL_SENDER?: string;
+  APP_BASE_URL?: string;
+  EMAIL_UNSUBSCRIBE_SIGNING_KEY?: string;
   MCP_OAUTH_STATE_SIGNING_KEY?: string;
   SUPABASE_JWT_SECRET?: string;
 }
@@ -122,6 +124,17 @@ export interface AppConfig {
     // still succeeds.
     brevoApiKey: string | undefined;
     sender: string | undefined;
+    // Public origin the app is served from, e.g. "https://app.thedailyathlete.com".
+    // Period-review digest emails need it for their deep links and their
+    // unsubscribe links -- a relative URL is meaningless in an inbox. Nothing
+    // else in the config carries a public origin (NEXT_PUBLIC_SUPABASE_URL is
+    // the database, not the app).
+    appBaseUrl: string | undefined;
+    // 32-byte HMAC-SHA256 key (64 hex chars) signing unsubscribe capability
+    // tokens, same shape as MCP_OAUTH_STATE_SIGNING_KEY. Unsubscribe must work
+    // without a session, so the link itself carries the authority -- and that
+    // authority is only ever "switch this one preference off".
+    unsubscribeSigningKey: string | undefined;
   };
   mcpOAuth: {
     // Hand-rolled OAuth 2.1 AS + MCP resource server (apps/web/src/oauth,
@@ -389,6 +402,41 @@ function validateBrevoProd(v: Validator): void {
   }
 }
 
+function validatePeriodReviewEmailProd(v: Validator): void {
+  // Scheduled period-review digests (apps/web/src/email/period-review-email.ts,
+  // the Inngest delivery worker). WARN, not fatal, matching BREVO_API_KEY: a
+  // missing key must not brick boot, and the delivery worker declines to send
+  // rather than mailing dead links.
+  //
+  // Note the asymmetry with moderation email, which needs neither of these:
+  // moderation mail is pure prose with a reply-to, while a digest is a teaser
+  // whose entire job is to link back into the app. A digest without a working
+  // base URL is worse than no digest.
+  const base = v.raw.APP_BASE_URL;
+  if (!base || isPlaceholder(base)) {
+    v.warnings.push(
+      "APP_BASE_URL missing — period-review digest emails are disabled until set (their deep links would go nowhere)"
+    );
+  } else if (!/^https:\/\//.test(base)) {
+    v.warnings.push(
+      "APP_BASE_URL should be an absolute https origin (e.g. https://app.example.com) — email links may not resolve"
+    );
+  }
+
+  const key = v.raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY;
+  if (!key || isPlaceholder(key)) {
+    v.warnings.push(
+      "EMAIL_UNSUBSCRIBE_SIGNING_KEY missing — period-review digest emails are disabled until set (one-click unsubscribe cannot be signed)"
+    );
+  } else if (!/^[0-9a-fA-F]{64}$/.test(key)) {
+    v.warnings.push(
+      "EMAIL_UNSUBSCRIBE_SIGNING_KEY should be 64 hex characters (32 bytes) — unsubscribe links may not verify"
+    );
+  } else if (isAllZeroHex(key)) {
+    v.errors.push("EMAIL_UNSUBSCRIBE_SIGNING_KEY is an all-zero (placeholder) key");
+  }
+}
+
 function validateMcpOAuthStateSigningKeyProd(v: Validator): void {
   // 32-byte HMAC-SHA256 key for the MCP OAuth state nonce
   // (apps/web/src/oauth/state.ts). 64 hex chars (= 32 bytes), same shape as
@@ -513,6 +561,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     validateAdminSecretProd(v);
     validateAdminSessionSigningKeyProd(v);
     validateBrevoProd(v);
+    validatePeriodReviewEmailProd(v);
     validateInngestSigningKeyProd(v);
     validateLlmProd(v);
     validateLangfuseProd(v);
@@ -613,6 +662,12 @@ function buildFromRaw(raw: RawEnv): AppConfig {
     email: {
       brevoApiKey: raw.BREVO_API_KEY,
       sender: raw.EMAIL_SENDER,
+      appBaseUrl:
+        raw.APP_BASE_URL && !isPlaceholder(raw.APP_BASE_URL) ? raw.APP_BASE_URL : undefined,
+      unsubscribeSigningKey:
+        raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY && !isPlaceholder(raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY)
+          ? raw.EMAIL_UNSUBSCRIBE_SIGNING_KEY
+          : undefined,
     },
     mcpOAuth: {
       stateSigningKey: raw.MCP_OAUTH_STATE_SIGNING_KEY,

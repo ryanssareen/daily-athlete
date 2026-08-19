@@ -7,6 +7,7 @@ import { hasStravaToken } from "@/db/strava-tokens";
 import { getAthleteCoach } from "@/db/roster";
 import { StravaToggle } from "@/components/strava-toggle";
 import { CoachDisconnect } from "@/components/coach-disconnect";
+import { EmailPreferencesCard } from "@/components/email-preferences";
 
 // ---------- Sub-components ------------------------------------------------
 
@@ -67,10 +68,24 @@ export default async function AthleteSettingsPage() {
   const cookieStore = await cookies();
   const theme = cookieStore.get("da2-theme")?.value ?? "light";
 
-  const [stravaConnected, coach] = await Promise.all([
+  const [stravaConnected, coach, prefsRow] = await Promise.all([
     hasStravaToken(admin, userId),
     getAthleteCoach(admin, userId),
+    // service-role: explicit user filter required
+    admin
+      .from("users")
+      .select("email_weekly_review, email_monthly_review")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
+
+  // Both default false (migration 0030), so a failed read degrades to "off"
+  // -- the safe direction for an opt-in: it never shows a toggle as on when
+  // we could not confirm it is.
+  const emailPreferences = {
+    weeklyReview: prefsRow.data?.email_weekly_review === true,
+    monthlyReview: prefsRow.data?.email_monthly_review === true,
+  };
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto" }}>
@@ -217,6 +232,14 @@ export default async function AthleteSettingsPage() {
               you a link to connect.
             </p>
           )}
+        </SectionCard>
+
+        {/* Email */}
+        <SectionCard
+          title="Email"
+          description="Training reviews delivered to your inbox. Off unless you turn them on."
+        >
+          <EmailPreferencesCard initial={emailPreferences} />
         </SectionCard>
 
         {/* Account */}
