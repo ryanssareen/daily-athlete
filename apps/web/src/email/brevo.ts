@@ -27,6 +27,21 @@ export interface SendEmailParams {
   html: string;
   /** Optional reply-to; defaults to the configured sender. */
   replyTo?: string;
+  /**
+   * Optional one-click unsubscribe URL.
+   *
+   * Set on bulk/periodic mail (the period-review digests), never on
+   * transactional mail like a moderation notice -- an account-action email is
+   * not something a user can opt out of, and advertising an unsubscribe on one
+   * would be misleading.
+   *
+   * Emitted as List-Unsubscribe + List-Unsubscribe-Post so mail clients can
+   * offer their own native unsubscribe affordance. That matters for
+   * deliverability as much as for the reader: providers weigh a visible,
+   * working unsubscribe against spam complaints, and this is the product's
+   * first bulk outbound mail.
+   */
+  unsubscribeUrl?: string;
 }
 
 export interface SendEmailResult {
@@ -59,6 +74,16 @@ export async function sendTransactionalEmail(
         replyTo: { email: replyTo },
         subject: params.subject,
         htmlContent: params.html,
+        ...(params.unsubscribeUrl
+          ? {
+              headers: {
+                "List-Unsubscribe": `<${params.unsubscribeUrl}>`,
+                // Tells the client the URL accepts a POST, so its native
+                // button unsubscribes in one step instead of opening a page.
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
+            }
+          : {}),
       }),
     });
 

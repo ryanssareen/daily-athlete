@@ -9,6 +9,17 @@
 // emails just stopped" in production. So /unsubscribe (the page) only renders,
 // and the change happens here on an explicit action.
 //
+// TWO CALLERS, one behaviour. The token may arrive either in a JSON body (the
+// confirmation page's fetch) or in the query string (RFC 8058 one-click, where
+// the mail client POSTs the List-Unsubscribe URL with a form body of
+// `List-Unsubscribe=One-Click` and no JSON at all). Supporting the query form
+// is what makes it honest to advertise List-Unsubscribe-Post: a client that
+// takes us at our word must actually succeed.
+//
+// A POST carrying a token in the query is still safe against the pre-fetch
+// problem the page/route split exists for -- scanners and previewers issue
+// GETs, and this route has no GET handler.
+//
 // The token is a capability, not authentication: it names one user and one
 // cadence, it can only switch a preference OFF, and nothing else in the app
 // accepts it. See src/email/unsubscribe-token.ts.
@@ -22,16 +33,25 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/db/admin";
 import { preferenceColumnFor, verifyUnsubscribeToken } from "@/email/unsubscribe-token";
 
-export async function POST(request: Request): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_input" }, { status: 400 });
-  }
+async function readToken(request: Request): Promise<string | null> {
+  const fromQuery = new URL(request.url).searchParams.get("token");
+  if (fromQuery) return fromQuery;
 
-  const token = (body as { token?: unknown } | null)?.token;
-  if (typeof token !== "string" || token.length === 0) {
+  // A one-click POST has a form body, not JSON, so a parse failure here is an
+  // expected shape rather than an error -- it just means the token was not in
+  // the body, and the query check above already had its chance.
+  try {
+    const body = (await request.json()) as { token?: unknown } | null;
+    const token = body?.token;
+    return typeof token === "string" && token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(request: Request): Promise<NextResponse> {
+  const token = await readToken(request);
+  if (token === null) {
     return NextResponse.json({ error: "invalid_token" }, { status: 400 });
   }
 
