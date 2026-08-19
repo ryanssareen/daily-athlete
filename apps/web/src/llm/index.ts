@@ -51,6 +51,18 @@ export interface GenerateStructuredParams {
   traceName: string;
   /** Abort signal; the adapter also applies its own timeout. */
   signal?: AbortSignal;
+  /**
+   * Per-call cap on generated tokens, overriding the adapter default.
+   *
+   * This is a BUDGET control, not just a truncation guard. Groq bills
+   * `max_completion_tokens` against the per-minute token allowance UP FRONT,
+   * before a single token is generated — so a caller that asks for the
+   * plan-sized default to produce a four-sentence note is rejected outright
+   * with `rate_limit_exceeded` ("Request too large"), never gets its answer,
+   * and consumes the whole minute's budget on this tier. Callers whose output
+   * is schema-capped small should say so here.
+   */
+  maxTokens?: number;
 }
 
 export interface LlmResult {
@@ -67,7 +79,11 @@ export interface LlmClient {
 // eval harness). These live here — not in config — so config stays a plain
 // env mirror and provider selection owns its own fallbacks.
 const DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8";
-const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+// Groq retired `llama-3.3-70b-versatile`; it now 404s `model_not_found` for
+// keys that used to serve it, which silently broke every LLM feature in
+// production. Keep this pointed at a model the account can actually reach and
+// re-check it when Groq rotates their catalogue.
+const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 
 /**
  * Construct the configured LLM client. Mirrors createAdminClient(): reads

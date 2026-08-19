@@ -9,7 +9,13 @@ import type { GenerateStructuredParams, LlmClient, LlmResult } from "@/llm";
 import { computeExecutionDelta, type DeltaInput } from "../delta";
 import type { ReportContext } from "../context";
 import { buildFactSheet, GOAL_MAX_LENGTH } from "../fact-sheet";
-import { GOAL_DATA_TAG, ReportNarrationInvalidError, buildNarrationPrompt, narrate } from "../narrate";
+import {
+  GOAL_DATA_TAG,
+  NARRATION_MAX_TOKENS,
+  ReportNarrationInvalidError,
+  buildNarrationPrompt,
+  narrate,
+} from "../narrate";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -430,5 +436,28 @@ describe("buildNarrationPrompt — pace sign", () => {
     const delta = computeExecutionDelta(MATCHED_DELTA_INPUT);
     const { prompt } = buildNarrationPrompt(buildFactSheet(baseContext(), delta));
     expect(prompt).not.toMatch(/lower seconds-per-km/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Output budget — why narration must not inherit the adapter default
+// ---------------------------------------------------------------------------
+
+describe("narrate — token budget", () => {
+  it("requests a narration-sized budget, not the plan-sized adapter default", async () => {
+    const client = new FakeClient([VALID_NARRATION]);
+    const delta = computeExecutionDelta(MATCHED_DELTA_INPUT);
+    await narrate(buildFactSheet(baseContext(), delta), client);
+
+    // Groq charges max_completion_tokens against the per-minute allowance
+    // BEFORE generating, so a plan-sized ask for a four-sentence note is
+    // rejected outright as "Request too large" and the note never generates.
+    expect(client.calls[0].maxTokens).toBe(NARRATION_MAX_TOKENS);
+  });
+
+  it("leaves headroom over the schema's own caps", () => {
+    // note <= 1000 chars + takeaway <= 300 chars is ~350 tokens of JSON.
+    expect(NARRATION_MAX_TOKENS).toBeGreaterThan(500);
+    expect(NARRATION_MAX_TOKENS).toBeLessThan(4000);
   });
 });

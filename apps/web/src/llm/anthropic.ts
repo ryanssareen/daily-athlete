@@ -73,7 +73,7 @@ export class AnthropicClient implements LlmClient {
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: this.maxTokens,
+          max_tokens: params.maxTokens ?? this.maxTokens,
           system: appendSchemaHint(params.system, params.schema !== undefined),
           messages: [{ role: "user", content: params.prompt }],
         }),
