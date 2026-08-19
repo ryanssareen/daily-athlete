@@ -77,6 +77,39 @@ Pattern:
 - The queue worker (also a Vercel function or Inngest step) does the slow work, writes results to Postgres, and emits a Realtime event the client listens to.
 - Never `await` a long task inside an HTTP handler.
 
+## Running the test suite
+
+`apps/web` DB-integration tests talk to a real local Postgres. Without the local-dev
+env exported, ~200 tests fail with `Missing NEXT_PUBLIC_SUPABASE_URL` — that is an
+unconfigured shell, **not** a regression. Start the stack (`supabase start`) and export
+the keys inline; do not commit an env file:
+
+```bash
+eval "$(supabase status -o env \
+  --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
+  --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
+  --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY | sed 's/^/export /')"
+```
+
+There is no jsdom harness anywhere in this repo (`apps/web/vitest.config.ts` is
+`environment: "node"`). Component tests therefore exercise exported view-logic
+functions, not rendered output — see `app/(athlete)/plan/__tests__/page.test.tsx`.
+A UI change is not verified until someone has looked at it in a running app.
+
+## Bearer-token routes
+
+`resolveAuth` (`apps/web/src/auth/bearer.ts`) validates a bearer token via
+`supabase.auth.getUser(token)` but does **not** attach it to the client. A client
+built by `createClient()` (`@/auth/server`) therefore falls back to the anon key for
+subsequent PostgREST queries on a cookie-less request, so `auth.uid()` is NULL and
+every RLS-scoped read returns zero rows. The mobile app sends bearer only.
+
+Use `createServerClient()` for auth resolution, then do data access via
+`createAdminClient()` with explicit `athlete_id` filters (see
+`apps/web/app/api/plans/route.ts`), or attach the token to the data client. Route
+tests that mock `@/auth/server` wholesale will not catch this — add a test that
+exercises the bearer path with no cookies.
+
 ## Repo-relative paths
 
 All paths in docs, plans, brainstorms, and code comments use **repo-relative** form (`apps/web/app/api/strava/route.ts`), never absolute (`/Users/ryan/Documents/da2/...`). Absolute paths break portability across machines and contributors.

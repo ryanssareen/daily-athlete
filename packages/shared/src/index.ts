@@ -22,3 +22,4 @@ export * from "./users";
 export * from "./weekly-review";
 export * from "./workout-edit";
 export * from "./workout-match";
+export * from "./workout-report";
