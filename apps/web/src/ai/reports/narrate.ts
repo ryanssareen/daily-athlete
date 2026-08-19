@@ -42,6 +42,20 @@ import type { FactSheet, FactSheetDimension, FactSheetIntensityDimension } from 
 export const GOAL_DATA_TAG = "athlete_goal";
 
 /**
+ * Output budget for one narration call.
+ *
+ * `ReportNarrationSchema` caps the response at 1000 characters of note plus
+ * 300 of takeaway — roughly 350 tokens of JSON. The adapter default is sized
+ * for PLAN GENERATION, which emits a whole training block, and asking for that
+ * here is not merely wasteful: Groq charges `max_completion_tokens` against
+ * the per-minute allowance BEFORE generating, so a plan-sized request for a
+ * four-sentence note is rejected outright as "Request too large" and the note
+ * never generates at all. 1500 leaves comfortable headroom over the schema cap
+ * while staying far inside the budget.
+ */
+export const NARRATION_MAX_TOKENS = 1500;
+
+/**
  * Thrown when the model returned parseable JSON that fails
  * `ReportNarrationSchema` (e.g. missing `takeaway`, or `note` over the length
  * cap). Distinct from `LlmInvalidOutput` (thrown by the LLM client itself
@@ -163,6 +177,7 @@ export async function narrate(factSheet: FactSheet, client: LlmClient): Promise<
     prompt,
     schema: ReportNarrationSchema,
     traceName: "reports.narrate",
+    maxTokens: NARRATION_MAX_TOKENS,
   });
 
   const parsed = ReportNarrationSchema.safeParse(result.json);

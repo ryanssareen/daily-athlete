@@ -78,7 +78,7 @@ export class GroqClient implements LlmClient {
         },
         body: JSON.stringify({
           model: this.model,
-          max_completion_tokens: this.maxTokens,
+          max_completion_tokens: params.maxTokens ?? this.maxTokens,
           messages: [
             {
               role: "system",
