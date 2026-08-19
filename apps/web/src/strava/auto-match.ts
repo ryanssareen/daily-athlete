@@ -2,17 +2,26 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { calendarDayInTimezone } from "@/lib/format";
+
 export interface MatchParams {
   athleteId: string;
   completedWorkoutId: string;
   sport: string;
-  // ISO datetime from Strava start_date (UTC). start_date_local is not
-  // present in StravaActivitySchema, so UTC date extraction is used here.
-  // Athletes in negative-UTC timezones exercising after ~8 PM local time
-  // may see their workout attributed to the next calendar day's planned
-  // workout. Known limitation — deferred until start_date_local is added.
+  /**
+   * ISO datetime of the activity start, in UTC (Strava's `start_date`).
+   *
+   * The calendar day is resolved from this in the ATHLETE'S timezone, not in
+   * UTC — see the note on `dateStr` below.
+   */
   startedAt: string;
   durationS: number | null;
+  /**
+   * Optional override for the athlete's IANA timezone. Callers already holding
+   * it can pass it to save a lookup; otherwise it is read from
+   * `users.timezone`.
+   */
+  timezone?: string | null;
 }
 
 export interface MatchResult {
@@ -40,6 +49,30 @@ function getTargetDuration(structure: Record<string, unknown>): number | null {
 }
 
 /**
+ * The athlete's IANA timezone, for resolving which calendar day an activity
+ * belongs to. Best-effort: any failure degrades to UTC (the previous
+ * behaviour) rather than aborting the match, because a mis-dated match is
+ * recoverable and a thrown ingest is not.
+ *
+ * `users.timezone` is NOT NULL DEFAULT 'UTC' (migration 0001), so this is
+ * normally a single cheap read that always resolves.
+ */
+async function resolveAthleteTimezone(
+  admin: SupabaseClient,
+  athleteId: string
+): Promise<string> {
+  // service-role: explicit user filter required
+  const { data, error } = await admin
+    .from("users")
+    .select("timezone")
+    .eq("id", athleteId)
+    .maybeSingle();
+
+  if (error || !data?.timezone) return "UTC";
+  return data.timezone as string;
+}
+
+/**
  * Try to match a Strava completed_workout against a planned_workout for the
  * same athlete, sport, and calendar date (R10–R13).
  *
@@ -59,7 +92,24 @@ export async function matchStravaToPlanned(
 ): Promise<MatchResult> {
   const { athleteId, completedWorkoutId, sport, startedAt, durationS } = params;
 
-  const dateStr = startedAt.split("T")[0];
+  // THE CALENDAR DAY MUST BE THE ATHLETE'S, NOT UTC.
+  //
+  // `planned_workouts.scheduled_date` is a bare DATE — it means "the day the
+  // athlete was meant to do this", in their own local calendar. Deriving the
+  // completed workout's day with `startedAt.split("T")[0]` compared that
+  // against a UTC day instead, and the two disagree for anyone training near
+  // either end of their local day: at UTC+5:30 every session started before
+  // 05:30 local was filed under the PREVIOUS day; at negative offsets a
+  // late-evening session lands on the NEXT one. Either way the candidate query
+  // returns nothing and the workout stays unmatched forever — silently, since
+  // "no planned workout that day" is indistinguishable from "athlete had
+  // nothing scheduled".
+  //
+  // Not theoretical: measured on production, 10 of one athlete's 102 workouts
+  // fell on a different UTC day than their real IST training day, including a
+  // ride that had a planned bike waiting on exactly the day it was ridden.
+  const timezone = params.timezone ?? (await resolveAthleteTimezone(admin, athleteId));
+  const dateStr = calendarDayInTimezone(startedAt, timezone);
 
   // Steps 1–4: find candidates matching athlete + sport + date
   // service-role: explicit user filter required
