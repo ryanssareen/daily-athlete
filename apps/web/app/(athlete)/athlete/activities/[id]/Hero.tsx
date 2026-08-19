@@ -1,3 +1,6 @@
+import type { Route } from "next";
+import Link from "next/link";
+
 import type { WorkoutData } from "./types";
 import { SPORT_ACCENT, fmtDuration, fmtDistance } from "./utils";
 
@@ -45,13 +48,13 @@ export function WorkoutHero({ data }: { data: WorkoutData }) {
   return (
     <section className="hero" style={{ "--accent": accent.color, "--accent-deep": accent.deep, "--accent-soft": accent.soft } as React.CSSProperties}>
       <div className="hero-topbar">
-        <a href="/athlete/activities" className="back-link">
+        <Link href={"/athlete/activities" as Route} className="back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />
           </svg>
           <span>Activities</span>
-        </a>
+        </Link>
         <div className="topbar-actions">
           <button className="ghost-btn" title="Share workout">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
