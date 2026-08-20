@@ -74,10 +74,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// --- Scenario 1: absent narration -> verdict + comparison render, Generate offered --
+// --- Scenario 1: absent narration -> verdict + comparison render, Show report offered --
 
 describe("narrativeAffordances — absent (no prior attempt)", () => {
-  it("verdict headline and comparison rows are present; Generate report is the only affordance", () => {
+  it("verdict headline and comparison rows are present; Show report is the only affordance", () => {
     const r = report({ narration: null, stale: false });
 
     // Verdict + comparison come straight off the payload — no gating.
@@ -88,7 +88,7 @@ describe("narrativeAffordances — absent (no prior attempt)", () => {
     expect(aff.kind).toBe("absent");
     expect(aff.showNote).toBe(false);
     expect(aff.showStaleBadge).toBe(false);
-    expect(aff.actionLabel).toBe("Generate report");
+    expect(aff.actionLabel).toBe("Show report");
     expect(aff.actionDisabled).toBe(false);
   });
 });
@@ -137,7 +137,7 @@ describe("unmatched delta (AE3 / F2)", () => {
     const r = report({ delta: unmatchedDelta(), narration: null });
     expect(r.delta.verdict.code).toBe("unplanned_effort");
     const aff = narrativeAffordances(r, false);
-    expect(aff.actionLabel).toBe("Generate report");
+    expect(aff.actionLabel).toBe("Show report");
   });
 });
 
