@@ -16,7 +16,7 @@
 // never clears/replaces the verdict-bearing data.
 //
 // The five narrative states:
-//   absent            — narration: null, no prior attempt -> "Generate report"
+//   absent            — narration: null, no prior attempt -> auto-generates on mount
 //   present            — narration present, not stale -> note + takeaway
 //   stale              — narration present, stale: true -> note + takeaway
 //                         PLUS a stale marker and a regenerate affordance
@@ -43,7 +43,7 @@
 // adds the failure copy plus a retry button beneath it. Only a failure with
 // nothing stored at all reaches `retryable_failed`.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { WorkoutReportResponseSchema, type WorkoutReportResponse } from "@da2/shared";
 
@@ -127,7 +127,7 @@ export function narrativeAffordances(
   const failed = attemptFailed(report);
 
   let actionLabel: string | null = null;
-  if (kind === "absent") actionLabel = pending ? "Generating…" : "Generate report";
+  if (kind === "absent") actionLabel = pending ? "Generating…" : "Show report";
   else if (kind === "stale" || kind === "superseded") {
     actionLabel = pending ? "Regenerating…" : "Regenerate report";
   } else if (kind === "retryable_failed" && report.retryable) {
@@ -239,6 +239,13 @@ export function ReportSection({ workoutId, initialReport, api = defaultReportApi
       setState((s) => failGenerate(s, "Couldn't generate the report. Try again."));
     }
   }
+
+  useEffect(() => {
+    const kind = narrativeStateFor(state.report);
+    if (kind === "absent" && !state.pending) {
+      handleGenerate();
+    }
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const { report, pending, requestError } = state;
   const aff = narrativeAffordances(report, pending);
