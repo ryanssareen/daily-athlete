@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { SportSchema } from "@da2/shared";
 import { buildLoadSeries, type LoadWorkoutInput } from "@/training-load";
+import { isValidIanaTimezone } from "@/lib/timezone";
 
 import { rlsClientFromAuth } from "./identity";
 import {
@@ -81,19 +82,23 @@ export function registerAllTools(server: McpServer): void {
     "profile_get",
     {
       title: "Get athlete profile",
-      description: "Read your editable profile fields (thresholds, weight, availability).",
+      description:
+        "Read your editable profile fields (thresholds, weight, availability) and timezone.",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
     async (_args, extra) => {
-      const { supabase } = ctxFrom(extra);
-      const { data, error } = await supabase
-        .from("athlete_profiles")
-        .select(PROFILE_SELECT)
-        .maybeSingle();
-      if (error) return dbFail("read_failed", error);
-      if (!data) return ok({ manual_fields: {}, updated_at: null });
-      return ok(data);
+      const { supabase, userId } = ctxFrom(extra);
+      const [profile, userRow] = await Promise.all([
+        supabase.from("athlete_profiles").select(PROFILE_SELECT).maybeSingle(),
+        // timezone lives on users, not athlete_profiles -- a separate table.
+        supabase.from("users").select("timezone").eq("id", userId).maybeSingle(),
+      ]);
+      if (profile.error) return dbFail("read_failed", profile.error);
+      if (userRow.error) return dbFail("read_failed", userRow.error);
+      const timezone = (userRow.data?.timezone as string | null) ?? "UTC";
+      if (!profile.data) return ok({ manual_fields: {}, updated_at: null, timezone });
+      return ok({ ...profile.data, timezone });
     }
   );
 
@@ -274,37 +279,76 @@ export function registerAllTools(server: McpServer): void {
     "profile_update",
     {
       title: "Update athlete profile",
-      description: "Update your editable profile fields. Only manual fields are writable.",
+      description:
+        "Update your editable profile fields (thresholds, weight, availability) and/or your timezone.",
       inputSchema: {
         age: z.number().int().min(0).max(120).optional(),
         weight_kg: z.number().min(20).max(400).optional(),
         weekly_hours_avail: z.number().min(0).max(80).optional(),
         target_event: z.record(z.unknown()).optional(),
+        timezone: z.string().min(1).max(100).optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
     async (args, extra) => {
-      const { supabase } = ctxFrom(extra);
-      const { data: cur, error: readErr } = await supabase
-        .from("athlete_profiles")
-        .select("manual_fields")
-        .maybeSingle();
-      if (readErr) return dbFail("read_failed", readErr);
-      const merged: Record<string, unknown> = {
-        ...((cur?.manual_fields as Record<string, unknown> | null) ?? {}),
-      };
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== undefined) merged[k] = v;
+      const { supabase, userId } = ctxFrom(extra);
+      const { timezone, ...manualFieldArgs } = args;
+
+      if (timezone !== undefined && !isValidIanaTimezone(timezone)) {
+        return fail("invalid_input", `unrecognized timezone: ${timezone}`);
       }
-      // Writes ONLY the manual_fields column; baselines/derived state untouched.
-      const { data, error } = await supabase
-        .from("athlete_profiles")
-        .update({ manual_fields: merged })
-        .select(PROFILE_SELECT)
-        .maybeSingle();
-      if (error) return dbFail("write_failed", error);
-      if (!data) return fail("not_found_or_forbidden");
-      return ok(data);
+
+      // timezone lives on users, not athlete_profiles -- write it separately
+      // so a caller updating only their timezone doesn't fail just because
+      // they have no athlete_profiles row yet (created at onboarding, unlike
+      // the users row, which every account has from signup).
+      const hasManualFieldEdits = Object.values(manualFieldArgs).some((v) => v !== undefined);
+      if (!hasManualFieldEdits && timezone === undefined) {
+        return fail("invalid_input", "no fields provided to update");
+      }
+
+      let profileData: Record<string, unknown> | null = null;
+      if (hasManualFieldEdits) {
+        const { data: cur, error: readErr } = await supabase
+          .from("athlete_profiles")
+          .select("manual_fields")
+          .maybeSingle();
+        if (readErr) return dbFail("read_failed", readErr);
+        const merged: Record<string, unknown> = {
+          ...((cur?.manual_fields as Record<string, unknown> | null) ?? {}),
+        };
+        for (const [k, v] of Object.entries(manualFieldArgs)) {
+          if (v !== undefined) merged[k] = v;
+        }
+        // Writes ONLY the manual_fields column; baselines/derived state untouched.
+        const { data, error } = await supabase
+          .from("athlete_profiles")
+          .update({ manual_fields: merged })
+          .select(PROFILE_SELECT)
+          .maybeSingle();
+        if (error) return dbFail("write_failed", error);
+        if (!data) return fail("not_found_or_forbidden");
+        profileData = data;
+      }
+
+      if (timezone !== undefined) {
+        // users_self_update's RLS policy already permits self-writes to
+        // timezone (unlike role_flags -- see AGENTS.md's "Secrets" section).
+        // This RLS-scoped client always carries a real minted JWT
+        // (identity.ts), unlike @/auth/server's cookie-only client, so
+        // auth.uid() resolves correctly here -- no admin-client workaround
+        // needed, unlike PATCH /api/profile/timezone.
+        const { error: tzErr } = await supabase
+          .from("users")
+          .update({ timezone })
+          .eq("id", userId);
+        if (tzErr) return dbFail("write_failed", tzErr);
+      }
+
+      return ok({
+        ...(profileData ?? {}),
+        ...(timezone !== undefined ? { timezone } : {}),
+      });
     }
   );
 
