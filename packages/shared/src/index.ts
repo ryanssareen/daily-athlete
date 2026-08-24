@@ -1,5 +1,6 @@
-// Cross-app type contracts. Hand-authored TypeScript types and Zod schemas
-// shared between apps/web (UI + API route handlers) and apps/mobile.
+// Type contracts. Hand-authored TypeScript types and Zod schemas used by
+// apps/web (UI + API route handlers). The mobile app (daily-athlete/) is
+// Flutter/Dart and does not import from here.
 // One file per logical table family; this barrel re-exports them.
 //
 // There is no codegen step. Types are written by hand and reviewed against

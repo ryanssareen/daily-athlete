@@ -2,13 +2,13 @@
 //
 // Exchanges a Strava authorization code (+ PKCE verifier) for an
 // access/refresh token pair, persists the encrypted tokens, and enqueues
-// the on-connect backfill job. Mobile (apps/mobile/src/integrations/
-// strava.tsx) is the only caller today.
+// the on-connect backfill job. The Flutter mobile app (daily-athlete/) is
+// the only caller today -- see docs/solutions/strava-oauth.md.
 //
 // Security posture:
 // - The Strava client_secret stays on the server; the device never sees it.
-// - PKCE end-to-end: code_verifier is generated on-device by
-//   expo-auth-session, forwarded here, and passed to Strava unmodified.
+// - PKCE end-to-end: code_verifier is generated on-device (Flutter's
+//   `crypto` package), forwarded here, and passed to Strava unmodified.
 // - OAuth `state` is server-signed: the mobile client first calls
 //   /api/integrations/strava/init to obtain an HMAC-signed state bound
 //   to its user_id. This route verifies the signature against the same

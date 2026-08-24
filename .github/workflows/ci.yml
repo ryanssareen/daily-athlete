@@ -35,24 +35,6 @@ jobs:
       - run: pnpm --filter @da2/shared typecheck
       - run: pnpm --filter @da2/shared test
 
-  mobile:
-    name: Mobile (Expo)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-      # No `version:` here -- pnpm/action-setup reads the version from
-      # `packageManager` in package.json (currently pnpm@9.12.0).
-      # Specifying both produces ERR_PNPM_BAD_PM_VERSION.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile=false
-      - run: pnpm --filter @da2/mobile typecheck
-
   test:
     name: Test (apps/web)
     runs-on: ubuntu-latest

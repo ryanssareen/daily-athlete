@@ -6,10 +6,10 @@ Conventions for engineers (human and AI) working in this repo. The bar is: a new
 
 ```
 apps/
-  mobile/   Expo + React Native (athlete app)
   web/      Next.js 15 App Router — coach + athlete UI AND the API (Route Handlers under app/api/*)
 packages/
   shared/   Cross-app TS types + Zod schemas (hand-authored)
+daily-athlete/  Flutter — the athlete mobile app (iOS/Android), not part of the pnpm workspace
 supabase/
   migrations/  Plain-SQL migrations applied via Supabase CLI
 docs/
@@ -59,12 +59,12 @@ Every athlete-data table needs a positive RLS test (own row visible) and a negat
 - Every user-data table gets `ENABLE ROW LEVEL SECURITY` plus at least a SELECT policy. Writes for sensitive tables (`strava_tokens`, `entitlements`, `strava_raw_payloads`) are service-role only — no INSERT/UPDATE/DELETE policies.
 - Realtime publication membership is **opt-in per table**. Sensitive surfaces (`strava_tokens`, `entitlements`, `strava_raw_payloads`, `athlete_profiles`) must NEVER join `supabase_realtime`. The allow-list of permitted tables lives at `packages/shared/src/realtime-allowlist.ts` and is enforced by a CI test (`apps/web/src/db/__tests__/realtime-publication.test.ts`). To add a table to realtime: (1) add `ALTER PUBLICATION supabase_realtime ADD TABLE public.<table>;` to a migration AND (2) add the table name to `REALTIME_ALLOWLIST` in the same PR. CI fails on drift in either direction.
 
-## TypeScript (apps/web, apps/mobile, packages/shared)
+## TypeScript (apps/web, packages/shared)
 
-- Strict TS everywhere. Web uses Next.js 15 App Router; mobile uses Expo Router.
-- Auth is Supabase magic-link in v1. Apple + Google sign-in providers configured in Supabase dashboard, not code.
+- Strict TS everywhere. Web uses Next.js 15 App Router. The mobile app (`daily-athlete/`) is Flutter/Dart, not TypeScript, and is not part of the pnpm workspace.
+- Auth is Supabase magic-link in v1 on web. Apple + Google sign-in providers configured in Supabase dashboard, not code. The Flutter mobile app additionally supports email/password + Apple/Google sign-in — see `docs/operational/ios-release-handoff.md`.
 - API code lives at `apps/web/app/api/<resource>/route.ts`. Each handler validates input with a Zod schema from `packages/shared`, instantiates the Supabase client via `@supabase/ssr`, and returns `NextResponse.json(...)`.
-- Cross-app types and Zod schemas are hand-authored in `packages/shared`. Mobile and web both import from there. There is no codegen step.
+- Cross-app types and Zod schemas are hand-authored in `packages/shared`. Web imports from there; the Flutter app does not (no shared codegen across the TS/Dart boundary).
 - Lint with ESLint, typecheck with `tsc --noEmit`. Both run in CI.
 - `pnpm-lock.yaml` is **tracked** at the repo root. It is the source of truth for reproducible installs — never delete it or add it to `.gitignore`. CI today installs with `pnpm install --frozen-lockfile=false`; tighten to `--frozen-lockfile` once the dependency set stabilises.
 

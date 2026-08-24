@@ -12,10 +12,10 @@ See:
 
 ```
 apps/
-  mobile/   Expo (React Native) — athlete app
   web/      Next.js 15 — coach + athlete app, also hosts the API (App Router route handlers)
 packages/
   shared/   Cross-app TS types + Zod schemas
+daily-athlete/  Flutter — the athlete mobile app (iOS/Android)
 supabase/
   migrations/  Plain SQL migrations applied via Supabase CLI
 docs/
@@ -24,6 +24,8 @@ infra/      Deployment runbook (Vercel, Supabase, queue provider)
 ```
 
 The backend lives inside `apps/web` as Next.js Route Handlers under `app/api/*` and runs as Vercel serverless functions. There is no separate Python service.
+
+The mobile app is Flutter (`daily-athlete/`), not part of the pnpm workspace — see `daily-athlete/README.md` (or `docs/operational/ios-release-handoff.md`) for its setup. An earlier Expo/React Native scaffold at `apps/mobile` was removed after it and the Flutter app were found to share the same iOS bundle identifier, causing each rebuild to silently overwrite the other's install (see [#113](https://github.com/ryanssareen/daily-athlete/issues/113)).
 
 ## Prerequisites
 
@@ -39,7 +41,6 @@ pnpm install
 
 # Copy env files (use the equivalent on Windows: `copy` in cmd, `Copy-Item` in PowerShell)
 cp .env.example .env
-cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example apps/web/.env
 
 # Generate a Strava token encryption key (32 bytes hex) — written directly to a
@@ -74,8 +75,7 @@ docker compose up
 # Terminal 2: web (also serves /api/*)
 pnpm --filter @da2/web dev
 
-# Terminal 3: mobile
-pnpm --filter @da2/mobile start
+# Terminal 3: mobile (Flutter) -- see daily-athlete/README.md
 ```
 
 ## Deploying

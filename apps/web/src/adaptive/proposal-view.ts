@@ -8,10 +8,9 @@
 //   - apps/web/app/(coach)/athletes/[id]/review        (coach web)
 //   - the page.test.tsx unit tests
 //
-// The mobile surface re-implements the equivalent helpers in
-// apps/mobile/src/adaptive/useProposal.ts (the two app packages are isolated;
-// the logic is small and the contract is the @da2/shared types). Keep the two
-// in sync when the contract changes.
+// This adaptive-proposal surface previously had a mobile counterpart in the
+// now-removed apps/mobile (Expo) package -- see issue #113. The Flutter
+// mobile app (daily-athlete/) has no equivalent yet.
 
 import type {
   EditOp,

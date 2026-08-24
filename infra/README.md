@@ -32,10 +32,11 @@ supabase link --project-ref <project-ref>
 supabase db push
 ```
 
-Then copy these values into `apps/web/.env.local` and `apps/mobile/.env`:
+Then copy these values into `apps/web/.env.local` (the Flutter mobile app at
+`daily-athlete/` reads its own `.env` — see `daily-athlete/README.md`):
 
-- `NEXT_PUBLIC_SUPABASE_URL` (mobile: `EXPO_PUBLIC_SUPABASE_URL`)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (mobile: `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (web only — server-side, used by webhook handlers and admin paths)
 
 Also: enable Apple + Google sign-in providers in the Supabase Auth dashboard.
@@ -78,23 +79,18 @@ Alternatives:
 - **Upstash QStash** — simplest, just delayed HTTP POSTs; no step orchestration.
 - **Supabase Edge Functions + pg_cron** — keeps everything inside Supabase; awkward for long LLM calls and lacks retry/orchestration primitives.
 
-## 4. Expo EAS (mobile builds)
+## 4. Mobile builds (Flutter)
 
-```bash
-# From apps/mobile
-eas init
-eas build --platform ios --profile development
-eas build --platform android --profile development
-```
-
-EAS picks up env vars from `eas.json` profiles. Configure when Wave 1 mobile shells
-are ready for device testing.
+The mobile app at `daily-athlete/` is Flutter, not part of the pnpm workspace or
+EAS. See `docs/operational/ios-release-handoff.md` for signing config (Apple
+Team `R7HV9V7LDY`, bundle id `com.da2.dailyAthlete`) and the device-build
+runbook, and `daily-athlete/README.md` for day-to-day `flutter run` setup.
 
 ## 5. Sentry, Langfuse, RevenueCat
 
-Set the corresponding env vars when the projects are ready. The app code reads them via
-`apps/web/src/config.ts` and `apps/mobile/src/config.ts`; missing keys disable the
-feature gracefully (no boot failure).
+Set the corresponding env vars when the projects are ready. The web app code reads
+them via `apps/web/src/config.ts`; missing keys disable the feature gracefully
+(no boot failure).
 
 ## Local development without any of the above
 
