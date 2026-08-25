@@ -58,7 +58,6 @@ import {
 import { persistPeriodReview } from "@/db/period-reviews";
 import { InvalidPeriodKeyError } from "@/ai/period-reviews/calendar";
 import { narratePeriod, PeriodNarrationInvalidError } from "@/ai/period-reviews/narrate";
-import { hasActiveEntitlement } from "@/auth/entitlements";
 import { config } from "@/config";
 import { createAdminClient } from "@/db/admin";
 import { sendPeriodDigest } from "@/email/period-review-email";
@@ -78,7 +77,6 @@ const EventDataSchema = z.object({
 export type DeliveryOutcome =
   | "sent"
   | "already_claimed"
-  | "not_entitled"
   | "no_data"
   | "llm_rate_limited"
   | "llm_invalid_output"
@@ -237,19 +235,14 @@ export async function runPeriodReviewDelivery(
     throw new NonRetriableError("period key does not match its kind");
   }
 
-  // ENTITLEMENT AND CONSENT ARE BOTH ENFORCED HERE, not in the scheduler. The
-  // scheduler's filters are an optimization; this is the single source of
-  // truth. The window between a tick and its run is small but real, and an
-  // Inngest backlog or an operator replaying the manual trigger widens it
-  // arbitrarily — so an athlete who unsubscribed, or whose account was
-  // soft-deleted, in that window must not be mailed. Mailing someone who has
-  // just opted out is exactly the failure the opt-in posture exists to prevent.
-  const entitled = await hasActiveEntitlement(admin, athleteId, "trend_reports");
-  if (!entitled) {
-    logger.info(`${PII_FREE_LOG} skipped, not entitled`, { athlete_id: athleteId, kind });
-    return { outcome: "not_entitled" };
-  }
-
+  // CONSENT IS ENFORCED HERE, not in the scheduler. The scheduler's filter is
+  // an optimization; this is the single source of truth. The window between a
+  // tick and its run is small but real, and an Inngest backlog or an operator
+  // replaying the manual trigger widens it arbitrarily — so an athlete who
+  // unsubscribed, or whose account was soft-deleted, in that window must not
+  // be mailed. Mailing someone who has just opted out is exactly the failure
+  // the opt-in posture exists to prevent.
+  //
   // service-role: explicit user filter required. One read covers consent,
   // account state, and the recipient address, so the send path needs no second
   // users query.

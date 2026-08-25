@@ -25,7 +25,6 @@ import type { PeriodKind, PeriodReviewListResponse } from "@da2/shared";
 import { PeriodKindSchema } from "@da2/shared";
 
 import { resolveAuth } from "@/auth/bearer";
-import { requireEntitlement } from "@/auth/entitlements";
 import { createClient as createServerClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
 
@@ -83,9 +82,6 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const db = createAdminClient();
-
-  const gate = await requireEntitlement(db, user.id, "trend_reports");
-  if (gate) return gate;
 
   // Optional `?kind=` narrows the list to one cadence (the mobile Insights tab
   // wants only recent weeks). Absent means both.

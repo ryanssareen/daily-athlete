@@ -13,7 +13,6 @@ import { PeriodKindSchema, isValidPeriodKey } from "@da2/shared";
 
 import { assemblePeriodReview, readAthleteTimezone } from "@/ai/period-reviews/assemble";
 import { isPeriodClosed } from "@/ai/period-reviews/calendar";
-import { hasActiveEntitlement } from "@/auth/entitlements";
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { ReviewNarration } from "@/components/period-review/review-detail";
@@ -63,9 +62,6 @@ export default async function PeriodReviewPage({
 
   const admin = createAdminClient();
   const athleteId = session.user.id;
-
-  const entitled = await hasActiveEntitlement(admin, athleteId, "trend_reports");
-  if (!entitled) redirect("/athlete/reports" as Route);
 
   const timezone = await readAthleteTimezone(admin, athleteId);
   // A period still running has no review: its numbers would move under the

@@ -13,10 +13,8 @@
 // GET NEVER CALLS THE LLM (KTD2). The facts are recomputed on every read and
 // are always available; only the narration is cached, and only POST generates.
 //
-// 402 vs 404. An unentitled athlete gets 402, not 404: they need to know an
-// upgrade unlocks this, which is a different thing from "that period does not
-// exist". A period belonging to someone else is not reachable here at all --
-// every read is scoped to the caller.
+// A period belonging to someone else is not reachable here at all -- every
+// read is scoped to the caller.
 
 import "server-only";
 
@@ -27,7 +25,6 @@ import type { PeriodKind, PeriodReviewResponse } from "@da2/shared";
 import { PeriodKindSchema, isValidPeriodKey } from "@da2/shared";
 
 import { resolveAuth } from "@/auth/bearer";
-import { requireEntitlement } from "@/auth/entitlements";
 import { createClient as createServerClient } from "@/auth/server";
 import { config } from "@/config";
 import { createAdminClient } from "@/db/admin";
@@ -203,9 +200,6 @@ async function prologue(request: Request, rawKind: string, rawKey: string): Prom
   }
 
   const db = createAdminClient();
-
-  const gate = await requireEntitlement(db, user.id, "trend_reports");
-  if (gate) return { ok: false, response: gate };
 
   return { ok: true, athleteId: user.id, db, kind: parsed.kind, periodKey: parsed.periodKey };
 }

@@ -23,7 +23,6 @@ import type { PeriodReviewSummary } from "@da2/shared";
 import { readAthleteTimezone } from "@/ai/period-reviews/assemble";
 import { enumerateRecentPeriods } from "@/ai/period-reviews/calendar";
 import { listPeriodSummaries, type ListedPeriod } from "@/ai/period-reviews/list";
-import { hasActiveEntitlement } from "@/auth/entitlements";
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { formatDuration, periodLabel } from "@/components/period-review/review-sections";
@@ -39,9 +38,6 @@ export default async function ReportsPage() {
 
   const admin = createAdminClient();
   const athleteId = session.user.id;
-
-  const entitled = await hasActiveEntitlement(admin, athleteId, "trend_reports");
-  if (!entitled) return <UpgradeState />;
 
   const timezone = await readAthleteTimezone(admin, athleteId);
   const now = new Date();
@@ -164,31 +160,6 @@ function EmptyState() {
       <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--color-ink-muted)" }}>
         Once you&apos;ve logged a week of training, your weekly and monthly reviews show up here.
       </p>
-    </div>
-  );
-}
-
-function UpgradeState() {
-  return (
-    <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px 64px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, color: "var(--color-ink)" }}>Reports</h1>
-      <div
-        style={{
-          marginTop: 20,
-          background: "var(--color-clay-soft)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 14,
-          padding: "24px",
-        }}
-      >
-        <p style={{ margin: 0, fontSize: 16, fontWeight: 500, color: "var(--color-clay-deep)" }}>
-          Weekly and monthly reviews are part of the paid plan
-        </p>
-        <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--color-clay-deep)" }}>
-          Upgrade to see how each week and month went against your plan, and to get the review by
-          email.
-        </p>
-      </div>
     </div>
   );
 }
