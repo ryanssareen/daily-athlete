@@ -51,6 +51,13 @@ class ActivityDetailScreen extends ConsumerWidget {
     ref.listen(workoutDetailProvider(workoutId), (_, next) {
       final hasError = next is AsyncError;
       final notFound = next is AsyncData && next.value == null;
+      if (hasError) {
+        final asyncError = next as AsyncError;
+        debugPrint(
+          'ActivityDetailScreen: failed to load workoutDetailProvider($workoutId) — '
+          '${asyncError.error}\n${asyncError.stackTrace}',
+        );
+      }
       if (hasError || notFound) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not load workout')),

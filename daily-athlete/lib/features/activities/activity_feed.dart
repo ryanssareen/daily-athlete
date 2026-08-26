@@ -38,12 +38,45 @@ class ActivityFeed extends ConsumerWidget {
         Expanded(
           child: feedAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, _) => Center(
-              child: Text(
-                'Failed to load activities.\n$err',
-                textAlign: TextAlign.center,
-              ),
-            ),
+            error: (err, stack) {
+              debugPrint(
+                'ActivityFeed: failed to load filteredFeedProvider — $err\n$stack',
+              );
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.cloud_off_outlined,
+                          size: 56,
+                          color: Theme.of(context).colorScheme.error),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Failed to load activities.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$err',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(activityFeedProvider),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
             data: (rows) {
               if (rows.isEmpty) {
                 return const _EmptyFeed();
