@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/auth/auth_notifier.dart';
-import '../../models/user.dart';
+import '../../models/user.dart' show RoleFlag;
 
 /// Fetches the authenticated user's role_flags[0] after auth resolves.
 /// Provides RoleFlag to all descendant widgets.
@@ -26,8 +26,13 @@ class RoleNotifier extends AsyncNotifier<RoleFlag> {
         .eq('id', userId)
         .single();
 
-    final row = UserRow.fromJson(response);
-    return row.primaryRole;
+    // Parsed directly rather than via UserRow.fromJson: that model requires
+    // `id`/`email`, which this role-only query never selects, and passing
+    // the partial row in threw a null-cast on `json['id'] as String`.
+    final flags = (response['role_flags'] as List<dynamic>? ?? const ['athlete'])
+        .map((f) => RoleFlag.fromString(f as String))
+        .toList();
+    return flags.isNotEmpty ? flags.first : RoleFlag.athlete;
   }
 }
 

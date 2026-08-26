@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/completed_workout.dart';
 import '../../models/planned_workout.dart';
 import '../../models/sport.dart';
+import '../settings/distance_format.dart';
+import '../settings/units_notifier.dart';
 import 'dashboard_providers.dart';
 
 /// Athlete-facing dashboard. When [athleteId] is provided, fetches data for
@@ -209,22 +211,23 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _DistanceRow extends StatelessWidget {
+class _DistanceRow extends ConsumerWidget {
   const _DistanceRow({required this.sport, required this.meters});
 
   final Sport sport;
   final double meters;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final km = meters / 1000;
+    final unit = ref.watch(unitsNotifierProvider).valueOrNull?.distance ?? 'km';
+    final display = formatDistanceM(meters, unit);
     return Row(
       children: [
         Text(sport.displayName,
             style: theme.textTheme.bodyMedium),
         const Spacer(),
-        Text('${km.toStringAsFixed(1)} km',
+        Text(display,
             style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600)),
       ],

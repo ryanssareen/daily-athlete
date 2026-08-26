@@ -6,6 +6,9 @@ import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activity_row.dart';
 import '../activities/workout_detail_provider.dart';
+import '../settings/distance_format.dart';
+import '../settings/units_notifier.dart';
+import 'report_section.dart';
 
 // Keys that appear in named sections — excluded from the overflow card.
 const _namedKeys = {
@@ -21,6 +24,11 @@ const _namedKeys = {
   'average_cadence',
   'map_polyline',
 };
+
+// Encoded route-shape strings (Strava's `polyline` / `summary_polyline`, or
+// any similarly named variant) aren't meant for display — matched by
+// substring since the exact key name has drifted from _namedKeys before.
+bool _isPolylineKey(String key) => key.toLowerCase().contains('polyline');
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -126,6 +134,9 @@ class _DetailScaffold extends StatelessWidget {
           const SizedBox(height: 20),
           _PrimaryStatsCard(workout: workout),
           ..._buildSportSections(context),
+          const SizedBox(height: 16),
+          ReportSection(workoutId: workout.id),
+          const SizedBox(height: 16),
           _buildOverflow(context),
           if (!workout.isStrava) _StravaConnectNote(),
           const SizedBox(height: 32),
@@ -277,7 +288,8 @@ class _DetailScaffold extends StatelessWidget {
 
   Widget _buildOverflow(BuildContext context) {
     final overflowEntries = workout.summaryStats.entries
-        .where((e) => !_namedKeys.contains(e.key) && e.value != null)
+        .where((e) =>
+            !_namedKeys.contains(e.key) && !_isPolylineKey(e.key) && e.value != null)
         .toList();
 
     if (overflowEntries.isEmpty) return const SizedBox.shrink();
@@ -344,24 +356,25 @@ extension on CompletedWorkoutRow {
 // Primary stats card
 // ---------------------------------------------------------------------------
 
-class _PrimaryStatsCard extends StatelessWidget {
+class _PrimaryStatsCard extends ConsumerWidget {
   const _PrimaryStatsCard({required this.workout});
   final CompletedWorkoutRow workout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final sport = workout.sport;
+    final distanceUnit = ref.watch(unitsNotifierProvider).valueOrNull?.distance ?? 'km';
+    final isMiles = distanceUnit == 'miles';
     final durationStr = workout.durationS != null
         ? _detailDuration(workout.durationS!)
         : '—';
 
-    // Distance: hidden for strength; meters for swim; km otherwise
+    // Distance: hidden for strength; meters for swim; km/mi otherwise
     String? distanceStr;
     if (sport != Sport.strength) {
       final m = workout.distanceM;
       if (m != null && m > 0) {
-        distanceStr =
-            sport == Sport.swim ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1)} km';
+        distanceStr = sport == Sport.swim ? '${m.round()} m' : formatDistanceM(m, distanceUnit);
       } else {
         distanceStr = '—';
       }
@@ -375,13 +388,19 @@ class _PrimaryStatsCard extends StatelessWidget {
       if (m != null && m > 0 && s != null && s > 0) {
         if (sport == Sport.bike) {
           final kmh = (m / 1000) / (s / 3600);
-          paceStr = '${kmh.toStringAsFixed(1)} km/h';
-        } else {
-          final unit = sport == Sport.swim ? 100.0 : 1000.0;
-          final ps = (s / m) * unit;
+          paceStr = formatSpeedKmh(kmh, distanceUnit);
+        } else if (sport == Sport.swim) {
+          final ps = (s / m) * 100.0;
           final pm = ps ~/ 60;
           final ps2 = (ps % 60).round().toString().padLeft(2, '0');
-          final label = sport == Sport.swim ? '/100m' : '/km';
+          paceStr = '$pm:$ps2 /100m';
+        } else {
+          // Meters per unit distance: 1000 for km, ~1609.34 for a mile.
+          final unitMeters = isMiles ? 1000.0 / kmToMiles : 1000.0;
+          final ps = (s / m) * unitMeters;
+          final pm = ps ~/ 60;
+          final ps2 = (ps % 60).round().toString().padLeft(2, '0');
+          final label = isMiles ? '/mi' : '/km';
           paceStr = '$pm:$ps2 $label';
         }
       }
@@ -482,7 +501,7 @@ class _StatRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -490,10 +509,14 @@ class _StatRow extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(fontWeight: FontWeight.w500),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import '../features/settings/distance_format.dart';
 import 'completed_workout.dart';
 import 'planned_workout.dart';
 import 'sport.dart';
@@ -28,12 +29,11 @@ class ActivitySummary {
   }
 
   /// Key metric string for activity rows (distance for cardio, duration for strength).
-  String get keyMetric {
+  String keyMetric(String distanceUnit) {
     final cw = completed;
     if (cw != null) {
       if (cw.distanceM != null && cw.distanceM! > 0) {
-        final km = cw.distanceM! / 1000;
-        return '${km.toStringAsFixed(1)} km';
+        return formatDistanceM(cw.distanceM!, distanceUnit);
       }
       if (cw.durationS != null) {
         return _formatDuration(cw.durationS!);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/settings/theme_notifier.dart';
 import 'router/router.dart';
 
 /// Root widget. GoRouter handles all routing including auth guards.
@@ -11,6 +12,7 @@ class DA2App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeNotifierProvider).valueOrNull ?? ThemeMode.system;
 
     return MaterialApp.router(
       title: 'DA2',
@@ -29,7 +31,7 @@ class DA2App extends ConsumerWidget {
         ),
         useMaterial3: true,
       ),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
     );
   }
 }
