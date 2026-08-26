@@ -37,7 +37,15 @@ class DayView extends ConsumerWidget {
 
     return workoutsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Error: $err')),
+      error: (err, stack) {
+        debugPrint(
+          'DayView: failed to load calendarWeekDataProvider — $err\n$stack',
+        );
+        return _DayErrorView(
+          error: err,
+          onRetry: () => ref.invalidate(calendarWeekDataProvider),
+        );
+      },
       data: (workouts) => _DayContent(date: displayDate, workouts: workouts),
     );
   }
@@ -52,6 +60,49 @@ class DayView extends ConsumerWidget {
     final end = start.add(const Duration(days: 6));
     ref.read(calendarWeekRangeProvider.notifier).state =
         (start: start, end: end);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Error view
+// ---------------------------------------------------------------------------
+
+class _DayErrorView extends StatelessWidget {
+  const _DayErrorView({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_outlined,
+                size: 56, color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            Text('Failed to load workouts',
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text('$error',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

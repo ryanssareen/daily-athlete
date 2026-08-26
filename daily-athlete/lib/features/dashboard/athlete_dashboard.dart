@@ -31,18 +31,23 @@ class AthleteDashboard extends ConsumerWidget {
       ),
       body: dataAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: _ErrorView(
-            error: err.toString(),
-            onRetry: () {
-              if (athleteId != null) {
-                ref.invalidate(athleteDashboardProvider(athleteId!));
-              } else {
-                ref.invalidate(myDashboardProvider);
-              }
-            },
-          ),
-        ),
+        error: (err, stack) {
+          debugPrint(
+            'AthleteDashboard: failed to load ${athleteId != null ? 'athleteDashboardProvider($athleteId)' : 'myDashboardProvider'} — $err\n$stack',
+          );
+          return Center(
+            child: _ErrorView(
+              error: err.toString(),
+              onRetry: () {
+                if (athleteId != null) {
+                  ref.invalidate(athleteDashboardProvider(athleteId!));
+                } else {
+                  ref.invalidate(myDashboardProvider);
+                }
+              },
+            ),
+          );
+        },
         data: (data) => RefreshIndicator(
           onRefresh: () async {
             if (athleteId != null) {
