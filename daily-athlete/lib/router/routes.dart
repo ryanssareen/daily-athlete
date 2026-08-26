@@ -9,4 +9,6 @@ abstract final class Routes {
   static const activityDetail = '/activities/:id';
   static const calendar = '/calendar';
   static const settings = '/settings';
+  static const reports = '/reports';
+  static const reportDetail = '/reports/:kind/:periodKey';
 }

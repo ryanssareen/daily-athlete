@@ -10,7 +10,10 @@ import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
 import '../features/activities/activity_detail_screen.dart';
 import '../features/calendar/calendar_tab.dart';
+import '../features/reports/report_detail_screen.dart';
+import '../features/reports/reports_list_screen.dart';
 import '../features/settings/settings_tab.dart';
+import '../models/period_review.dart';
 import 'routes.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -90,6 +93,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: Routes.settings,
             builder: (_, __) => const SettingsTab(),
+          ),
+          GoRoute(
+            path: Routes.reports,
+            builder: (_, __) => const ReportsListScreen(),
+            routes: [
+              GoRoute(
+                path: ':kind/:periodKey',
+                builder: (_, state) {
+                  final kind = PeriodKind.fromString(state.pathParameters['kind']!);
+                  final periodKey = state.pathParameters['periodKey']!;
+                  return ReportDetailScreen(kind: kind, periodKey: periodKey);
+                },
+              ),
+            ],
           ),
         ],
       ),
