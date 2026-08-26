@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../router/routes.dart';
 
-/// 4-tab bottom navigation shell. Identical tab bar for both athlete and coach.
+/// 5-tab bottom navigation shell. Identical tab bar for both athlete and coach.
 /// Tab content widgets are role-aware internally.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -15,6 +15,7 @@ class AppShell extends ConsumerWidget {
     (path: Routes.dashboard, icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
     (path: Routes.activities, icon: Icons.directions_run_outlined, activeIcon: Icons.directions_run, label: 'Activities'),
     (path: Routes.calendar, icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'Calendar'),
+    (path: Routes.reports, icon: Icons.insert_chart_outlined, activeIcon: Icons.insert_chart, label: 'Reports'),
     (path: Routes.settings, icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings'),
   ];
 

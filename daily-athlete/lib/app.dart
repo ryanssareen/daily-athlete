@@ -19,14 +19,14 @@ class DA2App extends ConsumerWidget {
       routerConfig: router,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFD35400), // clay
+          seedColor: const Color(0xFFC0392B), // pomegranate red
           brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFD35400),
+          seedColor: const Color(0xFFC0392B),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../models/completed_workout.dart';
 import '../../models/planned_workout.dart';
 import '../../models/sport.dart';
-import '../../router/routes.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
 import 'dashboard_providers.dart';
@@ -30,18 +28,6 @@ class AthleteDashboard extends ConsumerWidget {
       appBar: AppBar(
         title: Text(athleteId != null ? 'Athlete Dashboard' : 'Dashboard'),
         centerTitle: false,
-        actions: [
-          // Reports is the SIGNED-IN athlete's own weekly/monthly trend
-          // review (GET /api/reviews always resolves the bearer-token
-          // caller, not a coach-selected athlete) — only offered from the
-          // athlete's own dashboard, never from a coach's drill-in view.
-          if (athleteId == null)
-            IconButton(
-              icon: const Icon(Icons.summarize_outlined),
-              tooltip: 'Reports',
-              onPressed: () => context.push(Routes.reports),
-            ),
-        ],
       ),
       body: dataAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
