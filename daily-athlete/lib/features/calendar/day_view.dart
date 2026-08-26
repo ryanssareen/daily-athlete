@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 
 import '../../models/activity_summary.dart';
 import '../../models/planned_workout.dart';
+import '../settings/distance_format.dart';
+import '../settings/units_notifier.dart';
 import 'calendar_providers.dart';
 import 'workout_action_sheet.dart';
 import 'workout_chip.dart';
@@ -103,14 +105,15 @@ class _DayContent extends StatelessWidget {
 // _WorkoutCard — full-detail card for a single workout in Day view
 // ---------------------------------------------------------------------------
 
-class _WorkoutCard extends StatelessWidget {
+class _WorkoutCard extends ConsumerWidget {
   const _WorkoutCard({required this.summary});
 
   final ActivitySummary summary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final distanceUnit = ref.watch(unitsNotifierProvider).valueOrNull?.distance ?? 'km';
     final pw = summary.planned;
     final cw = summary.completed;
 
@@ -146,17 +149,17 @@ class _WorkoutCard extends StatelessWidget {
               ),
               if (pw != null) ...[
                 const SizedBox(height: 8),
-                _PlannedDetails(workout: pw),
+                _PlannedDetails(workout: pw, distanceUnit: distanceUnit),
               ],
               if (cw != null) ...[
                 const SizedBox(height: 8),
                 _CompletedDetails(
-                    distanceM: cw.distanceM, durationS: cw.durationS),
+                    distanceM: cw.distanceM, durationS: cw.durationS, distanceUnit: distanceUnit),
               ],
-              if (summary.keyMetric.isNotEmpty) ...[
+              if (summary.keyMetric(distanceUnit).isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  summary.keyMetric,
+                  summary.keyMetric(distanceUnit),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.secondary,
                   ),
@@ -179,9 +182,10 @@ class _WorkoutCard extends StatelessWidget {
 }
 
 class _PlannedDetails extends StatelessWidget {
-  const _PlannedDetails({required this.workout});
+  const _PlannedDetails({required this.workout, required this.distanceUnit});
 
   final PlannedWorkoutRow workout;
+  final String distanceUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +201,7 @@ class _PlannedDetails extends StatelessWidget {
     }
     if (structure['distance_m'] != null) {
       final m = (structure['distance_m'] as num).toDouble();
-      items.add('Distance: ${(m / 1000).toStringAsFixed(1)} km');
+      items.add('Distance: ${formatDistanceM(m, distanceUnit)}');
     }
     if (workout.rationale != null) {
       items.add(workout.rationale!);
@@ -230,10 +234,11 @@ class _PlannedDetails extends StatelessWidget {
 }
 
 class _CompletedDetails extends StatelessWidget {
-  const _CompletedDetails({this.distanceM, this.durationS});
+  const _CompletedDetails({this.distanceM, this.durationS, required this.distanceUnit});
 
   final double? distanceM;
   final int? durationS;
+  final String distanceUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +247,7 @@ class _CompletedDetails extends StatelessWidget {
       parts.add(_formatDuration(durationS!));
     }
     if (distanceM != null && distanceM! > 0) {
-      parts.add('${(distanceM! / 1000).toStringAsFixed(2)} km');
+      parts.add(formatDistanceM(distanceM!, distanceUnit, decimals: 2));
     }
     if (parts.isEmpty) return const SizedBox.shrink();
 

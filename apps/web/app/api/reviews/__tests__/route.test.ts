@@ -17,7 +17,6 @@ const ATHLETE = "00000000-0000-0000-0000-0000000000a1";
 
 const mocks = vi.hoisted(() => ({
   authUser: null as { id: string } | null,
-  entitled: true,
   timezone: "Europe/London",
   narratedRows: [] as Array<{ kind: string; period_key: string }>,
   narratedReadError: null as { message: string } | null,
@@ -73,15 +72,6 @@ class QueryFake {
 function makeAdminFake() {
   return {
     from(table: string) {
-      if (table === "entitlements") {
-        return {
-          select: () =>
-            new QueryFake(() => ({
-              data: mocks.entitled ? { user_id: ATHLETE } : null,
-              error: null,
-            })),
-        };
-      }
       if (table === "users") {
         return { select: () => new QueryFake(() => ({ data: { timezone: mocks.timezone }, error: null })) };
       }
@@ -139,7 +129,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(mocks.now);
   mocks.authUser = { id: ATHLETE };
-  mocks.entitled = true;
   mocks.timezone = "Europe/London";
   mocks.narratedRows = [];
   mocks.narratedReadError = null;
@@ -227,12 +216,6 @@ describe("GET /api/reviews", () => {
   it("rejects an unauthenticated caller", async () => {
     mocks.authUser = null;
     expect((await invoke()).status).toBe(401);
-  });
-
-  it("refuses an unentitled caller with 402 and does no work", async () => {
-    mocks.entitled = false;
-    expect((await invoke()).status).toBe(402);
-    expect(mocks.listCalls).toEqual([]);
   });
 
   it("scopes the batch to the authenticated athlete", async () => {

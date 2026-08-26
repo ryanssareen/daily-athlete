@@ -21,7 +21,6 @@ const ATHLETE = "00000000-0000-0000-0000-0000000000a1";
 const OTHER = "00000000-0000-0000-0000-0000000000a2";
 
 const mocks = vi.hoisted(() => ({
-  entitled: true,
   timezone: "Europe/London",
   facts: null as Record<string, unknown> | null,
   assembleThrows: null as Error | null,
@@ -234,10 +233,6 @@ vi.mock("@/db/admin", () => ({
   }),
 }));
 
-vi.mock("@/auth/entitlements", () => ({
-  hasActiveEntitlement: vi.fn(async () => mocks.entitled),
-}));
-
 vi.mock("@/ai/period-reviews/assemble", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/ai/period-reviews/assemble")>();
   return {
@@ -292,7 +287,6 @@ async function runDelivery(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  mocks.entitled = true;
   mocks.timezone = "Europe/London";
   mocks.facts = null;
   mocks.assembleThrows = null;
@@ -521,16 +515,6 @@ describe("narration failure", () => {
 // ---------------------------------------------------------------------------
 
 describe("gating and edge cases", () => {
-  // AE7 — enforced HERE, not in the scheduler, so a lapsed subscription
-  // between tick and run is caught.
-  it("sends nothing for an unentitled athlete and does not even claim", async () => {
-    mocks.entitled = false;
-    const result = await runDelivery();
-    expect(result.outcome).toBe("not_entitled");
-    expect(mocks.sends).toEqual([]);
-    expect(mocks.ledger.size).toBe(0);
-  });
-
   // AS2 — an email reporting zero against zero is noise.
   it("skips a period with nothing completed and nothing prescribed", async () => {
     mocks.facts = factsFor(0, 0);

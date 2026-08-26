@@ -10,10 +10,10 @@
 // apps/web/app/api/cron/weekly-review-expiry/route.ts, which documents the same
 // constraint. This mirrors weekly-review-scheduler exactly.
 //
-// The scheduler's filters are an OPTIMIZATION, not the guarantee. Entitlement
-// is enforced in the worker (single source of truth) and idempotency by the
+// The scheduler's filters are an OPTIMIZATION, not the guarantee. Consent is
+// re-checked in the worker (single source of truth) and idempotency by the
 // delivery ledger's unique index -- a stale or racing scheduler cannot cause a
-// duplicate send or an unentitled one.
+// duplicate send.
 //
 // Payloads and logs carry IDS ONLY. No email address, no narration, nothing
 // that would put athlete PII into Inngest's run history.

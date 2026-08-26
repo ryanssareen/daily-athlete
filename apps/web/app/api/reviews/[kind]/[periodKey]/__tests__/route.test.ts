@@ -40,7 +40,6 @@ const NARRATION: PeriodNarration = {
 const mocks = vi.hoisted(() => ({
   authUser: null as { id: string } | null,
   getUserTokens: [] as (string | undefined)[],
-  entitled: true,
   timezone: "Europe/London",
   // assemblePeriodReview control
   assembleResult: null as Record<string, unknown> | null,
@@ -163,12 +162,6 @@ class QueryFake {
 function makeAdminFake() {
   return {
     from(table: string) {
-      if (table === "entitlements") {
-        return {
-          select: () =>
-            new QueryFake(() => ({ data: mocks.entitled ? { user_id: ATHLETE } : null, error: null })),
-        };
-      }
       if (table === "users") {
         return {
           select: () =>
@@ -328,7 +321,6 @@ beforeEach(() => {
 
   mocks.authUser = { id: ATHLETE };
   mocks.getUserTokens = [];
-  mocks.entitled = true;
   mocks.timezone = "Europe/London";
   mocks.assembleResult = null;
   mocks.assembleThrows = null;
@@ -440,24 +432,6 @@ describe("auth and entitlement", () => {
   ])("rejects an unauthenticated %s", async (_verb, invoke) => {
     mocks.authUser = null;
     expect((await invoke()).status).toBe(401);
-  });
-
-  // AE7 — 402, not 404: the athlete needs to know an upgrade unlocks this.
-  it.each([
-    ["GET", invokeGet],
-    ["POST", invokePost],
-  ])("refuses an unentitled %s with 402", async (_verb, invoke) => {
-    mocks.entitled = false;
-    const res = await invoke();
-    expect(res.status).toBe(402);
-    expect((await res.json()).entitlement_key).toBe("trend_reports");
-  });
-
-  it("does no work at all for an unentitled caller", async () => {
-    mocks.entitled = false;
-    await invokePost();
-    expect(mocks.assembleCalls).toEqual([]);
-    expect(mocks.createLlmClientCalls).toBe(0);
   });
 
   // The mobile path the auth-client fake exists to protect.
