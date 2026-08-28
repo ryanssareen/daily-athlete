@@ -157,7 +157,6 @@ a {
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr !important; }
   .hero-art-col { max-width: 460px; }
-  .stat-strip-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 24px 0 !important; }
   .feature-row { grid-template-columns: 1fr !important; gap: 28px !important; }
   .feature-row > div { order: 0 !important; }
   .feature-cards-grid { grid-template-columns: 1fr !important; }

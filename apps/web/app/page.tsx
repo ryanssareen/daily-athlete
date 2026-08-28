@@ -11,7 +11,6 @@ export default async function LandingPage() {
     <div style={{ minHeight: "100vh", background: "var(--color-canvas)", color: "var(--color-ink)" }}>
       <SiteNav />
       <Hero />
-      <StatStrip />
       <FeaturesSection />
       <CoachBand />
       <FinalCTA />
@@ -247,7 +246,7 @@ function Hero() {
                 flexShrink: 0,
               }}
             />
-            Syncs with Garmin, Wahoo &amp; Strava · No card required
+            Syncs with Strava · No card required
           </div>
         </div>
 
@@ -425,63 +424,6 @@ function DeviceMockup() {
   );
 }
 
-/* ── Stat Strip ──────────────────────────────────────────────────────────── */
-
-function StatStrip() {
-  const stats = [
-    { v: "1,284", k: "Athletes training daily" },
-    { v: "3.4M",  k: "Sessions analyzed" },
-    { v: "12s",   k: "Avg. sync-to-insight" },
-    { v: "4.9★",  k: "App Store rating" },
-  ];
-
-  return (
-    <section
-      style={{
-        borderTop: "1px solid var(--color-border)",
-        borderBottom: "1px solid var(--color-border)",
-        background: "color-mix(in oklab, var(--color-canvas-soft) 50%, var(--color-canvas))",
-      }}
-    >
-      <div
-        style={{
-          ...WRAP,
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          padding: "28px 32px",
-        }}
-        className="stat-strip-grid"
-      >
-        {stats.map((s, i) => (
-          <div
-            key={s.k}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              padding: "0 24px",
-              borderRight: i < stats.length - 1 ? "1px solid var(--color-border)" : "none",
-              paddingLeft: i === 0 ? 0 : undefined,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 30,
-                fontWeight: 600,
-                letterSpacing: "-0.025em",
-                lineHeight: 1,
-              }}
-            >
-              {s.v}
-            </span>
-            <span style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>{s.k}</span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /* ── Features ────────────────────────────────────────────────────────────── */
 
@@ -544,7 +486,7 @@ function FeaturesSection() {
           {[
             { ico: "↑", title: "Route & elevation", body: "Every climb and surface read off the GPS track, with grade-adjusted pace baked in." },
             { ico: "♥", title: "Zones & load", body: "Time-in-zone for HR and power, plus a running training load you can actually plan around." },
-            { ico: "↻", title: "Auto-sync", body: "Garmin, Wahoo, COROS and Strava land in seconds — no manual files, ever." },
+            { ico: "↻", title: "Auto-sync", body: "Strava activities land in seconds — no manual files, ever." },
           ].map((c) => (
             <div
               key={c.title}
