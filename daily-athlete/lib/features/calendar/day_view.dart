@@ -46,8 +46,19 @@ class DayView extends ConsumerWidget {
           onRetry: () => ref.invalidate(calendarWeekDataProvider),
         );
       },
-      data: (workouts) => _DayContent(date: displayDate, workouts: workouts),
+      data: (workouts) => _DayContent(
+        date: displayDate,
+        workouts: workouts,
+        onPrevDay: () => _shiftDay(ref, displayDate, -1),
+        onNextDay: () => _shiftDay(ref, displayDate, 1),
+      ),
     );
+  }
+
+  void _shiftDay(WidgetRef ref, DateTime current, int deltaDays) {
+    final next = current.add(Duration(days: deltaDays));
+    ref.read(selectedDateProvider.notifier).state =
+        DateTime.utc(next.year, next.month, next.day);
   }
 
   void _ensureWeekCovers(WidgetRef ref, DateTime date) {
@@ -107,10 +118,17 @@ class _DayErrorView extends StatelessWidget {
 }
 
 class _DayContent extends StatelessWidget {
-  const _DayContent({required this.date, required this.workouts});
+  const _DayContent({
+    required this.date,
+    required this.workouts,
+    required this.onPrevDay,
+    required this.onNextDay,
+  });
 
   final DateTime date;
   final List<ActivitySummary> workouts;
+  final VoidCallback onPrevDay;
+  final VoidCallback onNextDay;
 
   @override
   Widget build(BuildContext context) {
@@ -123,11 +141,29 @@ class _DayContent extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Text(
-              dateLabel,
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  onPressed: onPrevDay,
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Previous day',
+                ),
+                Expanded(
+                  child: Text(
+                    dateLabel,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onNextDay,
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Next day',
+                ),
+              ],
             ),
           ),
         ),

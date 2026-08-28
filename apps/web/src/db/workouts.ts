@@ -175,6 +175,43 @@ export async function getPlannedById(
   return data as PlannedRow | null;
 }
 
+export interface PlannedMatch {
+  planned_workout_id: string;
+  completed_workout: WorkoutRow;
+}
+
+/**
+ * Returns the live (non-superseded) workout_matches rows for the given
+ * planned workout IDs, joined with the matched completed workout's summary
+ * fields. Used so the calendar can render a matched planned+completed pair
+ * as a single card instead of two unlinked chips.
+ */
+export async function getMatchesForPlannedIds(
+  supabase: SupabaseClient,
+  plannedIds: string[]
+): Promise<PlannedMatch[]> {
+  if (plannedIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("workout_matches")
+    .select(
+      "planned_workout_id, completed_workouts(id, started_at, sport, duration_s, distance_m, source, summary_stats)"
+    )
+    .in("planned_workout_id", plannedIds)
+    .is("deleted_at", null);
+
+  if (error) {
+    throw new Error(`getMatchesForPlannedIds failed: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .filter((row) => row.completed_workouts != null)
+    .map((row) => ({
+      planned_workout_id: row.planned_workout_id as string,
+      completed_workout: row.completed_workouts as unknown as WorkoutRow,
+    }));
+}
+
 /**
  * Returns stats for the current calendar week (Mon–today) in UTC.
  */

@@ -7,8 +7,10 @@
 // KTD2 guard, same as the web version: the verdict + comparison render from
 // `state.report.delta` unconditionally, never gated on `pending` — only the
 // narrative area below has a loading state.
-
-import 'dart:async';
+//
+// Generation is explicit-tap-only ("Show report" / "Regenerate report"), not
+// triggered on mount: auto-firing an LLM call for every freshly-viewed
+// workout made the report feel like it hung on load.
 
 import 'package:flutter/material.dart';
 
@@ -44,12 +46,6 @@ class _ReportSectionState extends State<ReportSection> {
       final report = await fetchWorkoutReport(widget.workoutId);
       if (!mounted) return;
       setState(() => _state = ReportViewState(report: report, pending: false));
-      // Mirrors ReportSection.tsx's mount-time auto-generate: an "absent"
-      // narrative (never attempted) generates immediately, no button tap
-      // needed for the common first-view case.
-      if (narrativeStateFor(report) == NarrativeViewKind.absent) {
-        unawaited(_generate());
-      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadError = "Couldn't load the report.");

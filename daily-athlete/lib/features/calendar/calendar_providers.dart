@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/activity_summary.dart';
 import '../../models/completed_workout.dart';
 import '../../models/planned_workout.dart';
+import '../../models/workout_match.dart';
 import '../auth/auth_notifier.dart';
 
 // ---------------------------------------------------------------------------
@@ -35,30 +36,48 @@ DateTime _dateOnly(DateTime dt) => DateTime.utc(dt.year, dt.month, dt.day);
 
 /// Merge planned + completed workout lists into a date-keyed map.
 ///
-/// Both lists may contain workouts on the same day — they are NOT
-/// deduplicated. Each row becomes its own [ActivitySummary] entry.
+/// A planned row with a live [WorkoutMatchRow] (deletedAt == null) linking it
+/// to one of the completed rows becomes a single [ActivitySummary] carrying
+/// both — that completed row is not also emitted on its own. Unmatched rows
+/// (planned-only or completed-only) each get their own entry, same as before.
 ///
 /// Exposed publicly (not prefixed with `_`) so unit tests can call it
 /// directly without needing a live Supabase connection.
 Map<DateTime, List<ActivitySummary>> mergeForTest(
   List<PlannedWorkoutRow> planned,
   List<CompletedWorkoutRow> completed,
-) => _mergeIntoWeekMap(planned, completed);
+  List<WorkoutMatchRow> matches,
+) => _mergeIntoWeekMap(planned, completed, matches);
 
 Map<DateTime, List<ActivitySummary>> _mergeIntoWeekMap(
   List<PlannedWorkoutRow> planned,
   List<CompletedWorkoutRow> completed,
+  List<WorkoutMatchRow> matches,
 ) {
   final result = <DateTime, List<ActivitySummary>>{};
 
+  final completedById = {for (final cw in completed) cw.id: cw};
+  final completedIdByPlannedId = {
+    for (final m in matches)
+      if (m.deletedAt == null) m.plannedWorkoutId: m.completedWorkoutId,
+  };
+  final matchedCompletedIds = completedIdByPlannedId.values.toSet();
+
   for (final pw in planned) {
+    final matchedCompleted = completedById[completedIdByPlannedId[pw.id]];
     final key = _dateOnly(pw.scheduledDate);
     result.putIfAbsent(key, () => []).add(
-          ActivitySummary(date: pw.scheduledDate, sport: pw.sport, planned: pw),
+          ActivitySummary(
+            date: pw.scheduledDate,
+            sport: pw.sport,
+            planned: pw,
+            completed: matchedCompleted,
+          ),
         );
   }
 
   for (final cw in completed) {
+    if (matchedCompletedIds.contains(cw.id)) continue; // rendered via its matched planned entry instead
     final key = _dateOnly(cw.startedAt);
     result.putIfAbsent(key, () => []).add(
           ActivitySummary(
@@ -140,6 +159,12 @@ class CalendarWeekNotifier
           table: 'completed_workouts',
           callback: (_) => _refetch(athleteId, range),
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'workout_matches',
+          callback: (_) => _refetch(athleteId, range),
+        )
         .subscribe();
   }
 
@@ -187,7 +212,17 @@ class CalendarWeekNotifier
             CompletedWorkoutRow.fromJson(r as Map<String, dynamic>))
         .toList();
 
-    return _mergeIntoWeekMap(planned, completed);
+    final matches = planned.isEmpty
+        ? <WorkoutMatchRow>[]
+        : (await supabase
+                .from('workout_matches')
+                .select()
+                .inFilter('planned_workout_id', planned.map((p) => p.id).toList())
+                .isFilter('deleted_at', null) as List<dynamic>)
+            .map((r) => WorkoutMatchRow.fromJson(r as Map<String, dynamic>))
+            .toList();
+
+    return _mergeIntoWeekMap(planned, completed, matches);
   }
 }
 

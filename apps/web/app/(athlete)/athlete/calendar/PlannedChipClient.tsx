@@ -8,7 +8,18 @@ import { useRouter } from "next/navigation";
 import type { EditedByKind } from "@da2/shared";
 
 import { getSportEmoji } from "@/lib/sport-display";
-import type { PlannedStatus } from "@/db/workouts";
+import type { PlannedStatus, WorkoutRow } from "@/db/workouts";
+
+function formatDuration(s: number): string {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}`;
+  return `${m}m`;
+}
+
+function formatDistance(m: number): string {
+  return `${(m / 1000).toFixed(1)} km`;
+}
 
 // Distinct attribution chip per editor — ai_review must read differently from a
 // coach edit (Unit 11). NULL / athlete edits get no badge (the default case).
@@ -61,11 +72,16 @@ export default function PlannedChipClient({
   status,
   sport,
   editedByKind = null,
+  matchedCompleted = null,
 }: {
   id: string;
   status: PlannedStatus;
   sport: string;
   editedByKind?: EditedByKind | null;
+  /** The completed workout live-matched to this planned session, if any —
+   *  renders as one merged card (actual stats, links to the report) instead
+   *  of a bare "done ✓" chip plus a separate unlinked completed chip. */
+  matchedCompleted?: WorkoutRow | null;
 }) {
   const router = useRouter();
   const [marking, setMarking] = useState(false);
@@ -105,8 +121,12 @@ export default function PlannedChipClient({
     }
   }
 
+  const href = matchedCompleted
+    ? (`/athlete/workouts/${matchedCompleted.id}?from=calendar` as Route)
+    : (`/athlete/planned/${id}` as Route);
+
   return (
-    <Link href={`/athlete/planned/${id}` as Route} style={{ textDecoration: "none", display: "block" }}>
+    <Link href={href} style={{ textDecoration: "none", display: "block" }}>
       <div
         style={{
           borderLeft: `3px solid ${cfg.border}`,
@@ -169,6 +189,29 @@ export default function PlannedChipClient({
         >
           {cfg.label}
         </span>
+        {matchedCompleted &&
+          (matchedCompleted.duration_s != null ||
+            (matchedCompleted.distance_m != null && matchedCompleted.distance_m > 0)) && (
+            <div
+              style={{
+                display: "flex",
+                gap: 5,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                color: "var(--color-ink-muted)",
+              }}
+            >
+              {matchedCompleted.duration_s != null && (
+                <span>{formatDuration(matchedCompleted.duration_s)}</span>
+              )}
+              {matchedCompleted.distance_m != null && matchedCompleted.distance_m > 0 && (
+                <>
+                  <span style={{ color: "var(--color-border-strong)" }}>·</span>
+                  <span>{formatDistance(matchedCompleted.distance_m)}</span>
+                </>
+              )}
+            </div>
+          )}
         {status === "planned" && (
           <button
             onClick={handleMarkDone}

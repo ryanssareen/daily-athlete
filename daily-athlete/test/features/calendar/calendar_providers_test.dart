@@ -9,6 +9,7 @@ import 'package:daily_athlete/features/calendar/calendar_providers.dart';
 import 'package:daily_athlete/models/completed_workout.dart';
 import 'package:daily_athlete/models/planned_workout.dart';
 import 'package:daily_athlete/models/sport.dart';
+import 'package:daily_athlete/models/workout_match.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // ---------------------------------------------------------------------------
@@ -58,6 +59,22 @@ CompletedWorkoutRow _cw({
     'created_at': null,
     'deleted_at': null,
   });
+}
+
+WorkoutMatchRow _match({
+  required String plannedId,
+  required String completedId,
+  bool deleted = false,
+}) {
+  return WorkoutMatchRow(
+    id: 'match-$plannedId-$completedId',
+    plannedWorkoutId: plannedId,
+    completedWorkoutId: completedId,
+    confidence: 1,
+    method: WorkoutMatchMethod.autoSameDaySport,
+    matchedAt: DateTime.utc(2026, 6, 1),
+    deletedAt: deleted ? DateTime.utc(2026, 6, 1) : null,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -169,13 +186,13 @@ void main() {
 
   group('mergeForTest', () {
     test('returns empty map for empty inputs', () {
-      final result = mergeForTest([], []);
+      final result = mergeForTest([], [], []);
       expect(result, isEmpty);
     });
 
     test('planned workout appears on its scheduled date', () {
       final planned = [_pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run)];
-      final result = mergeForTest(planned, []);
+      final result = mergeForTest(planned, [], []);
       final key = DateTime.utc(2026, 6, 1);
       expect(result.containsKey(key), isTrue);
       expect(result[key]!.length, 1);
@@ -192,7 +209,7 @@ void main() {
             sport: Sport.run,
             durationS: 3600),
       ];
-      final result = mergeForTest([], completed);
+      final result = mergeForTest([], completed, []);
       final key = DateTime.utc(2026, 6, 1);
       expect(result[key]!.length, 1);
       final summary = result[key]!.first;
@@ -201,7 +218,8 @@ void main() {
     });
 
     test(
-        'planned and completed on same day both appear — not deduplicated', () {
+        'planned and completed on same day with no match both appear separately',
+        () {
       final planned = [_pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run)];
       final completed = [
         _cw(
@@ -210,9 +228,47 @@ void main() {
             sport: Sport.run,
             durationS: 3600),
       ];
-      final result = mergeForTest(planned, completed);
+      final result = mergeForTest(planned, completed, []);
       final key = DateTime.utc(2026, 6, 1);
-      // Both planned AND completed should appear as separate ActivitySummary items.
+      // Unmatched planned + completed on the same day stay as separate items.
+      expect(result[key]!.length, 2);
+    });
+
+    test('a live match merges planned + completed into one ActivitySummary',
+        () {
+      final planned = [_pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run)];
+      final completed = [
+        _cw(
+            id: 'cw-1',
+            startedAt: '2026-06-01T08:00:00Z',
+            sport: Sport.run,
+            durationS: 3600),
+      ];
+      final matches = [_match(plannedId: 'pw-1', completedId: 'cw-1')];
+      final result = mergeForTest(planned, completed, matches);
+      final key = DateTime.utc(2026, 6, 1);
+      expect(result[key]!.length, 1);
+      final summary = result[key]!.first;
+      expect(summary.planned, isNotNull);
+      expect(summary.completed, isNotNull);
+      expect(summary.completed!.id, 'cw-1');
+      expect(summary.isCompleted, isTrue);
+    });
+
+    test('a soft-deleted match does not merge — both stay separate', () {
+      final planned = [_pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run)];
+      final completed = [
+        _cw(
+            id: 'cw-1',
+            startedAt: '2026-06-01T08:00:00Z',
+            sport: Sport.run,
+            durationS: 3600),
+      ];
+      final matches = [
+        _match(plannedId: 'pw-1', completedId: 'cw-1', deleted: true),
+      ];
+      final result = mergeForTest(planned, completed, matches);
+      final key = DateTime.utc(2026, 6, 1);
       expect(result[key]!.length, 2);
     });
 
@@ -221,7 +277,7 @@ void main() {
         _pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run),
         _pw(id: 'pw-2', date: '2026-06-03', sport: Sport.swim),
       ];
-      final result = mergeForTest(planned, []);
+      final result = mergeForTest(planned, [], []);
       expect(result.length, 2);
       expect(result.containsKey(DateTime.utc(2026, 6, 1)), isTrue);
       expect(result.containsKey(DateTime.utc(2026, 6, 3)), isTrue);
@@ -231,14 +287,14 @@ void main() {
       final planned = [
         _pw(id: 'pw-1', date: '2026-06-01', sport: Sport.strength),
       ];
-      final result = mergeForTest(planned, []);
+      final result = mergeForTest(planned, [], []);
       final summary = result[DateTime.utc(2026, 6, 1)]!.first;
       expect(summary.sport, Sport.strength);
     });
 
     test('ActivitySummary.isPlanned is true when only planned present', () {
       final planned = [_pw(id: 'pw-1', date: '2026-06-01', sport: Sport.run)];
-      final result = mergeForTest(planned, []);
+      final result = mergeForTest(planned, [], []);
       final summary = result[DateTime.utc(2026, 6, 1)]!.first;
       expect(summary.isPlanned, isTrue);
       expect(summary.isCompleted, isFalse);
@@ -252,7 +308,7 @@ void main() {
             sport: Sport.run,
             durationS: 1800),
       ];
-      final result = mergeForTest([], completed);
+      final result = mergeForTest([], completed, []);
       final summary = result[DateTime.utc(2026, 6, 1)]!.first;
       expect(summary.isCompleted, isTrue);
     });

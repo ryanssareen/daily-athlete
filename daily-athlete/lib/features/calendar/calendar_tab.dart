@@ -114,7 +114,9 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
   Widget _buildBody() {
     switch (_currentView) {
       case _CalendarView.day:
-        return DayView(date: ref.read(selectedDateProvider));
+        // No `date:` override — DayView watches selectedDateProvider itself,
+        // so its own prev/next-day controls trigger a rebuild.
+        return const DayView();
       case _CalendarView.week:
         return WeekView(onDayTapped: _switchToDay);
       case _CalendarView.month:

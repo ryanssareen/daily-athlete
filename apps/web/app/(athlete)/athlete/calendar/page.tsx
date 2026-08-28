@@ -5,6 +5,7 @@ import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
 import {
+  getMatchesForPlannedIds,
   getPlannedInRange,
   getWorkoutsInRange,
   type PlannedRow,
@@ -241,6 +242,18 @@ export default async function AthleteCalendarPage({
     getWorkoutsInRange(supabase, userId, monday.toISOString(), sundayEnd.toISOString()),
   ]);
 
+  // A planned workout with a live match renders as one card carrying the
+  // completed workout's stats, instead of two unlinked chips (planned +
+  // completed) for the same session.
+  const matches = await getMatchesForPlannedIds(
+    supabase,
+    planned.map((p) => p.id)
+  );
+  const matchedCompletedByPlannedId = new Map(
+    matches.map((m) => [m.planned_workout_id, m.completed_workout])
+  );
+  const matchedCompletedIds = new Set(matches.map((m) => m.completed_workout.id));
+
   const plannedByDay = new Map<string, PlannedRow[]>();
   for (const p of planned) {
     if (!plannedByDay.has(p.scheduled_date)) plannedByDay.set(p.scheduled_date, []);
@@ -249,6 +262,7 @@ export default async function AthleteCalendarPage({
 
   const completedByDay = new Map<string, WorkoutRow[]>();
   for (const w of completed) {
+    if (matchedCompletedIds.has(w.id)) continue; // rendered via its matched planned chip instead
     const day = w.started_at.split("T")[0];
     if (!completedByDay.has(day)) completedByDay.set(day, []);
     completedByDay.get(day)!.push(w);
@@ -456,6 +470,7 @@ export default async function AthleteCalendarPage({
                     status={p.status}
                     sport={p.sport}
                     editedByKind={p.edited_by_kind}
+                    matchedCompleted={matchedCompletedByPlannedId.get(p.id) ?? null}
                   />
                 ))}
                 {day.completed.map((w) => (

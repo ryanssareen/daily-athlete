@@ -1,10 +1,26 @@
+import Link from "next/link";
+import type { Route } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
-import { getPlannedById } from "@/db/workouts";
+import { getPlannedById, getPlannedInRange } from "@/db/workouts";
 import { getSportEmoji } from "@/lib/sport-display";
 import MarkAsDoneButton from "./MarkAsDoneButton";
+
+function addDaysToDateStr(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().split("T")[0];
+}
+
+function getMondayOfWeek(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  const dayOfWeek = d.getUTCDay();
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  d.setUTCDate(d.getUTCDate() - daysFromMonday);
+  return d.toISOString().split("T")[0];
+}
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string; border: string }> = {
   planned: {
@@ -57,6 +73,24 @@ export default async function PlannedWorkoutDetailPage({
 
   if (!workout) notFound();
 
+  const prevDateStr = addDaysToDateStr(workout.scheduled_date, -1);
+  const nextDateStr = addDaysToDateStr(workout.scheduled_date, 1);
+
+  const [prevDay, nextDay] = await Promise.all([
+    getPlannedInRange(supabase, session.user.id, prevDateStr, prevDateStr),
+    getPlannedInRange(supabase, session.user.id, nextDateStr, nextDateStr),
+  ]);
+
+  // A day with no planned workout has nowhere within this route family to
+  // land — fall back to the calendar week containing that date instead of
+  // a dead link.
+  const prevHref = (prevDay[0]
+    ? `/athlete/planned/${prevDay[0].id}`
+    : `/athlete/calendar?week=${getMondayOfWeek(prevDateStr)}`) as Route;
+  const nextHref = (nextDay[0]
+    ? `/athlete/planned/${nextDay[0].id}`
+    : `/athlete/calendar?week=${getMondayOfWeek(nextDateStr)}`) as Route;
+
   const statusCfg = STATUS_CFG[workout.status] ?? {
     label: workout.status,
     color: "var(--color-ink-muted)",
@@ -88,9 +122,58 @@ export default async function PlannedWorkoutDetailPage({
             {workout.sport}
           </h1>
         </div>
-        <p style={{ color: "var(--color-ink-muted)", fontSize: 14, margin: 0 }}>
-          {formatScheduledDate(workout.scheduled_date)}
-        </p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <p style={{ color: "var(--color-ink-muted)", fontSize: 14, margin: 0 }}>
+            {formatScheduledDate(workout.scheduled_date)}
+          </p>
+          <div style={{ display: "flex", gap: 6 }}>
+            <Link
+              href={prevHref}
+              aria-label="Previous day"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                fontSize: 13,
+                color: "var(--color-ink-muted)",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-paper)",
+                textDecoration: "none",
+              }}
+            >
+              ←
+            </Link>
+            <Link
+              href={nextHref}
+              aria-label="Next day"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                fontSize: 13,
+                color: "var(--color-ink-muted)",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-paper)",
+                textDecoration: "none",
+              }}
+            >
+              →
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* Status badge */}
