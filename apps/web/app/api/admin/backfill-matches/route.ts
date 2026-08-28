@@ -74,7 +74,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     .eq("source", "strava")
     .is("deleted_at", null)
     .is("superseded_by_id", null)
-    .order("started_at", { ascending: true })
+    // Most-recent-first: unmatched rows never leave the "unmatched" set on a
+    // no-match attempt, so an oldest-first order re-processes the same
+    // never-matching head of the list on every call and never reaches rows
+    // past BATCH_LIMIT. Newest-first means a capped run always makes
+    // progress on the workouts most likely to actually have a plan (and
+    // most likely to be what someone is looking at right now).
+    .order("started_at", { ascending: false })
     .limit(2000); // upper bound on the scan itself; BATCH_LIMIT bounds work done
 
   if (candidatesErr) {
