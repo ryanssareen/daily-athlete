@@ -12,7 +12,7 @@ The app reads three values at compile time via `--dart-define`:
 |-----|--------------|
 | `SUPABASE_URL` | `supabase status` for local; Supabase dashboard for production |
 | `SUPABASE_ANON_KEY` | same as above |
-| `API_BASE_URL` | `http://localhost:3000` for local; `https://da2-one.vercel.app` for production |
+| `API_BASE_URL` | `http://localhost:3000` for local; `https://thedailyathlete.in` for production (`https://da2-one.vercel.app` is the same deployment, no redirect between them) |
 
 See [`.env.local.example`](.env.local.example) for the documented schema.
 Actual values are never committed — both `.env.local` and `.env.production`
