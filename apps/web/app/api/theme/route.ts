@@ -9,5 +9,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (theme === "dark" || theme === "light") {
     cookieStore.set("da2-theme", theme, { path: "/", maxAge: 31536000, sameSite: "lax" });
   }
-  return NextResponse.redirect(new URL(referer, request.url));
+  // 303, not the default 307: a 307 preserves the original POST method, so
+  // the browser would re-POST to `referer` (a page route with no POST
+  // handler) instead of re-rendering it — the cookie was written correctly,
+  // but the page never got a fresh GET to pick it up, so only a manual
+  // refresh (a real GET) showed the new theme.
+  return NextResponse.redirect(new URL(referer, request.url), 303);
 }

@@ -11,4 +11,6 @@ abstract final class Routes {
   static const settings = '/settings';
   static const reports = '/reports';
   static const reportDetail = '/reports/:kind/:periodKey';
+  static const plans = '/plans';
+  static const planDetail = '/plans/:id';
 }

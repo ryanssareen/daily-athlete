@@ -10,6 +10,8 @@ import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
 import '../features/activities/activity_detail_screen.dart';
 import '../features/calendar/calendar_tab.dart';
+import '../features/plans/plan_detail_screen.dart';
+import '../features/plans/plan_history_screen.dart';
 import '../features/reports/report_detail_screen.dart';
 import '../features/reports/reports_list_screen.dart';
 import '../features/settings/settings_tab.dart';
@@ -93,6 +95,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: Routes.settings,
             builder: (_, __) => const SettingsTab(),
+          ),
+          GoRoute(
+            path: Routes.plans,
+            builder: (_, __) => const PlanHistoryScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, state) => PlanDetailScreen(
+                  planId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: Routes.reports,
