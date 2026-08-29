@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -201,6 +202,32 @@ export default async function AthleteSettingsPage() {
               you a link to connect.
             </p>
           )}
+        </SectionCard>
+
+        {/* Plans */}
+        <SectionCard
+          title="Plans"
+          description="Your active and past training plans."
+        >
+          <Link
+            href="/plans"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 16px",
+              borderRadius: 10,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-canvas-soft)",
+              color: "var(--color-ink)",
+              textDecoration: "none",
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
+            View plan history
+            <span aria-hidden="true">→</span>
+          </Link>
         </SectionCard>
 
         {/* Email */}
