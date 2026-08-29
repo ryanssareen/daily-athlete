@@ -5,6 +5,7 @@ import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { getAthleteCoach } from "@/db/roster";
+import { AppearanceThemeButtons } from "@/components/appearance-theme-buttons";
 import { StravaToggle } from "@/components/strava-toggle";
 import { CoachDisconnect } from "@/components/coach-disconnect";
 import { EmailPreferencesCard } from "@/components/email-preferences";
@@ -121,39 +122,7 @@ export default async function AthleteSettingsPage() {
           title="Appearance"
           description="Choose your preferred color theme."
         >
-          <div style={{ display: "flex", gap: 10 }}>
-            {(["light", "dark"] as const).map((t) => {
-              const isActive = theme === t;
-              return (
-                <form key={t} action="/api/theme" method="post" style={{ flex: 1 }}>
-                  <input type="hidden" name="theme" value={t} />
-                  <button
-                    type="submit"
-                    style={{
-                      width: "100%",
-                      padding: "10px 18px",
-                      borderRadius: 12,
-                      fontSize: 14,
-                      fontWeight: isActive ? 600 : 400,
-                      cursor: "pointer",
-                      border: isActive
-                        ? "2px solid var(--color-clay)"
-                        : "1px solid var(--color-border)",
-                      background: isActive
-                        ? "var(--color-clay-soft)"
-                        : "transparent",
-                      color: isActive
-                        ? "var(--color-clay-deep)"
-                        : "var(--color-ink-muted)",
-                      transition: "all 120ms ease",
-                    }}
-                  >
-                    {t === "light" ? "☀️ Light" : "🌙 Dark"}
-                  </button>
-                </form>
-              );
-            })}
-          </div>
+          <AppearanceThemeButtons initialTheme={theme} fullWidth />
         </SectionCard>
 
         {/* Strava */}

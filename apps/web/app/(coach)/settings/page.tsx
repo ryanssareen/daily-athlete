@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
+import { AppearanceThemeButtons } from "@/components/appearance-theme-buttons";
 
 // ---------- Sub-components ------------------------------------------------
 
@@ -70,34 +71,7 @@ export default async function CoachSettingsPage() {
         <p style={{ fontSize: 14, color: "var(--color-ink-muted)", marginBottom: 14 }}>
           Choose your preferred color theme.
         </p>
-        <div style={{ display: "flex", gap: 10 }}>
-          {(["light", "dark"] as const).map((t) => {
-            const isActive = theme === t;
-            return (
-              <form key={t} action="/api/theme" method="post">
-                <input type="hidden" name="theme" value={t} />
-                <button
-                  type="submit"
-                  style={{
-                    padding: "8px 18px",
-                    borderRadius: 999,
-                    fontSize: 14,
-                    fontWeight: isActive ? 600 : 400,
-                    cursor: "pointer",
-                    border: isActive
-                      ? "2px solid var(--color-clay)"
-                      : "1px solid var(--color-border)",
-                    background: isActive ? "var(--color-clay-soft)" : "transparent",
-                    color: isActive ? "var(--color-clay-deep)" : "var(--color-ink-muted)",
-                    transition: "all 120ms ease",
-                  }}
-                >
-                  {t === "light" ? "☀️ Light" : "🌙 Dark"}
-                </button>
-              </form>
-            );
-          })}
-        </div>
+        <AppearanceThemeButtons initialTheme={theme} />
       </SectionCard>
 
       {/* Account */}

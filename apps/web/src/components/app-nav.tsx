@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
@@ -14,6 +15,8 @@ import {
   Sparkles,
   FileText,
 } from "lucide-react";
+
+import { ThemeButton } from "./theme-button";
 
 interface NavItem {
   href: Route;
@@ -41,9 +44,10 @@ interface AppNavProps {
   theme: string;
 }
 
-export function AppNav({ role, email, theme }: AppNavProps) {
+export function AppNav({ role, email, theme: initialTheme }: AppNavProps) {
   const pathname = usePathname();
   const navItems = role === "athlete" ? athleteNav : coachNav;
+  const [theme, setTheme] = useState(initialTheme);
   const nextTheme = theme === "dark" ? "light" : "dark";
 
   function isActive(href: Route): boolean {
@@ -129,36 +133,34 @@ export function AppNav({ role, email, theme }: AppNavProps) {
         </p>
 
         {/* Theme toggle */}
-        <form action="/api/theme" method="post">
-          <input type="hidden" name="theme" value={nextTheme} />
-          <button
-            type="submit"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              width: "100%",
-              padding: "8px 12px",
-              borderRadius: 10,
-              fontSize: 13,
-              color: "var(--color-ink-muted)",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              transition: "color 120ms ease",
-              textAlign: "left",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "var(--color-ink)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "var(--color-ink-muted)";
-            }}
-          >
-            {theme === "dark" ? <Sun size={14} strokeWidth={1.75} /> : <Moon size={14} strokeWidth={1.75} />}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-        </form>
+        <ThemeButton
+          theme={nextTheme}
+          onSet={setTheme}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            width: "100%",
+            padding: "8px 12px",
+            borderRadius: 10,
+            fontSize: 13,
+            color: "var(--color-ink-muted)",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            transition: "color 120ms ease",
+            textAlign: "left",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "var(--color-ink)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--color-ink-muted)";
+          }}
+        >
+          {theme === "dark" ? <Sun size={14} strokeWidth={1.75} /> : <Moon size={14} strokeWidth={1.75} />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </ThemeButton>
 
         {/* Sign out */}
         <form action="/auth/sign-out" method="post">
