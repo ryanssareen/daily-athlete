@@ -6,6 +6,7 @@ import type { PlannedDetailRow } from "@/db/workouts";
 
 import {
   buildPlannedWorkoutView,
+  formatDurationDisplay,
   NO_INTENSITY_TARGET_TEXT,
   NOT_SET_TEXT,
 } from "@/components/planned/planned-workout-view";
@@ -125,6 +126,20 @@ describe("buildPlannedWorkoutView", () => {
     expect(view.steps).toEqual([
       { label: "Cool-down", durationDisplay: "5m", intensityDisplay: null },
     ]);
+  });
+});
+
+describe("formatDurationDisplay", () => {
+  it("renders 'Not set' for a negative value", () => {
+    expect(formatDurationDisplay(-5)).toBe(NOT_SET_TEXT);
+  });
+
+  it("renders 'Not set' for NaN", () => {
+    expect(formatDurationDisplay(Number.NaN)).toBe(NOT_SET_TEXT);
+  });
+
+  it("renders 'Not set' for zero", () => {
+    expect(formatDurationDisplay(0)).toBe(NOT_SET_TEXT);
   });
 });
 

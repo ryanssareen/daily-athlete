@@ -102,4 +102,22 @@ void main() {
     // Rendered via a literal Text widget, not interpreted/stripped (R7).
     expect(find.text(scriptLike), findsOneWidget);
   });
+
+  testWidgets('data: <row> with a legacy blocks array renders the Steps section',
+      (tester) async {
+    await tester.pumpWidget(_app([
+      plannedWorkoutDetailProvider(_workoutId).overrideWith(
+        (ref) async => _row(structure: {
+          'blocks': [
+            {'label': 'Warm-up', 'duration_s': 600, 'intensity_target': {'kind': 'zone', 'value': 1}},
+          ],
+        }),
+      ),
+    ]));
+    await tester.pump();
+
+    // The section title renders uppercased (_Section calls title.toUpperCase()).
+    expect(find.text('STEPS'), findsOneWidget);
+    expect(find.text('Warm-up'), findsOneWidget);
+  });
 }

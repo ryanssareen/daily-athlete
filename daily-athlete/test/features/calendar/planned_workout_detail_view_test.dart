@@ -6,7 +6,8 @@
 // apps/web/src/components/planned/__tests__/planned-workout-view.test.ts's
 // scenarios (KTD parity check, not identical layout).
 
-import 'package:daily_athlete/features/calendar/planned_workout_detail_view.dart';
+import 'package:daily_athlete/features/calendar/planned_workout_detail_view.dart'
+    show buildPlannedWorkoutView, formatDurationDisplay, notSetText, noIntensityTargetText;
 import 'package:daily_athlete/models/planned_workout.dart';
 import 'package:daily_athlete/models/sport.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -156,6 +157,20 @@ void main() {
         ),
         returnsNormally,
       );
+    });
+  });
+
+  group('formatDurationDisplay', () {
+    test("renders 'Not set' for a negative value", () {
+      expect(formatDurationDisplay(-5), notSetText);
+    });
+
+    test("renders 'Not set' for NaN", () {
+      expect(formatDurationDisplay(double.nan), notSetText);
+    });
+
+    test("renders 'Not set' for zero", () {
+      expect(formatDurationDisplay(0), notSetText);
     });
   });
 }

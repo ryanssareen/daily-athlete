@@ -156,6 +156,19 @@
       "expected_steps": [
         { "label": "Cool-down", "duration_s": 300, "display_string": null }
       ]
+    },
+    {
+      "name": "non-object array entries (null, string) are skipped, not treated as malformed steps",
+      "structure_input": {
+        "blocks": [
+          null,
+          "not a step",
+          { "label": "Recovery jog", "duration_s": 900 }
+        ]
+      },
+      "expected_steps": [
+        { "label": "Recovery jog", "duration_s": 900, "display_string": null }
+      ]
     }
   ]
 }
