@@ -108,15 +108,21 @@ String? _readEntryLabel(Map<String, dynamic> entry) {
 /// intensity (via [readStructureIntensityTarget] + [formatIntensityTarget]
 /// applied to the entry itself). Any other field is ignored. An entry where
 /// all three resolve to nothing is dropped from the result entirely.
-List<PlannedStep> extractPlannedSteps(Map<String, dynamic>? structure) {
-  if (structure == null) return [];
+///
+/// Returns null when `structure` carries neither array at all (nothing to
+/// render), as opposed to an empty list (an array was present but every
+/// entry was dropped) -- callers use this to distinguish the two states.
+List<PlannedStep>? extractPlannedSteps(Map<String, dynamic>? structure) {
+  if (structure == null) return null;
   final raw = structure['blocks'] ?? structure['sets'];
-  if (raw is! List) return [];
+  if (raw is! List) return null;
 
   final steps = <PlannedStep>[];
   for (final item in raw) {
     if (item is! Map) continue;
-    final entry = item.map((key, value) => MapEntry(key.toString(), value));
+    // Zero-copy view, not a rebuild -- jsonDecode always produces
+    // Map<String, dynamic> already, so there's nothing to convert.
+    final entry = item.cast<String, dynamic>();
 
     final label = _readEntryLabel(entry);
     final durationS = readStructureDurationSeconds(entry);

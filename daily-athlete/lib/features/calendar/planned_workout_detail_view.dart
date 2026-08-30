@@ -97,12 +97,6 @@ String? _readStructureDescription(Map<String, dynamic>? structure) {
   return trimmed.isEmpty ? null : trimmed;
 }
 
-bool _hasLegacyStepsArray(Map<String, dynamic>? structure) {
-  if (structure == null) return false;
-  final raw = structure['blocks'] ?? structure['sets'];
-  return raw is List;
-}
-
 /// Builds every display value the planned-workout detail screen needs from a
 /// fetched row. Pure — no I/O, no Flutter.
 PlannedWorkoutView buildPlannedWorkoutView(PlannedWorkoutRow row) {
@@ -110,7 +104,7 @@ PlannedWorkoutView buildPlannedWorkoutView(PlannedWorkoutRow row) {
   final durationSeconds = readStructureDurationSeconds(structure);
   final load = readStructureLoad(structure, row.plannedLoad);
   final intensityTarget = readStructureIntensityTarget(structure);
-  final hasStepsArray = _hasLegacyStepsArray(structure);
+  final legacySteps = extractPlannedSteps(structure);
 
   final rationale = row.rationale?.trim();
 
@@ -122,8 +116,6 @@ PlannedWorkoutView buildPlannedWorkoutView(PlannedWorkoutRow row) {
     intensityDisplay: intensityTarget != null
         ? formatIntensityTarget(intensityTarget)
         : noIntensityTargetText,
-    steps: hasStepsArray
-        ? extractPlannedSteps(structure).map(_toStepView).toList()
-        : null,
+    steps: legacySteps?.map(_toStepView).toList(),
   );
 }

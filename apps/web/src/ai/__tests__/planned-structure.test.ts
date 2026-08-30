@@ -1,6 +1,6 @@
-// Golden-fixture tests for the defensive `planned_workouts.structure` readers
-// (src/ai/planned-structure.ts) and the KTD6 intensity display formatter
-// (src/components/planned/planned-workout-view.ts).
+// Golden-fixture tests for the defensive `planned_workouts.structure` readers,
+// the KTD6 intensity display formatter, and the KTD5 legacy step extractor
+// (all in src/ai/planned-structure.ts).
 //
 // Both this file and daily-athlete/test/models/planned_structure_test.dart
 // (a parallel unit, U2) load the SAME rows from
@@ -14,14 +14,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  extractLegacySteps,
+  formatIntensityTarget,
   readStructureDurationSeconds,
   readStructureIntensityTarget,
   readStructureLoad,
 } from "@/ai/planned-structure";
-import {
-  extractLegacySteps,
-  formatIntensityTarget,
-} from "@/components/planned/planned-workout-view";
 
 const FIXTURE_PATH = path.resolve(
   __dirname,
@@ -64,11 +62,9 @@ describe("planned-structure readers (KTD2a golden fixture)", () => {
       expect(readStructureLoad(row.structure_input, row.planned_load_column)).toBe(
         row.expected_load
       );
-      expect(readStructureIntensityTarget(row.structure_input)).toEqual(
-        row.expected_intensity_target
-      );
 
       const intensityTarget = readStructureIntensityTarget(row.structure_input);
+      expect(intensityTarget).toEqual(row.expected_intensity_target);
       expect(formatIntensityTarget(intensityTarget)).toBe(row.expected_display_string);
     });
   }

@@ -84,7 +84,7 @@ void main() {
         final structure = _asMap(r['structure_input']);
         final expectedSteps = r['expected_steps'] as List;
 
-        final steps = extractPlannedSteps(structure);
+        final steps = extractPlannedSteps(structure)!;
 
         expect(steps.length, expectedSteps.length);
         for (var i = 0; i < expectedSteps.length; i++) {
