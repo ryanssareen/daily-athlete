@@ -106,6 +106,17 @@ export type TestUser = {
   client: SupabaseClient;
 };
 
+/** Seed a throwaway MCP OAuth client row for DB-backed OAuth tests. */
+export async function seedOAuthClient(admin: SupabaseClient): Promise<string> {
+  const clientId = `mcp_test_${crypto.randomUUID()}`;
+  const { error } = await admin.from("oauth_clients").insert({
+    client_id: clientId,
+    redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+  });
+  if (error) throw new Error(`seedOAuthClient: ${error.message}`);
+  return clientId;
+}
+
 // Module-level state. Safe ONLY because vitest.config.ts pins pool:forks +
 // fileParallelism:false -- each test file runs in its own process with its
 // own module instance. Switching to pool:threads would make this Set shared

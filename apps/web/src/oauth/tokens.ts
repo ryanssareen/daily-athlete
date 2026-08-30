@@ -17,6 +17,14 @@ import { generateOpaqueToken, hashToken } from "./crypto";
 export const ACCESS_TTL_SECONDS = 60 * 60; // 1 hour
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
+// A refresh token presented again this soon after its own rotation is far
+// more likely a losing racer (e.g. two OAuth-proxy processes for the same
+// client waking up to refresh the same near-expiry token at once) than
+// replay/theft. Treat it as a soft failure (`invalid`) instead of burning
+// the whole family, so one race doesn't force every live session for that
+// client back through interactive re-auth.
+const REFRESH_REUSE_GRACE_MS = 10_000;
+
 export interface IssuedTokens {
   accessToken: string;
   refreshToken: string;
@@ -141,6 +149,10 @@ export async function rotateRefresh(
     .eq("refresh_token_hash", hash)
     .maybeSingle();
   if (row?.revoked_at) {
+    const revokedAtMs = Date.parse(row.revoked_at as string);
+    const withinGrace =
+      Number.isFinite(revokedAtMs) && Date.now() - revokedAtMs < REFRESH_REUSE_GRACE_MS;
+    if (withinGrace) return { result: "invalid" };
     await revokeFamily(admin, row.family_id as string);
     return { result: "reuse" };
   }
