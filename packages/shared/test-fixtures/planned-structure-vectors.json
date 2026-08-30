@@ -74,6 +74,15 @@
       "expected_display_string": "72% FTP"
     },
     {
+      "name": "intensity ftp_pct non-integer value rounds for display (cross-platform parity)",
+      "structure_input": { "intensity_target": { "kind": "ftp_pct", "value": 72.5 } },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": { "kind": "ftp_pct", "value": 72.5 },
+      "expected_display_string": "73% FTP"
+    },
+    {
       "name": "intensity zone",
       "structure_input": { "intensity_target": { "kind": "zone", "value": 3 } },
       "planned_load_column": null,
@@ -81,6 +90,15 @@
       "expected_load": null,
       "expected_intensity_target": { "kind": "zone", "value": 3 },
       "expected_display_string": "Zone 3"
+    },
+    {
+      "name": "intensity pace_s_per_km rounds total seconds once, not minutes/seconds independently (299.5s = 5:00/km, not 4:60/km)",
+      "structure_input": { "intensity_target": { "kind": "pace_s_per_km", "value": 299.5 } },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": { "kind": "pace_s_per_km", "value": 299.5 },
+      "expected_display_string": "5:00/km pace"
     },
     {
       "name": "intensity pace_s_per_km (270s = 4:30/km)",

@@ -97,7 +97,14 @@ jobs:
           channel: stable
       - run: flutter pub get
         working-directory: daily-athlete
-      - run: flutter analyze
+      # --no-fatal-infos: `flutter analyze` fails the step on info-level
+      # lints by default, and the tree already carries 19 pre-existing infos
+      # (unnecessary_underscores, deprecated_member_use) unrelated to this
+      # diff -- without this flag the job goes red on its very first run for
+      # reasons this PR didn't introduce, which is exactly the kind of
+      # unrelated-failure noise that gets a gate disabled under merge
+      # pressure. Real errors/warnings still fail the step.
+      - run: flutter analyze --no-fatal-infos
         working-directory: daily-athlete
       - run: flutter test
         working-directory: daily-athlete

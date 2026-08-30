@@ -11,6 +11,7 @@
 //
 // No Flutter imports here on purpose — pure Dart, no I/O, unit-testable.
 
+import '../reports/reports_view.dart' show formatDuration;
 import '../../models/planned_structure.dart';
 import '../../models/planned_workout.dart';
 
@@ -19,13 +20,15 @@ const String noIntensityTargetText = 'No target set';
 
 /// Formatted duration for display, e.g. "1h 30m" / "45m". [notSetText] when
 /// the structure carries none of the three known duration spellings (or the
-/// value is non-finite / non-positive).
+/// value is non-finite / non-positive) -- unlike `formatDuration`'s own "0m"
+/// for that case, which is right for a report summary line but wrong here:
+/// this screen needs to distinguish "no duration was ever prescribed" from
+/// "a duration of zero," so the null-check wraps the shared arithmetic
+/// rather than duplicating it (mirrors the web view-model's same wrapping
+/// of review-view.ts's formatDuration).
 String formatDurationDisplay(double? seconds) {
   if (seconds == null || !seconds.isFinite || seconds <= 0) return notSetText;
-  final totalSeconds = seconds.round();
-  final h = totalSeconds ~/ 3600;
-  final m = ((totalSeconds % 3600) / 60).round();
-  return h > 0 ? '${h}h ${m}m' : '${m}m';
+  return formatDuration(seconds);
 }
 
 /// Formatted load for display. [notSetText] when neither `structure.load`

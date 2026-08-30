@@ -107,12 +107,18 @@ export function formatIntensityTarget(target: IntensityTarget | null): string | 
   if (!target) return null;
   switch (target.kind) {
     case "ftp_pct":
-      return `${target.value}% FTP`;
+      // Rounded to match the Dart port's `.round()` -- an unrounded value
+      // here would silently disagree with mobile for a non-integer FTP%.
+      return `${Math.round(target.value)}% FTP`;
     case "zone":
       return `Zone ${target.value}`;
     case "pace_s_per_km": {
-      const m = Math.floor(target.value / 60);
-      const s = Math.round(target.value % 60);
+      // Round the total seconds ONCE, then derive minutes/seconds from that
+      // integer -- rounding minutes and seconds independently can carry a
+      // 59.5s remainder up to "60", producing an invalid "M:60/km pace".
+      const totalSeconds = Math.round(target.value);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
       return `${m}:${s.toString().padStart(2, "0")}/km pace`;
     }
   }
