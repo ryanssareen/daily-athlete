@@ -8,6 +8,7 @@ abstract final class Routes {
   static const activities = '/activities';
   static const activityDetail = '/activities/:id';
   static const calendar = '/calendar';
+  static const plannedWorkoutDetail = '/calendar/:id';
   static const settings = '/settings';
   static const reports = '/reports';
   static const reportDetail = '/reports/:kind/:periodKey';
