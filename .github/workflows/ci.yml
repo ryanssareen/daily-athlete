@@ -86,6 +86,22 @@ jobs:
             echo "::endgroup::"
           done
 
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+        working-directory: daily-athlete
+      - run: flutter analyze
+        working-directory: daily-athlete
+      - run: flutter test
+        working-directory: daily-athlete
+
   # Apply pending migrations to the production database after tests pass on
   # main. Before this job existed, supabase/migrations/ was only ever applied
   # to the local CI stack -- code merged to main could reference tables that
