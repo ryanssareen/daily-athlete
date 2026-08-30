@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import { buildPlannedWorkoutView } from "@/components/planned/planned-workout-view";
 import { getPlannedById, getPlannedInRange } from "@/db/workouts";
 import { getSportEmoji } from "@/lib/sport-display";
 import MarkAsDoneButton from "./MarkAsDoneButton";
@@ -98,10 +99,7 @@ export default async function PlannedWorkoutDetailPage({
     border: "var(--color-border)",
   };
 
-  const description =
-    typeof workout.structure?.description === "string" && workout.structure.description.trim()
-      ? workout.structure.description.trim()
-      : null;
+  const view = buildPlannedWorkoutView(workout);
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto" }}>
@@ -195,6 +193,26 @@ export default async function PlannedWorkoutDetailPage({
         </span>
       </div>
 
+      {/* Rationale */}
+      {view.rationale && (
+        <div
+          style={{
+            background: "var(--color-paper)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 14,
+            padding: "20px 24px",
+            marginBottom: 20,
+          }}
+        >
+          <p className="eyebrow" style={{ marginBottom: 8 }}>
+            Why this workout
+          </p>
+          <p style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.6, margin: 0 }}>
+            {view.rationale}
+          </p>
+        </div>
+      )}
+
       {/* Description */}
       <div
         style={{
@@ -202,7 +220,7 @@ export default async function PlannedWorkoutDetailPage({
           border: "1px solid var(--color-border)",
           borderRadius: 14,
           padding: "20px 24px",
-          marginBottom: 28,
+          marginBottom: 20,
         }}
       >
         <p className="eyebrow" style={{ marginBottom: 8 }}>
@@ -211,14 +229,87 @@ export default async function PlannedWorkoutDetailPage({
         <p
           style={{
             fontSize: 14,
-            color: description ? "var(--color-ink)" : "var(--color-ink-subtle)",
+            color: view.description ? "var(--color-ink)" : "var(--color-ink-subtle)",
             lineHeight: 1.6,
             margin: 0,
           }}
         >
-          {description ?? "No description provided."}
+          {view.description ?? "No description provided."}
         </p>
       </div>
+
+      {/* Duration / Load / Intensity */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
+        {[
+          { label: "Duration", value: view.durationDisplay },
+          { label: "Load", value: view.loadDisplay },
+          { label: "Intensity", value: view.intensityDisplay },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              background: "var(--color-paper)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 14,
+              padding: "16px 18px",
+            }}
+          >
+            <p className="eyebrow" style={{ marginBottom: 6 }}>
+              {stat.label}
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", margin: 0 }}>
+              {stat.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Step breakdown (legacy blocks/sets) */}
+      {view.steps && view.steps.length > 0 && (
+        <div
+          style={{
+            background: "var(--color-paper)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 14,
+            padding: "20px 24px",
+            marginBottom: 28,
+          }}
+        >
+          <p className="eyebrow" style={{ marginBottom: 12 }}>
+            Steps
+          </p>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {view.steps.map((step, i) => (
+              <li
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "10px 0",
+                  borderTop: i > 0 ? "1px solid var(--color-border)" : "none",
+                }}
+              >
+                <span style={{ fontSize: 14, color: "var(--color-ink)" }}>
+                  {step.label ?? "Step"}
+                </span>
+                <span style={{ fontSize: 13, color: "var(--color-ink-muted)" }}>
+                  {step.durationDisplay}
+                  {step.intensityDisplay ? ` · ${step.intensityDisplay}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Action */}
       {workout.status === "planned" && <MarkAsDoneButton id={id} />}

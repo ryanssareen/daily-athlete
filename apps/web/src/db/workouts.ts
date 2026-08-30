@@ -153,6 +153,19 @@ export async function getPlannedInRange(
 }
 
 /**
+ * `PlannedRow` plus the fields the planned-workout detail page needs
+ * (rationale text, prescribed load) but `getPlannedInRange` callers don't --
+ * see the unit's task notes for why this is a separate type rather than a
+ * widened `PlannedRow` (calendar page, athlete dashboard, and several AI
+ * context builders all consume `PlannedRow` via `getPlannedInRange` and would
+ * otherwise gain always-undefined fields).
+ */
+export interface PlannedDetailRow extends PlannedRow {
+  rationale: string | null;
+  planned_load: number | null;
+}
+
+/**
  * Returns a single planned workout by ID for the given athlete.
  * Returns null if not found or soft-deleted.
  */
@@ -160,10 +173,10 @@ export async function getPlannedById(
   supabase: SupabaseClient,
   athleteId: string,
   id: string
-): Promise<PlannedRow | null> {
+): Promise<PlannedDetailRow | null> {
   const { data, error } = await supabase
     .from("planned_workouts")
-    .select("id, scheduled_date, sport, status, structure, edited_by_kind")
+    .select("id, scheduled_date, sport, status, structure, edited_by_kind, rationale, planned_load")
     .eq("id", id)
     .eq("athlete_id", athleteId)
     .is("deleted_at", null)
@@ -172,7 +185,7 @@ export async function getPlannedById(
   if (error) {
     throw new Error(`getPlannedById failed: ${error.message}`);
   }
-  return data as PlannedRow | null;
+  return data as PlannedDetailRow | null;
 }
 
 export interface PlannedMatch {
