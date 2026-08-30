@@ -1,0 +1,143 @@
+{
+  "$comment": "Shared golden-fixture vectors for planned_workouts.structure normalization (KTD2a/KTD5/KTD6 in docs/plans/2026-08-27-001-feat-planned-workout-detail-rendering-plan.md). Both apps/web/src/ai/__tests__/planned-structure.test.ts and daily-athlete/test/models/planned_structure_test.dart load and assert against these exact rows so the TypeScript and Dart readers/formatters cannot silently disagree.",
+  "duration_load_intensity": [
+    {
+      "name": "duration_s spelling",
+      "structure_input": { "duration_s": 3600, "phase": "build" },
+      "planned_load_column": null,
+      "expected_duration_s": 3600,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "est_duration_min spelling (minutes to seconds)",
+      "structure_input": { "est_duration_min": 45, "sets": [], "phase": "base" },
+      "planned_load_column": null,
+      "expected_duration_s": 2700,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "total_duration_min spelling (minutes to seconds)",
+      "structure_input": { "total_duration_min": 90, "blocks": [], "ftp_w": 250, "phase": "peak" },
+      "planned_load_column": null,
+      "expected_duration_s": 5400,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "no duration spelling present",
+      "structure_input": { "phase": "taper" },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "structure.load preferred over planned_load column",
+      "structure_input": { "load": 85, "duration_s": 3600 },
+      "planned_load_column": 70,
+      "expected_duration_s": 3600,
+      "expected_load": 85,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "load falls back to planned_load column when structure.load absent",
+      "structure_input": { "duration_s": 1800 },
+      "planned_load_column": 42,
+      "expected_duration_s": 1800,
+      "expected_load": 42,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "load null when neither structure.load nor column present",
+      "structure_input": { "duration_s": 1800 },
+      "planned_load_column": null,
+      "expected_duration_s": 1800,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "intensity ftp_pct",
+      "structure_input": { "intensity_target": { "kind": "ftp_pct", "value": 72 } },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": { "kind": "ftp_pct", "value": 72 },
+      "expected_display_string": "72% FTP"
+    },
+    {
+      "name": "intensity zone",
+      "structure_input": { "intensity_target": { "kind": "zone", "value": 3 } },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": { "kind": "zone", "value": 3 },
+      "expected_display_string": "Zone 3"
+    },
+    {
+      "name": "intensity pace_s_per_km (270s = 4:30/km)",
+      "structure_input": { "intensity_target": { "kind": "pace_s_per_km", "value": 270 } },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": { "kind": "pace_s_per_km", "value": 270 },
+      "expected_display_string": "4:30/km pace"
+    },
+    {
+      "name": "intensity free-text parses to null, not coerced",
+      "structure_input": { "intensity_target": "hard effort, RPE 8" },
+      "planned_load_column": null,
+      "expected_duration_s": null,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    },
+    {
+      "name": "intensity absent entirely",
+      "structure_input": { "duration_s": 1800 },
+      "planned_load_column": null,
+      "expected_duration_s": 1800,
+      "expected_load": null,
+      "expected_intensity_target": null,
+      "expected_display_string": null
+    }
+  ],
+  "legacy_steps": [
+    {
+      "name": "blocks array with mixed allow-listed and unrecognized per-entry fields",
+      "structure_input": {
+        "total_duration_min": 60,
+        "ftp_w": 240,
+        "blocks": [
+          { "label": "Warm-up", "duration_s": 600, "intensity_target": { "kind": "zone", "value": 1 }, "color": "blue", "icon": "sun" },
+          { "name": "Main set", "est_duration_min": 20, "notes": "keep cadence high" }
+        ]
+      },
+      "expected_steps": [
+        { "label": "Warm-up", "duration_s": 600, "display_string": "Zone 1" },
+        { "label": "Main set", "duration_s": 1200, "display_string": null }
+      ]
+    },
+    {
+      "name": "sets entry with none of the three allow-listed fields is dropped entirely",
+      "structure_input": {
+        "est_duration_min": 30,
+        "sets": [
+          { "label": "Cool-down", "duration_s": 300 },
+          { "color": "red", "weird_field": 123 }
+        ]
+      },
+      "expected_steps": [
+        { "label": "Cool-down", "duration_s": 300, "display_string": null }
+      ]
+    }
+  ]
+}
