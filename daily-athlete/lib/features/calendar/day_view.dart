@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/activity_summary.dart';
+import '../../models/planned_structure.dart';
 import '../../models/planned_workout.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
@@ -282,9 +283,9 @@ class _PlannedDetails extends StatelessWidget {
     if (structure['description'] != null) {
       items.add(structure['description'] as String);
     }
-    if (structure['duration_s'] != null) {
-      final s = structure['duration_s'] as int;
-      items.add('Target: ${_formatDuration(s)}');
+    final durationS = readStructureDurationSeconds(structure);
+    if (durationS != null) {
+      items.add('Target: ${_formatDuration(durationS.round())}');
     }
     if (structure['distance_m'] != null) {
       final m = (structure['distance_m'] as num).toDouble();
