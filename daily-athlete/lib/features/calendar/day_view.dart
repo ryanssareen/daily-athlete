@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/activity_summary.dart';
+import '../../models/planned_structure.dart';
 import '../../models/planned_workout.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
@@ -64,13 +65,17 @@ class DayView extends ConsumerWidget {
   void _ensureWeekCovers(WidgetRef ref, DateTime date) {
     final range = ref.read(calendarWeekRangeProvider);
     if (!date.isBefore(range.start) && !date.isAfter(range.end)) return;
-    // Shift week range so the date is within Mon–Sun of its week.
+    // Shift week range so the date is within Mon–Sun of its week. Deferred
+    // to a post-frame callback: Riverpod forbids modifying provider state
+    // synchronously during build, which this is called from.
     final weekday = date.weekday;
     final monday = date.subtract(Duration(days: weekday - 1));
     final start = DateTime.utc(monday.year, monday.month, monday.day);
     final end = start.add(const Duration(days: 6));
-    ref.read(calendarWeekRangeProvider.notifier).state =
-        (start: start, end: end);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(calendarWeekRangeProvider.notifier).state =
+          (start: start, end: end);
+    });
   }
 }
 
@@ -282,9 +287,9 @@ class _PlannedDetails extends StatelessWidget {
     if (structure['description'] != null) {
       items.add(structure['description'] as String);
     }
-    if (structure['duration_s'] != null) {
-      final s = structure['duration_s'] as int;
-      items.add('Target: ${_formatDuration(s)}');
+    final durationS = readStructureDurationSeconds(structure);
+    if (durationS != null) {
+      items.add('Target: ${_formatDuration(durationS.round())}');
     }
     if (structure['distance_m'] != null) {
       final m = (structure['distance_m'] as num).toDouble();

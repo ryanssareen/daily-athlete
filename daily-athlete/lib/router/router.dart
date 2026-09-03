@@ -10,6 +10,7 @@ import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
 import '../features/activities/activity_detail_screen.dart';
 import '../features/calendar/calendar_tab.dart';
+import '../features/calendar/planned_workout_detail_screen.dart';
 import '../features/plans/plan_detail_screen.dart';
 import '../features/plans/plan_history_screen.dart';
 import '../features/reports/report_detail_screen.dart';
@@ -91,6 +92,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: Routes.calendar,
             builder: (_, __) => const CalendarTab(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, state) => PlannedWorkoutDetailScreen(
+                  workoutId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: Routes.settings,

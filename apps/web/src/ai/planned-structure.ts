@@ -91,3 +91,92 @@ export function readStructureIntensityTarget(
   const parsed = IntensityTargetSchema.safeParse(structure.intensity_target);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Formats a resolved `IntensityTarget` for display: "N% FTP", "Zone N", or
+ * "M:SS/km pace" (e.g. "4:30/km pace" for 270 seconds) -- the pace format
+ * matches the athlete-facing convention (R3), not raw seconds. Returns null
+ * (not a fallback string) when there is no target; the fallback text is each
+ * caller's decision, since different call sites render "no target" differently.
+ *
+ * KTD6: verified against `packages/shared/test-fixtures/planned-structure-vectors.json`'s
+ * `expected_display_string` column so this can't silently disagree with the
+ * Dart port's formatter (planned_structure.dart).
+ */
+export function formatIntensityTarget(target: IntensityTarget | null): string | null {
+  if (!target) return null;
+  switch (target.kind) {
+    case "ftp_pct":
+      // Rounded to match the Dart port's `.round()` -- an unrounded value
+      // here would silently disagree with mobile for a non-integer FTP%.
+      return `${Math.round(target.value)}% FTP`;
+    case "zone":
+      return `Zone ${target.value}`;
+    case "pace_s_per_km": {
+      // Round the total seconds ONCE, then derive minutes/seconds from that
+      // integer -- rounding minutes and seconds independently can carry a
+      // 59.5s remainder up to "60", producing an invalid "M:60/km pace".
+      const totalSeconds = Math.round(target.value);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return `${m}:${s.toString().padStart(2, "0")}/km pace`;
+    }
+  }
+}
+
+/** One legacy `blocks`/`sets` entry's allow-listed fields, in the exact shape
+ * asserted against `planned-structure-vectors.json`'s `legacy_steps` rows. */
+export interface LegacyStepEntry {
+  label: string | null;
+  duration_s: number | null;
+  display_string: string | null;
+}
+
+const LEGACY_LABEL_KEYS = ["label", "name", "description"] as const;
+
+function readLegacyLabel(entry: Record<string, unknown>): string | null {
+  for (const key of LEGACY_LABEL_KEYS) {
+    const v = entry[key];
+    if (typeof v === "string") return v;
+  }
+  return null;
+}
+
+/**
+ * KTD5: for each entry in a legacy `blocks` or `sets` array, read exactly
+ * three allow-listed logical fields -- a label (first present, string-typed,
+ * of `label`/`name`/`description`), a duration (via `readStructureDurationSeconds`
+ * applied to that single entry object), and an intensity (via
+ * `readStructureIntensityTarget` + `formatIntensityTarget`, applied to that
+ * single entry object). Any other field (color, icon, notes, etc.) is
+ * ignored. An entry where all three resolve to nothing is dropped entirely,
+ * not rendered as an empty/blank step.
+ *
+ * Returns null when `structure` carries neither array at all (nothing to
+ * render, as opposed to "rendered, but empty"). Lives alongside the other
+ * readers, not in a page-specific view-model, so this is one shared contract
+ * per platform (see the plan's High-Level Technical Design) rather than UI
+ * glue a future non-UI consumer would have no natural import for.
+ */
+export function extractLegacySteps(
+  structure: Record<string, unknown> | null | undefined,
+): LegacyStepEntry[] | null {
+  if (!structure) return null;
+  const raw = structure.blocks ?? structure.sets;
+  if (!Array.isArray(raw)) return null;
+
+  const steps: LegacyStepEntry[] = [];
+  for (const item of raw) {
+    if (item == null || typeof item !== "object") continue;
+    const entry = item as Record<string, unknown>;
+
+    const label = readLegacyLabel(entry);
+    const duration_s = readStructureDurationSeconds(entry);
+    const intensityTarget = readStructureIntensityTarget(entry);
+    const display_string = formatIntensityTarget(intensityTarget);
+
+    if (label == null && duration_s == null && display_string == null) continue;
+    steps.push({ label, duration_s, display_string });
+  }
+  return steps;
+}

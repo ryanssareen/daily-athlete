@@ -7,11 +7,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/env.dart';
 import '../../models/planned_workout.dart';
+import '../../router/routes.dart';
 
 class WorkoutActionSheet extends StatefulWidget {
   const WorkoutActionSheet({super.key, required this.workout});
@@ -87,6 +89,13 @@ class _WorkoutActionSheetState extends State<WorkoutActionSheet> {
     );
     if (picked == null || !mounted) return;
     await _updateStatus('moved', rescheduledDate: picked);
+  }
+
+  void _handleViewDetails() {
+    final route =
+        Routes.plannedWorkoutDetail.replaceFirst(':id', widget.workout.id);
+    Navigator.of(context).pop();
+    context.go(route);
   }
 
   @override
@@ -166,6 +175,14 @@ class _WorkoutActionSheetState extends State<WorkoutActionSheet> {
                 icon: const Icon(Icons.calendar_today_outlined),
                 label: const Text('Reschedule'),
                 onPressed: _handleReschedule,
+              ),
+              const SizedBox(height: 8),
+
+              // View details
+              TextButton.icon(
+                icon: const Icon(Icons.info_outline),
+                label: const Text('View details'),
+                onPressed: _handleViewDetails,
               ),
             ],
           ],
