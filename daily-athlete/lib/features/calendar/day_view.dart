@@ -65,13 +65,17 @@ class DayView extends ConsumerWidget {
   void _ensureWeekCovers(WidgetRef ref, DateTime date) {
     final range = ref.read(calendarWeekRangeProvider);
     if (!date.isBefore(range.start) && !date.isAfter(range.end)) return;
-    // Shift week range so the date is within Mon–Sun of its week.
+    // Shift week range so the date is within Mon–Sun of its week. Deferred
+    // to a post-frame callback: Riverpod forbids modifying provider state
+    // synchronously during build, which this is called from.
     final weekday = date.weekday;
     final monday = date.subtract(Duration(days: weekday - 1));
     final start = DateTime.utc(monday.year, monday.month, monday.day);
     final end = start.add(const Duration(days: 6));
-    ref.read(calendarWeekRangeProvider.notifier).state =
-        (start: start, end: end);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(calendarWeekRangeProvider.notifier).state =
+          (start: start, end: end);
+    });
   }
 }
 
