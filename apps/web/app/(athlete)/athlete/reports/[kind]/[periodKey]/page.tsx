@@ -16,6 +16,8 @@ import { isPeriodClosed } from "@/ai/period-reviews/calendar";
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { ReviewNarration } from "@/components/period-review/review-detail";
+import { ShareButton } from "@/components/share/ShareButton";
+import type { ShareStat } from "@/components/share/share-canvas";
 import {
   ComparisonRow,
   ComparisonToPrevious,
@@ -109,6 +111,15 @@ export default async function PeriodReviewPage({
 
   const { totals, compliance } = facts;
 
+  const shareStats: ShareStat[] = [
+    { label: "Sessions", value: String(totals.sessions) },
+    { label: "Time", value: formatDuration(totals.durationS) },
+    { label: "Distance", value: formatDistance(totals.distanceM) },
+    { label: "Load", value: String(Math.round(totals.load)) },
+    { label: "Active days", value: String(totals.activeDays) },
+  ];
+  const accent = kind === "weekly" ? { color: "#c45a30", deep: "#a4451f" } : { color: "#2d4a3e", deep: "#1c2f27" };
+
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px 64px" }}>
       <Link
@@ -118,13 +129,24 @@ export default async function PeriodReviewPage({
         ← All reports
       </Link>
 
-      <header style={{ margin: "12px 0 24px" }}>
-        <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, color: "var(--color-ink)" }}>
-          {periodLabel(kind, facts.bounds)}
-        </h1>
-        <p style={{ margin: "6px 0 0", color: "var(--color-ink-muted)", fontSize: 14 }}>
-          {facts.bounds.start} to {facts.bounds.end}
-        </p>
+      <header style={{ margin: "12px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, color: "var(--color-ink)" }}>
+            {periodLabel(kind, facts.bounds)}
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "var(--color-ink-muted)", fontSize: 14 }}>
+            {facts.bounds.start} to {facts.bounds.end}
+          </p>
+        </div>
+        <ShareButton
+          eyebrow={kind === "weekly" ? "Weekly report" : "Monthly report"}
+          title={periodLabel(kind, facts.bounds)}
+          dateLine={`${facts.bounds.start} to ${facts.bounds.end}`}
+          stats={shareStats}
+          accentColor={accent.color}
+          accentDeep={accent.deep}
+          fileNamePrefix={`report-${kind}-${periodKey}`}
+        />
       </header>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

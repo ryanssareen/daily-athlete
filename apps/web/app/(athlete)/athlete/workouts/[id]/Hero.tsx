@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { formatDistance, formatDuration, formatPace, formatWorkoutDateTime } from "@/lib/format";
 import { getSportLabel } from "@/lib/sport-display";
+import { ShareButton } from "@/components/share/ShareButton";
+import type { ShareStat } from "@/components/share/share-canvas";
 
 import SyncButton from "./SyncButton";
 
@@ -227,6 +229,11 @@ export function Hero({ workout, timezone, backHref, backLabel }: HeroProps) {
   // Adapt grid to actual column count so dividers land correctly.
   const cols = Math.min(Math.max(secondary.length, 1), 6);
 
+  const shareStats: ShareStat[] = [
+    ...headline.map((m) => ({ label: m.label, value: m.value, unit: m.unit })),
+    ...secondary.map((s) => ({ label: s.label, value: s.value, unit: s.sub })),
+  ];
+
   return (
     <section className="wd-hero">
       <div className="wd-hero-topbar">
@@ -234,11 +241,18 @@ export function Hero({ workout, timezone, backHref, backLabel }: HeroProps) {
           <ArrowLeftIcon />
           <span>{backLabel}</span>
         </Link>
-        {isStrava && workout.strava_activity_id && (
-          <div className="wd-topbar-actions">
-            <SyncButton workoutId={workout.id} />
-          </div>
-        )}
+        <div className="wd-topbar-actions">
+          <ShareButton
+            eyebrow={`${getSportLabel(workout.sport)} · ${isStrava ? "Strava" : "Manual"}`}
+            title={workoutName}
+            dateLine={dateTime}
+            stats={shareStats}
+            accentColor={accent.color}
+            accentDeep={accent.deep}
+            fileNamePrefix={`workout-${workout.id.slice(0, 8)}`}
+          />
+          {isStrava && workout.strava_activity_id && <SyncButton workoutId={workout.id} />}
+        </div>
       </div>
 
       <div className="wd-hero-body">
