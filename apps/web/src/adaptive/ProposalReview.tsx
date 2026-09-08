@@ -15,7 +15,6 @@
 // inline "your plan is unchanged", selection preserved), stale-skip inline,
 // no_changes on-track, lapsed read-only + upsell.
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EditOpResult, WeeklyReviewRow } from "@da2/shared";
@@ -352,48 +351,17 @@ export default function ProposalReview({
         </div>
       );
     }
+    // The athlete's plan summary already renders above this component (see
+    // (athlete)/plan/page.tsx), so there is nothing left to say here beyond
+    // "nothing pending" -- no need to repeat "your plan is active" in a big
+    // card with its own CTA.
     return (
-      <div
-        style={{ ...card, padding: "44px 32px", textAlign: "center" }}
+      <p
         data-testid="state-no-review"
+        style={{ fontSize: 13, color: "var(--color-ink-subtle)", textAlign: "center", padding: "8px 0" }}
       >
-        <h2
-          style={{
-            fontSize: 20,
-            fontWeight: 600,
-            color: "var(--color-ink)",
-            margin: "0 0 8px",
-          }}
-        >
-          Your plan is active
-        </h2>
-        <p
-          style={{
-            fontSize: 14,
-            color: "var(--color-ink-muted)",
-            margin: "0 auto 20px",
-            maxWidth: 420,
-            lineHeight: 1.5,
-          }}
-        >
-          Your training is on your calendar. The AI coach posts weekly check-ins
-          here when there&apos;s something to review.
-        </p>
-        <Link
-          href="/athlete/calendar"
-          style={{
-            display: "inline-block",
-            background: "var(--color-ink)",
-            color: "var(--color-paper)",
-            padding: "10px 22px",
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          View your calendar
-        </Link>
-      </div>
+        No pending reviews. The AI coach posts weekly check-ins here when there&apos;s something to review.
+      </p>
     );
   }
 
@@ -726,28 +694,25 @@ function DetailRail({
   );
 }
 
+// What loads here ranges from "nothing pending" (a one-line note) to a full
+// multi-row diff -- there's no single shape to preview, so faking specific
+// rows (the old version drew 3 fixed bars) is a placeholder that's wrong
+// most of the time. A neutral, content-agnostic pulse avoids promising a
+// layout the real content may not match.
 function LoadingSkeleton() {
   return (
-    <div data-testid="state-loading" style={{ maxWidth: 680, margin: "0 auto" }}>
-      <div style={{ height: 28, width: 220, borderRadius: 8, background: "var(--color-canvas-soft)", marginBottom: 18 }} />
-      <div style={{ ...card, overflow: "hidden" }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              padding: "16px 18px",
-              borderBottom: i < 2 ? "1px solid var(--color-border)" : "none",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
-            <div style={{ height: 14, width: "40%", borderRadius: 6, background: "var(--color-canvas-soft)" }} />
-            <div style={{ height: 12, width: "70%", borderRadius: 6, background: "var(--color-canvas-soft)" }} />
-          </div>
-        ))}
-      </div>
-    </div>
+    <p
+      data-testid="state-loading"
+      style={{
+        fontSize: 13,
+        color: "var(--color-ink-subtle)",
+        textAlign: "center",
+        padding: "8px 0",
+        opacity: 0.6,
+      }}
+    >
+      Checking for review updates…
+    </p>
   );
 }
 

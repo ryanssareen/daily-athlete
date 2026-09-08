@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/auth/server";
@@ -12,7 +14,12 @@ export type UserWithRoles = {
   timezone: string;
 };
 
-export async function getUserWithRoles(): Promise<UserWithRoles | null> {
+// Both the (athlete)/(coach) layouts AND the page they wrap call this on
+// every request (22 call sites) -- each call did its own auth.getUser()
+// network round trip + `users` table query. React's per-request cache()
+// dedupes those into one call for the whole render pass, so a layout+page
+// pair costs one auth check instead of two.
+export const getUserWithRoles = cache(async (): Promise<UserWithRoles | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,7 +35,7 @@ export async function getUserWithRoles(): Promise<UserWithRoles | null> {
   const roles = (data?.role_flags ?? ["athlete"]) as Role[];
   const timezone = (data?.timezone as string | null) ?? "UTC";
   return { user, roles, timezone };
-}
+});
 
 // Return a literal union so callers using `redirect()` under Next.js'
 // typedRoutes get a `Route`-assignable value (a bare `string` no longer

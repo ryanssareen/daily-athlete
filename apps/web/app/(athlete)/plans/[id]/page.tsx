@@ -13,27 +13,7 @@ import type { PlanRow } from "@da2/shared";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import { PlanActions } from "@/plan/PlanActions";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// event_date is a DATE-only string ("YYYY-MM-DD"), not a timestamp. Parsing
-// it with `new Date(str)` reads it as UTC midnight, which renders as the
-// PREVIOUS day in any timezone west of UTC once toLocaleDateString converts
-// to local time. Parse the components directly instead.
-function formatEventDate(dateOnly: string): string {
-  const [year, month, day] = dateOnly.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+import { formatDate, formatEventDate } from "@/plan/format";
 
 export default async function PlanDetailPage({
   params,

@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import type { PlanRow } from "@da2/shared";
 
+import { formatDate, formatEventDate } from "./format";
+
 const STATUS_LABEL: Record<PlanRow["status"], string> = {
   active: "Active",
   archived: "Archived",
@@ -28,27 +30,6 @@ function StatusBadge({ status }: { status: PlanRow["status"] }) {
       {STATUS_LABEL[status]}
     </span>
   );
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// event_date is a DATE-only string ("YYYY-MM-DD"), not a timestamp. Parsing
-// it with `new Date(str)` reads it as UTC midnight, which renders as the
-// PREVIOUS day in any timezone west of UTC once toLocaleDateString converts
-// to local time. Parse the components directly instead.
-function formatEventDate(dateOnly: string): string {
-  const [year, month, day] = dateOnly.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 /**
