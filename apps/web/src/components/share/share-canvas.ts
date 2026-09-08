@@ -152,9 +152,9 @@ function drawBrandBadge(ctx: CanvasRenderingContext2D, w: number, padX: number, 
   ctx.rotate(Math.PI / 2);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${w * 0.024}px ${MONO_STACK}`;
+  ctx.font = `700 ${w * 0.018}px ${MONO_STACK}`;
   ctx.fillStyle = "#14110d";
-  ctx.fillText("DA2", 0, 0);
+  ctx.fillText("THE DAILY ATHLETE", 0, 0);
   ctx.restore();
 }
 
