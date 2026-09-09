@@ -95,11 +95,16 @@ function getStats(w: WorkoutRow): Stat[] {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-function fmtDay(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+// Hardcoded UTC here previously made an activity's date disagree with every
+// other page (calendar, workout detail) for anyone not at UTC+0: an early
+// local-morning session (e.g. 4:55 AM at UTC+5:30) falls on the PREVIOUS
+// UTC calendar day. Use the athlete's own timezone, same as
+// formatWorkoutDateTime/calendarDayInTimezone elsewhere in the app.
+function fmtDay(iso: string, timezone: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timezone || "UTC" });
 }
-function fmtYear(iso: string) {
-  return new Date(iso).getUTCFullYear().toString();
+function fmtYear(iso: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: timezone || "UTC" }).format(new Date(iso));
 }
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
@@ -260,7 +265,7 @@ export default async function AthleteActivitiesPage({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {fmtDay(w.started_at)}
+                    {fmtDay(w.started_at, session.timezone)}
                   </div>
                   <div
                     style={{
@@ -269,7 +274,7 @@ export default async function AthleteActivitiesPage({
                       lineHeight: 1.4,
                     }}
                   >
-                    {fmtYear(w.started_at)}
+                    {fmtYear(w.started_at, session.timezone)}
                   </div>
                 </div>
 
