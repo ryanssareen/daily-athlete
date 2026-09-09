@@ -90,6 +90,39 @@ function readStructureDescription(
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
+// ---------------------------------------------------------------------------
+// Rationale text runs
+// ---------------------------------------------------------------------------
+
+export interface RationaleRun {
+  text: string;
+  bold: boolean;
+}
+
+/**
+ * Splits AI-authored rationale text on `**bold**` markers into plain-text
+ * runs the page renders as <strong>/text nodes. The rationale prompt doesn't
+ * forbid markdown the way the report-narration prompts do (see
+ * src/ai/reports/narrate.ts), and the model reliably emits `**...**` for a
+ * lead-in phrase -- rendered as a single unformatted string (the previous
+ * behavior) that shows up as literal asterisks. This recognizes exactly one
+ * construct and nothing else (no HTML, no other markdown) -- still plain-text
+ * React nodes throughout, never `dangerouslySetInnerHTML` (R7).
+ */
+export function parseRationaleRuns(text: string): RationaleRun[] {
+  const runs: RationaleRun[] = [];
+  const boldPattern = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = boldPattern.exec(text)) !== null) {
+    if (match.index > cursor) runs.push({ text: text.slice(cursor, match.index), bold: false });
+    if (match[1]) runs.push({ text: match[1], bold: true });
+    cursor = boldPattern.lastIndex;
+  }
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), bold: false });
+  return runs;
+}
+
 function toStepView(entry: LegacyStepEntry): PlannedStepView {
   return {
     label: entry.label,

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
-import { buildPlannedWorkoutView } from "@/components/planned/planned-workout-view";
+import { buildPlannedWorkoutView, parseRationaleRuns } from "@/components/planned/planned-workout-view";
 import { getPlannedById, getPlannedInRange } from "@/db/workouts";
 import { getSportEmoji } from "@/lib/sport-display";
 import MarkAsDoneButton from "./MarkAsDoneButton";
@@ -207,8 +207,10 @@ export default async function PlannedWorkoutDetailPage({
           <p className="eyebrow" style={{ marginBottom: 8 }}>
             Why this workout
           </p>
-          <p style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.6, margin: 0 }}>
-            {view.rationale}
+          <p style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
+            {parseRationaleRuns(view.rationale).map((run, i) =>
+              run.bold ? <strong key={i}>{run.text}</strong> : run.text
+            )}
           </p>
         </div>
       )}

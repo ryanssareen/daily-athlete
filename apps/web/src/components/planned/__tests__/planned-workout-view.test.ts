@@ -9,6 +9,7 @@ import {
   formatDurationDisplay,
   NO_INTENSITY_TARGET_TEXT,
   NOT_SET_TEXT,
+  parseRationaleRuns,
 } from "@/components/planned/planned-workout-view";
 
 function makeRow(overrides: Partial<PlannedDetailRow> = {}): PlannedDetailRow {
@@ -140,6 +141,43 @@ describe("formatDurationDisplay", () => {
 
   it("renders 'Not set' for zero", () => {
     expect(formatDurationDisplay(0)).toBe(NOT_SET_TEXT);
+  });
+});
+
+describe("parseRationaleRuns", () => {
+  it("returns a single unbolded run for plain text", () => {
+    expect(parseRationaleRuns("Easy aerobic run.")).toEqual([
+      { text: "Easy aerobic run.", bold: false },
+    ]);
+  });
+
+  it("splits a leading **bold** span from the rest", () => {
+    expect(parseRationaleRuns("**Home strength circuit.** 3 rounds.")).toEqual([
+      { text: "Home strength circuit.", bold: true },
+      { text: " 3 rounds.", bold: false },
+    ]);
+  });
+
+  it("handles multiple bold spans with plain text between and after", () => {
+    expect(parseRationaleRuns("**A** middle **B** end")).toEqual([
+      { text: "A", bold: true },
+      { text: " middle ", bold: false },
+      { text: "B", bold: true },
+      { text: " end", bold: false },
+    ]);
+  });
+
+  it("leaves an unterminated ** as literal plain text (no partial match)", () => {
+    expect(parseRationaleRuns("half **bold with no closer")).toEqual([
+      { text: "half **bold with no closer", bold: false },
+    ]);
+  });
+
+  it("preserves embedded newlines within a run (caller applies white-space: pre-wrap)", () => {
+    expect(parseRationaleRuns("**Header.**\n\n- item one\n- item two")).toEqual([
+      { text: "Header.", bold: true },
+      { text: "\n\n- item one\n- item two", bold: false },
+    ]);
   });
 });
 
