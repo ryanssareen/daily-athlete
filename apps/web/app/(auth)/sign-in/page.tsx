@@ -115,6 +115,13 @@ export default function SignInPage() {
             className="px-4 py-3.5 rounded-xl border border-[color:var(--color-border-strong)] bg-[color:var(--color-paper)] text-base focus:outline-none focus:border-[color:var(--color-ink)] transition"
           />
 
+          <Link
+            href={"/forgot-password" as Route}
+            className="self-end text-sm text-[color:var(--color-ink-muted)] underline underline-offset-4 decoration-[color:var(--color-border-strong)] hover:decoration-[color:var(--color-ink)] hover:text-[color:var(--color-ink)] transition"
+          >
+            Forgot password?
+          </Link>
+
           <button
             type="submit"
             disabled={status === "sending" || !email || !password}
