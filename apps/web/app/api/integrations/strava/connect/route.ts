@@ -17,12 +17,14 @@
 //   because the attacker controlled both operands.
 // - athlete_strava_id is sourced EXCLUSIVELY from Strava's
 //   /oauth/token response. Never accepted from the client body.
-// - Re-connect collision (HTTP 409): if a different user already owns
-//   this athlete_strava_id, refuse with `strava_account_already_linked`.
-//   Silent ownership transfer is rejected as a data-integrity hazard
-//   for shared family accounts and an account-takeover surface. The
-//   pre-check is a fast path; the unique-constraint on the upsert is
-//   the race arbiter (typed as StravaAccountCollisionError -> 409).
+// - Many-to-one linking is allowed on purpose: multiple DA2 users may
+//   connect the same Strava account (shared family Strava, coach testing
+//   an athlete's account, etc). athlete_strava_id has no uniqueness
+//   constraint; each user_id gets its own strava_tokens row and its own
+//   token pair. Incoming webhook events fan out to every linked user --
+//   see the webhook route for details, including the one accepted gap
+//   (a deauth event disconnects all users sharing that Strava account,
+//   since Strava's event doesn't identify which grant was revoked).
 // - Bearer-token auth: mobile sends `Authorization: Bearer <jwt>` since
 //   it doesn't share the SSR cookie jar. resolveAuth() reads either.
 //
@@ -48,17 +50,10 @@ import { StravaConnectRequestSchema } from "@da2/shared";
 import { resolveAuth } from "@/auth/bearer";
 import { createClient as createServerClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
-import {
-  findUserByAthleteStravaId,
-  upsertStravaToken,
-} from "@/db/strava-tokens";
+import { upsertStravaToken } from "@/db/strava-tokens";
 import { encrypt } from "@/security/token-crypto";
 import { runBackfillForUser } from "@/strava/run-backfill";
-import {
-  StravaAccountCollisionError,
-  StravaError,
-  StravaReauthRequired,
-} from "@/strava/errors";
+import { StravaError, StravaReauthRequired } from "@/strava/errors";
 import { exchangeAuthorizationCode } from "@/strava/oauth";
 import { verifyState } from "@/strava/state-nonce";
 
@@ -175,63 +170,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     return errorJson("internal_error", 500);
   }
 
-  // 5. Re-connect collision check. If another user already owns this
-  //    athlete_strava_id, reject with 409. Same-user reconnect proceeds.
-  //    If the lookup itself fails, surface 500 with a logged event --
-  //    don't let a plain DB error escape as an unstructured Next.js 500.
+  // 5. Encrypt + persist via service-role. Multiple DA2 users may link the
+  //    same Strava account (e.g. shared family Strava, coach/athlete
+  //    testing the same account) -- athlete_strava_id has no uniqueness
+  //    constraint, so this is a plain per-user upsert with no ownership
+  //    check. See apps/web/app/api/integrations/strava/webhook/route.ts
+  //    for how incoming events fan out to every linked user.
   const admin = createAdminClient();
-  let owner;
-  try {
-    owner = await findUserByAthleteStravaId(admin, exchange.athleteStravaId);
-  } catch (err) {
-    logEvent({
-      name: "owner_lookup_failed",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: false,
-      code: "internal_error",
-      extra: { err: err instanceof Error ? err.message : String(err) },
-    });
-    return errorJson("internal_error", 500);
-  }
-  if (owner && owner.user_id !== user.id) {
-    logEvent({
-      name: "account_collision",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: false,
-      code: "strava_account_already_linked",
-    });
-    return errorJson("strava_account_already_linked", 409);
-  }
-
-  // 5b. Same-user reconnect with a DIFFERENT athlete_strava_id is a
-  //     policy decision we defer to Phase C (does that orphan the prior
-  //     athlete's workout_matches? do we cascade-delete? do we prompt?).
-  //     For Phase B, log the event so we can monitor frequency and
-  //     decide before C ships. Behavior unchanged today (the upsert
-  //     proceeds and overwrites athlete_strava_id).
-  if (owner && owner.user_id === user.id) {
-    // We don't have the previous athlete_strava_id from a single SELECT
-    // (the helper returns only user_id). For the log signal, indicate
-    // the owner check matched same-user; the new athlete_strava_id is
-    // the post-upsert state. If a future operator wants the old value
-    // they should add it to the lookup helper.
-    logEvent({
-      name: "same_user_reconnect",
-      user_id: user.id,
-      athlete_strava_id: exchange.athleteStravaId,
-      success: true,
-    });
-  }
-
-  // 6. Encrypt + persist via service-role. The pre-check above means the
-  //    user_id-unique upsert will not collide with the
-  //    athlete_strava_id unique index in the sequential case. In the
-  //    concurrent case (two users connecting the same Strava account
-  //    simultaneously, both passing the pre-check), the upsert's
-  //    unique-constraint violation is caught as
-  //    StravaAccountCollisionError -> 409.
   const encAccess = encrypt(new TextEncoder().encode(exchange.accessToken));
   const encRefresh = encrypt(new TextEncoder().encode(exchange.refreshToken));
   try {
@@ -245,16 +190,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       key_version: encAccess.keyVersion,
     });
   } catch (err) {
-    if (err instanceof StravaAccountCollisionError) {
-      logEvent({
-        name: "account_collision_race",
-        user_id: user.id,
-        athlete_strava_id: exchange.athleteStravaId,
-        success: false,
-        code: "strava_account_already_linked",
-      });
-      return errorJson("strava_account_already_linked", 409);
-    }
     logEvent({
       name: "token_persist_failed",
       user_id: user.id,
@@ -266,7 +201,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return errorJson("internal_error", 500);
   }
 
-  // 7. Kick off the backfill after this response is sent. `after()` runs
+  // 6. Kick off the backfill after this response is sent. `after()` runs
   //    the callback within Vercel's function timeout (60s on Hobby) after
   //    the 202 is delivered to the client. Progress is tracked in
   //    athlete_profiles.backfill_status; mobile polls to show live state.

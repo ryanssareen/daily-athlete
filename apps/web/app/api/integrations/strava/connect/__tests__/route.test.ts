@@ -48,7 +48,6 @@ const mocks = vi.hoisted(() => {
     lastBearerToken: undefined as string | undefined,
     adminFake: null as null | {
       tokensByUser: Map<string, RowState>;
-      ownerLookup: Map<number, string>;
       lastUpsert?: RowState;
       // If set, the next upsert call returns this PostgREST-style error
       // instead of writing.
@@ -112,33 +111,11 @@ function makeAdminFake() {
 }
 
 class TokensTable {
-  select(_cols: string) {
-    return new SelectBuilder();
-  }
   upsert(row: RowState, _opts: { onConflict: string }) {
     if (!mocks.adminFake) {
       throw new Error("adminFake not initialised");
     }
     return new UpsertBuilder(row);
-  }
-}
-
-class SelectBuilder {
-  private filter: { col: string; value: unknown } | null = null;
-  eq(col: string, value: unknown) {
-    this.filter = { col, value };
-    return this;
-  }
-  async maybeSingle() {
-    if (!mocks.adminFake) return { data: null, error: null };
-    if (this.filter?.col === "athlete_strava_id") {
-      const ownerId = mocks.adminFake.ownerLookup.get(
-        this.filter.value as number
-      );
-      if (ownerId == null) return { data: null, error: null };
-      return { data: { user_id: ownerId }, error: null };
-    }
-    return { data: null, error: null };
   }
 }
 
@@ -161,7 +138,6 @@ class UpsertSelectBuilder {
       return { data: null, error };
     }
     mocks.adminFake.tokensByUser.set(this.row.user_id, this.row);
-    mocks.adminFake.ownerLookup.set(this.row.athlete_strava_id, this.row.user_id);
     mocks.adminFake.lastUpsert = this.row;
     return {
       data: { athlete_strava_id: this.row.athlete_strava_id },
@@ -183,7 +159,6 @@ beforeEach(() => {
   mocks.lastBearerToken = undefined;
   mocks.adminFake = {
     tokensByUser: new Map(),
-    ownerLookup: new Map(),
     nextUpsertError: null,
   };
   mocks.runBackfillForUser.mockReset();
@@ -337,7 +312,15 @@ describe("POST /api/integrations/strava/connect", () => {
   });
 
   it("happy path: same-user reconnect (owner exists with same user_id) -> upsert succeeds (T-03)", async () => {
-    mocks.adminFake!.ownerLookup.set(5005, "user-same");
+    mocks.adminFake!.tokensByUser.set("user-same", {
+      user_id: "user-same",
+      access_token_enc: "\\xdead",
+      refresh_token_enc: "\\xbeef",
+      expires_at: "2026-01-01T00:00:00.000Z",
+      scope: "activity:read",
+      athlete_strava_id: 5005,
+      key_version: 1,
+    });
     mocks.authUser = { id: "user-same" };
     mockState.authorize.push({
       kind: "ok",
@@ -355,10 +338,18 @@ describe("POST /api/integrations/strava/connect", () => {
     expect(mocks.adminFake!.tokensByUser.get("user-same")).toBeDefined();
   });
 
-  it("returns 409 strava_account_already_linked when athlete_strava_id maps to a different user", async () => {
-    mocks.adminFake!.ownerLookup.set(7777, "user-original-owner");
+  it("allows a different user to connect a Strava account already linked to someone else (shared account)", async () => {
+    mocks.adminFake!.tokensByUser.set("user-original-owner", {
+      user_id: "user-original-owner",
+      access_token_enc: "\\xdead",
+      refresh_token_enc: "\\xbeef",
+      expires_at: "2026-01-01T00:00:00.000Z",
+      scope: "activity:read",
+      athlete_strava_id: 7777,
+      key_version: 1,
+    });
 
-    mocks.authUser = { id: "user-collider" };
+    mocks.authUser = { id: "user-second-owner" };
     mockState.authorize.push({
       kind: "ok",
       payload: {
@@ -370,41 +361,15 @@ describe("POST /api/integrations/strava/connect", () => {
       },
     });
 
-    const res = await invokeRoute(buildValidBody("user-collider"));
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("strava_account_already_linked");
+    const res = await invokeRoute(buildValidBody("user-second-owner"));
+    expect(res.status).toBe(202);
 
-    // Critically: the original owner's row is NOT overwritten.
-    expect(mocks.adminFake!.tokensByUser.get("user-collider")).toBeUndefined();
-    expect(mocks.runBackfillForUser).not.toHaveBeenCalled();
-  });
-
-  it("returns 409 strava_account_already_linked when the upsert hits Postgres 23505 unique_violation (race)", async () => {
-    // Pre-check passes (no owner), but a concurrent writer beat us to
-    // the unique index. PostgREST surfaces this as code 23505 with
-    // details mentioning athlete_strava_id.
-    mocks.authUser = { id: "user-race-loser" };
-    mocks.adminFake!.nextUpsertError = {
-      code: "23505",
-      message: "duplicate key value violates unique constraint",
-      details: "Key (athlete_strava_id)=(8888) already exists.",
-    };
-    mockState.authorize.push({
-      kind: "ok",
-      payload: {
-        access_token: "a",
-        refresh_token: "r",
-        expires_at: Math.floor(Date.UTC(2026, 4, 14, 18, 0, 0) / 1000),
-        scope: "activity:read",
-        athlete: { id: 8888 },
-      },
-    });
-
-    const res = await invokeRoute(buildValidBody("user-race-loser"));
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("strava_account_already_linked");
-    expect(mocks.adminFake!.tokensByUser.get("user-race-loser")).toBeUndefined();
-    expect(mocks.runBackfillForUser).not.toHaveBeenCalled();
+    // Both users now have their own row linked to the same athlete_strava_id.
+    expect(mocks.adminFake!.tokensByUser.get("user-original-owner")).toBeDefined();
+    const secondRow = mocks.adminFake!.tokensByUser.get("user-second-owner");
+    expect(secondRow).toBeDefined();
+    expect(secondRow!.athlete_strava_id).toBe(7777);
+    expect(mocks.runBackfillForUser).toHaveBeenCalledWith("user-second-owner");
   });
 
   it("returns 400 strava_rejected_code when Strava 400s on the exchange", async () => {

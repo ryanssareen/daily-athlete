@@ -33,7 +33,7 @@ vi.mock("next/server", async (importOriginal) => {
 // ─── mutable test state ───────────────────────────────────────────────────────
 
 const state = vi.hoisted(() => ({
-  tokenRow: null as { user_id: string } | null,
+  tokenRows: null as { user_id: string }[] | null,
   tokensDeleted: false,
   deletedWorkouts: [] as { id: string }[],
   deletedMatches: [] as { planned_workout_id: string }[],
@@ -63,15 +63,16 @@ vi.mock("@/db/admin", () => ({
         },
       }),
       select: () => ({
-        eq: () => ({
-          maybeSingle: async () => {
-            if (table === "strava_tokens") return { data: state.tokenRow };
-            return { data: null };
-          },
-          is: () => ({
-            limit: async () => ({ data: state.liveMatches }),
-          }),
-        }),
+        eq: () => {
+          if (table === "strava_tokens") {
+            return Promise.resolve({ data: state.tokenRows, error: null });
+          }
+          return {
+            is: () => ({
+              limit: async () => ({ data: state.liveMatches }),
+            }),
+          };
+        },
       }),
       update: () => ({
         eq: () => ({
@@ -215,7 +216,7 @@ describe("GET /api/integrations/strava/webhook", () => {
 describe("POST /api/integrations/strava/webhook", () => {
   beforeEach(() => {
     afterCallback = null;
-    state.tokenRow = { user_id: "user-uuid-1" };
+    state.tokenRows = [{ user_id: "user-uuid-1" }];
     state.tokensDeleted = false;
     state.deletedWorkouts = [];
     state.deletedMatches = [];
@@ -312,9 +313,42 @@ describe("POST /api/integrations/strava/webhook", () => {
 
   describe("after() — create", () => {
     it("no-ops silently when owner_id has no strava_tokens row", async () => {
-      state.tokenRow = null;
+      state.tokenRows = [];
       await POST(makePOST(makeEvent({ aspect_type: "create" })));
       await expect(afterCallback!()).resolves.toBeUndefined();
+    });
+
+    it("fans out to every user linked to the same athlete_strava_id", async () => {
+      state.tokenRows = [{ user_id: "user-a" }, { user_id: "user-b" }];
+      const { insertOrUpdateStravaCompletedWorkout } = await import("@/db/completed-workouts");
+
+      await POST(makePOST(makeEvent({ aspect_type: "create", object_id: 9999 })));
+      await afterCallback!();
+
+      expect(insertOrUpdateStravaCompletedWorkout).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ athlete_id: "user-a" })
+      );
+      expect(insertOrUpdateStravaCompletedWorkout).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ athlete_id: "user-b" })
+      );
+    });
+
+    it("a failure handling one linked user does not stop the others", async () => {
+      state.tokenRows = [{ user_id: "user-fails" }, { user_id: "user-ok" }];
+      const { insertOrUpdateStravaCompletedWorkout } = await import("@/db/completed-workouts");
+      vi.mocked(insertOrUpdateStravaCompletedWorkout).mockRejectedValueOnce(
+        new Error("boom")
+      );
+
+      await POST(makePOST(makeEvent({ aspect_type: "create" })));
+      await expect(afterCallback!()).resolves.toBeUndefined();
+
+      expect(insertOrUpdateStravaCompletedWorkout).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ athlete_id: "user-ok" })
+      );
     });
 
     it("inserts completed workout and calls matchStravaToPlanned", async () => {

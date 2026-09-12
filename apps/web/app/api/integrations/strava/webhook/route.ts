@@ -117,10 +117,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
-  // Deauth event: athlete has revoked our access. Hard-delete the token row
-  // so future API calls don't attempt to use invalid credentials.
-  // Handled synchronously (not in after()) to prevent forged deauth events
-  // from queuing on-demand service-role token lookups.
+  // Deauth event: athlete has revoked our access. Hard-delete every token
+  // row for this athlete_strava_id so future API calls don't attempt to
+  // use invalid credentials. Handled synchronously (not in after()) to
+  // prevent forged deauth events from queuing on-demand service-role
+  // token lookups.
+  //
+  // Known gap: multiple DA2 users may share one Strava account (see
+  // connect/route.ts). Strava's deauth event only carries the athlete
+  // id, not which specific grant was revoked, so this disconnects ALL
+  // users linked to that Strava account, not just the one who revoked
+  // access. There's no way to distinguish the two from this event alone.
   if (object_type === "athlete") {
     const admin = createAdminClient();
     // service-role: explicit user filter required
@@ -139,40 +146,22 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Return 200 immediately; heavy work deferred to after()
   after(async () => {
     const admin = createAdminClient();
+
+    // Resolve Strava athlete ID → every internal user_id linked to it.
+    // Multiple DA2 users may share one Strava account (see
+    // connect/route.ts), so one Strava event can fan out to several
+    // users -- this is no longer a single-row lookup.
+    let tokenRows: { user_id: string }[] | null;
     try {
-      // Resolve Strava athlete ID → internal user ID
       // service-role: explicit user filter required
-      const { data: tokenRow, error: tokenErr } = await admin
+      const { data, error: tokenErr } = await admin
         .from("strava_tokens")
         .select("user_id")
-        .eq("athlete_strava_id", owner_id)
-        .maybeSingle();
-
-      // A failed lookup is not a missing owner. Ignoring this error made
-      // .maybeSingle()'s multi-row failure indistinguishable from a
-      // disconnected athlete, silently discarding every event for an
-      // athlete_strava_id that had duplicate rows. Route it to after_error
-      // instead; classifyError() still keeps err.message out of the log.
+        .eq("athlete_strava_id", owner_id);
       if (tokenErr) {
         throw new Error(`strava_tokens lookup failed: ${tokenErr.message}`);
       }
-
-      if (!tokenRow) {
-        // Expected when an athlete has disconnected Strava before the event arrives
-        console.info(
-          "[strava.webhook] owner_not_found",
-          JSON.stringify({ athlete_strava_id: owner_id })
-        );
-        return;
-      }
-
-      const userId = tokenRow.user_id as string;
-
-      if (aspect_type === "create") {
-        await handleCreate(admin, userId, object_id);
-      } else if (aspect_type === "delete") {
-        await handleDelete(admin, userId, object_id);
-      }
+      tokenRows = data as { user_id: string }[] | null;
     } catch (err) {
       const errorCode = classifyError(err);
       console.info(
@@ -184,6 +173,40 @@ export async function POST(request: Request): Promise<NextResponse> {
           error_code: errorCode,
         })
       );
+      return;
+    }
+
+    if (!tokenRows || tokenRows.length === 0) {
+      // Expected when an athlete has disconnected Strava before the event arrives
+      console.info(
+        "[strava.webhook] owner_not_found",
+        JSON.stringify({ athlete_strava_id: owner_id })
+      );
+      return;
+    }
+
+    // Each user is handled independently: one user's failure (e.g. a
+    // revoked token) must not stop the event from reaching the others.
+    for (const { user_id: userId } of tokenRows) {
+      try {
+        if (aspect_type === "create") {
+          await handleCreate(admin, userId, object_id);
+        } else if (aspect_type === "delete") {
+          await handleDelete(admin, userId, object_id);
+        }
+      } catch (err) {
+        const errorCode = classifyError(err);
+        console.info(
+          "[strava.webhook] after_error",
+          JSON.stringify({
+            athlete_strava_id: owner_id,
+            user_id: userId,
+            strava_activity_id: object_id,
+            aspect_type,
+            error_code: errorCode,
+          })
+        );
+      }
     }
   });
 
