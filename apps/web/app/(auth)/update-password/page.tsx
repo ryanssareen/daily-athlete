@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { createClient } from "@/auth/supabase";
@@ -43,9 +44,9 @@ export default function UpdatePasswordPage() {
             <p className="text-[color:var(--color-ink-muted)] mb-8">
               Your password has been updated.
             </p>
-            <a href="/" className="btn btn-primary w-full justify-center inline-flex">
+            <Link href="/" className="btn btn-primary w-full justify-center inline-flex">
               Continue
-            </a>
+            </Link>
           </>
         ) : (
           <>
