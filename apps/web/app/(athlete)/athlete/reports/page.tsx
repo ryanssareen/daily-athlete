@@ -26,6 +26,10 @@ import { listPeriodSummaries, type ListedPeriod } from "@/ai/period-reviews/list
 import { getUserWithRoles } from "@/auth/roles";
 import { createAdminClient } from "@/db/admin";
 import { formatDuration, periodLabel } from "@/components/period-review/review-sections";
+import { BySportTable } from "@/components/training-overview/by-sport-table";
+import { FormChart, WeeklyVolumeChart } from "@/components/training-overview/charts";
+import { OverviewCard, OverviewKpis } from "@/components/training-overview/overview-cards";
+import { getTrainingOverview, type TrainingOverview } from "@/training-overview/overview";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +92,13 @@ export default async function ReportsPage() {
 
   const hasAnyTraining = entries.some((e) => e.sessions > 0);
 
+  let overview: TrainingOverview | null = null;
+  try {
+    overview = await getTrainingOverview(admin, athleteId, timezone, now);
+  } catch {
+    overview = null;
+  }
+
   return (
     <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 24px 64px" }}>
       <header style={{ marginBottom: 24 }}>
@@ -95,10 +106,37 @@ export default async function ReportsPage() {
           Reports
         </h1>
         <p style={{ margin: "6px 0 0", color: "var(--color-ink-muted)", fontSize: 15 }}>
-          How each week and month actually went against your plan.
+          Where your training stands, and how each week and month went against your plan.
         </p>
       </header>
 
+      {overview?.hasData && (
+        <div style={{ display: "grid", gap: 14, marginBottom: 32 }}>
+          <OverviewKpis overview={overview} />
+          <OverviewCard
+            title="Fitness, fatigue and form"
+            note="Daily values for the last 28 days. Form above 0 means rested."
+          >
+            <FormChart series={overview.series} />
+          </OverviewCard>
+          <OverviewCard
+            title="Weekly training hours by sport"
+            note="Weeks start Monday. The latest week is still in progress."
+          >
+            <WeeklyVolumeChart weekly={overview.weekly} />
+          </OverviewCard>
+          <OverviewCard
+            title="By sport"
+            note="Last 28 days next to the last 120 days. Sessions under a minute are ignored."
+          >
+            <BySportTable sports={overview.sports} />
+          </OverviewCard>
+        </div>
+      )}
+
+      <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 12px", color: "var(--color-ink)" }}>
+        Weekly and monthly reviews
+      </h2>
       {!hasAnyTraining ? (
         <EmptyState />
       ) : (
