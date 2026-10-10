@@ -179,12 +179,11 @@ class _ViewSwitcher extends StatelessWidget {
   final _CalendarView current;
   final void Function(_CalendarView) onChanged;
 
-  static const _labels = ['Day', 'Week', 'Month', 'Year'];
+  static const _labels = ['Day', 'Week', 'Month'];
   static const _views = [
     _CalendarView.day,
     _CalendarView.week,
     _CalendarView.month,
-    _CalendarView.year,
   ];
 
   @override
