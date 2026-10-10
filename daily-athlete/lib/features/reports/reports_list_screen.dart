@@ -4,13 +4,14 @@
 // written" status and a headline stat. Tapping a row opens
 // report_detail_screen.dart for that period.
 
-import '../shared/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../models/period_review.dart';
+import '../dashboard/overview_api.dart';
+import '../shared/eyebrow.dart';
+import '../shared/screen_header.dart';
 import 'reports_providers.dart';
+import 'reports_sections.dart';
 import 'reports_view.dart';
 
 class ReportsListScreen extends ConsumerWidget {
@@ -19,100 +20,77 @@ class ReportsListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final periodsAsync = ref.watch(periodReviewListProvider);
+    final overview = ref.watch(athleteOverviewProvider).valueOrNull;
+
+    Future<void> refresh() async {
+      ref.invalidate(periodReviewListProvider);
+      ref.invalidate(athleteOverviewProvider);
+      await ref.read(periodReviewListProvider.future);
+    }
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const ScreenHeader(title: 'Reports'),
+            ScreenHeader(
+              title: 'Reports',
+              bottom: Text(
+                'Where your training stands, and how each week went against your plan.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
             Expanded(
               child: periodsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (err, stack) => Center(
-                  child: _ErrorView(
-                    error: err.toString(),
-                    onRetry: () => ref.invalidate(periodReviewListProvider),
-                  ),
+                  child: _ErrorView(error: err.toString(), onRetry: refresh),
                 ),
                 data: (periods) {
-                  if (!hasAnyTraining(periods)) {
+                  final hasOverview = overview != null && overview.hasData;
+                  if (!hasAnyTraining(periods) && !hasOverview) {
                     return const _EmptyState();
                   }
                   return RefreshIndicator(
-                    onRefresh: () async {
-                      ref.invalidate(periodReviewListProvider);
-                      await ref.read(periodReviewListProvider.future);
-                    },
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      itemCount: periods.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, i) =>
-                          _PeriodRow(summary: periods[i]),
+                    onRefresh: refresh,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        if (hasOverview) ...[
+                          KpiGrid(overview: overview),
+                          if (overview.race != null) ...[
+                            const SizedBox(height: 12),
+                            GoalEventStrip(race: overview.race!),
+                          ],
+                          const SizedBox(height: 12),
+                          FormChartCard(overview: overview),
+                          const SizedBox(height: 12),
+                          WeeklyHoursCard(weekly: overview.weekly),
+                          const SizedBox(height: 12),
+                          BySportCard(sports: overview.sports),
+                          const SizedBox(height: 20),
+                        ],
+                        const Eyebrow('Weekly & monthly reviews'),
+                        const SizedBox(height: 8),
+                        for (var i = 0; i < periods.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          ReviewCard(
+                            summary: periods[i],
+                            previous: previousOfKind(periods, i),
+                            maxLoad: periods
+                                .where((p) => p.kind == periods[i].kind)
+                                .fold<double>(0, (a, p) => p.load > a ? p.load : a),
+                          ),
+                        ],
+                      ],
                     ),
                   );
                 },
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PeriodRow extends StatelessWidget {
-  const _PeriodRow({required this.summary});
-
-  final PeriodReviewSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () =>
-            context.push('/reports/${summary.kind.name}/${summary.periodKey}'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      periodLabel(summary.kind, summary.bounds),
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      periodRowSubtitle(summary),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                periodRowStatusLabel(summary),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
-          ),
         ),
       ),
     );
