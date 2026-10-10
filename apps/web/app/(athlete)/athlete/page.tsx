@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
+import { sportColor } from "@/components/training-overview/sport-colors";
 import {
   getPlannedInRange,
   getRecentWorkouts,
@@ -46,16 +47,6 @@ function getSportEmoji(sport: string): string {
     if (lower.includes(key)) return emoji;
   }
   return "⚡";
-}
-
-function getSportColor(sport: string): string {
-  const lower = sport.toLowerCase();
-  if (lower.includes("run")) return "#2d6a4f";
-  if (lower.includes("swim")) return "#2563eb";
-  if (lower.includes("bike") || lower.includes("ride")) return "#d97706";
-  if (lower.includes("strength")) return "var(--color-clay)";
-  if (lower.includes("mobility")) return "#0891b2";
-  return "var(--color-ink-subtle)";
 }
 
 // Exported for unit testing. Uses the athlete's own timezone, not the
@@ -533,7 +524,7 @@ export default async function AthleteDashboardPage() {
                         width: 4,
                         height: 28,
                         borderRadius: 2,
-                        background: getSportColor(p.sport),
+                        background: sportColor(p.sport),
                         flexShrink: 0,
                       }}
                     />
@@ -626,7 +617,7 @@ export default async function AthleteDashboardPage() {
                           style={{
                             width: `${pct}%`,
                             height: "100%",
-                            background: getSportColor(sport),
+                            background: sportColor(sport),
                             transition: "width 320ms ease",
                           }}
                         />

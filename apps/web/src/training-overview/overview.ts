@@ -53,7 +53,7 @@ export async function getTrainingOverview(
   const since = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000).toISOString();
 
   // service-role: explicit user filter required
-  const [workoutsRes, profileRes] = await Promise.all([
+  const [workoutsRes, profileRes, planRes] = await Promise.all([
     admin
       .from("completed_workouts")
       .select("started_at, sport, duration_s, summary_stats")
@@ -63,6 +63,15 @@ export async function getTrainingOverview(
       .gte("started_at", since)
       .order("started_at", { ascending: true }),
     admin.from("athlete_profiles").select("manual_fields").eq("user_id", athleteId).maybeSingle(),
+    admin
+      .from("plans")
+      .select("event_type, event_date")
+      .eq("athlete_id", athleteId)
+      .eq("status", "active")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (workoutsRes.error) throw new Error(`overview workouts failed: ${workoutsRes.error.message}`);
 
@@ -83,8 +92,13 @@ export async function getTrainingOverview(
   const manual = (profileRes.data?.manual_fields ?? {}) as {
     target_event?: { type?: string; date?: string; name?: string };
   };
-  const event = manual.target_event;
-  const days = event?.date ? daysUntil(event.date, today) : null;
+  const profileEvent = manual.target_event;
+  const plan = planRes.data as { event_type: string | null; event_date: string | null } | null;
+  // The active plan owns the goal event; the profile race is only a fallback.
+  const eventDate = plan?.event_date ?? profileEvent?.date ?? null;
+  const eventLabel =
+    profileEvent?.name || plan?.event_type || profileEvent?.type || "Race day";
+  const days = eventDate ? daysUntil(eventDate, today) : null;
 
   return {
     ctl: load.ctl,
@@ -95,8 +109,8 @@ export async function getTrainingOverview(
     sports: bySport(workouts, today),
     last28: last28(workouts, today),
     race:
-      event?.date && days !== null
-        ? { label: event.name || event.type || "Race day", date: event.date.slice(0, 10), days }
+      eventDate && days !== null
+        ? { label: eventLabel, date: eventDate.slice(0, 10), days }
         : null,
     hasData: workouts.length > 0,
   };

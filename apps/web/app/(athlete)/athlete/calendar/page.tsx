@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
+import { sportColor } from "@/components/training-overview/sport-colors";
+import { calendarDayInTimezone } from "@/lib/format";
 import {
   getMatchesForPlannedIds,
   getPlannedInRange,
@@ -16,16 +18,6 @@ import PlannedChipClient from "./PlannedChipClient";
 // ---------- Helpers -------------------------------------------------------
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function getSportColor(sport: string): string {
-  const lower = sport.toLowerCase();
-  if (lower.includes("run")) return "#2d6a4f";
-  if (lower.includes("swim")) return "#2563eb";
-  if (lower.includes("bike") || lower.includes("ride")) return "#d97706";
-  if (lower.includes("strength")) return "var(--color-clay)";
-  if (lower.includes("mobility")) return "#0891b2";
-  return "var(--color-ink-subtle)";
-}
 
 function getSportEmoji(sport: string): string {
   const lower = sport.toLowerCase();
@@ -158,7 +150,7 @@ function PlannedChip({ p }: { p: PlannedRow }) {
 }
 
 function CompletedChip({ w }: { w: WorkoutRow }) {
-  const color = getSportColor(w.sport);
+  const color = sportColor(w.sport);
   return (
     <Link
       href={`/athlete/workouts/${w.id}?from=calendar`}
@@ -239,7 +231,14 @@ export default async function AthleteCalendarPage({
 
   const [planned, completed] = await Promise.all([
     getPlannedInRange(supabase, userId, fromStr, toStr),
-    getWorkoutsInRange(supabase, userId, monday.toISOString(), sundayEnd.toISOString()),
+    // Widen by a day each side: the week is bucketed in the athlete's timezone,
+    // so a local-Monday workout can start on the previous UTC day.
+    getWorkoutsInRange(
+      supabase,
+      userId,
+      addDays(monday, -1).toISOString(),
+      addDays(sundayEnd, 1).toISOString()
+    ),
   ]);
 
   // A planned workout with a live match renders as one card carrying the
@@ -263,7 +262,7 @@ export default async function AthleteCalendarPage({
   const completedByDay = new Map<string, WorkoutRow[]>();
   for (const w of completed) {
     if (matchedCompletedIds.has(w.id)) continue; // rendered via its matched planned chip instead
-    const day = w.started_at.split("T")[0];
+    const day = calendarDayInTimezone(w.started_at, session.timezone);
     if (!completedByDay.has(day)) completedByDay.set(day, []);
     completedByDay.get(day)!.push(w);
   }
