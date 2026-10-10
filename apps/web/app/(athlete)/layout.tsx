@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { getUserWithRoles } from "@/auth/roles";
 import { AppShell } from "@/components/app-shell";
 import { TimezoneSync } from "@/components/timezone-sync";
-import { createAdminClient } from "@/db/admin";
 
 export default async function AthleteLayout({ children }: { children: ReactNode }) {
   const session = await getUserWithRoles();
@@ -17,24 +16,11 @@ export default async function AthleteLayout({ children }: { children: ReactNode 
     redirect("/roster");
   }
 
-  // First-time athletes get bounced into the onboarding flow until they
-  // mark it complete. We look at athlete_profiles.manual_fields.onboarded_at
-  // as the single source of truth — see /api/onboarding/save. The
-  // onboarding page lives in the sibling `(athlete-onboarding)` route
-  // group so it does NOT inherit this layout, which means the redirect
-  // can't loop on itself.
-  const admin = createAdminClient();
-  // service-role: explicit user filter required
-  const { data: profileRow } = await admin
-    .from("athlete_profiles")
-    .select("manual_fields")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-  const manualFields = (profileRow?.manual_fields ?? {}) as Record<
-    string,
-    unknown
-  >;
-  if (typeof manualFields.onboarded_at !== "string") {
+  // First-time athletes get bounced into the onboarding flow until
+  // athlete_profiles.manual_fields.onboarded_at is set (see
+  // /api/onboarding/save). The onboarding page lives in the sibling
+  // `(athlete-onboarding)` route group, so this redirect can't loop.
+  if (!session.onboarded) {
     redirect("/athlete/onboarding" as Route);
   }
 
