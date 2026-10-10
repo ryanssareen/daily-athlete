@@ -23,12 +23,15 @@ import {
 
 const LOOKBACK_DAYS = 120;
 const FORM_CHART_DAYS = 28;
+const FORM_CHART_LONG_DAYS = 90;
 
 export interface TrainingOverview {
   ctl: number;
   atl: number;
   tsb: number;
   series: LoadDayPoint[];
+  /** 90-day form series for the mobile 90d toggle. */
+  seriesLong: LoadDayPoint[];
   weekly: WeeklyBucket[];
   sports: SportRow[];
   last28: Last28;
@@ -89,6 +92,7 @@ export async function getTrainingOverview(
   }));
 
   const chartFrom = addDays(today, -(FORM_CHART_DAYS - 1));
+  const chartFromLong = addDays(today, -(FORM_CHART_LONG_DAYS - 1));
   const manual = (profileRes.data?.manual_fields ?? {}) as {
     target_event?: { type?: string; date?: string; name?: string };
   };
@@ -105,6 +109,7 @@ export async function getTrainingOverview(
     atl: load.atl,
     tsb: load.tsb,
     series: load.series.filter((p) => p.date >= chartFrom),
+    seriesLong: load.series.filter((p) => p.date >= chartFromLong),
     weekly: weeklyBuckets(workouts, today),
     sports: bySport(workouts, today),
     last28: last28(workouts, today),
