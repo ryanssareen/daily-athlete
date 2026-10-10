@@ -52,7 +52,10 @@ class ScreenHeader extends StatelessWidget {
 
 /// Opens Settings, which is no longer a tab.
 class SettingsAvatarButton extends StatelessWidget {
-  const SettingsAvatarButton({super.key});
+  const SettingsAvatarButton({super.key, this.initial});
+
+  /// First name; its first letter is shown, else a person icon.
+  final String? initial;
 
   @override
   Widget build(BuildContext context) {
@@ -63,13 +66,27 @@ class SettingsAvatarButton extends StatelessWidget {
       child: InkResponse(
         radius: 24,
         onTap: () => context.push(Routes.settings),
-        child: CircleAvatar(
-          radius: 18,
-          backgroundColor: scheme.secondaryContainer,
-          child: Icon(
-            Icons.person_outline,
-            size: 20,
-            color: scheme.onSecondaryContainer,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: scheme.secondaryContainer,
+              child: initial != null && initial!.isNotEmpty
+                  ? Text(
+                      initial!.characters.first.toUpperCase(),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: scheme.onSecondaryContainer),
+                    )
+                  : Icon(
+                      Icons.person_outline,
+                      size: 20,
+                      color: scheme.onSecondaryContainer,
+                    ),
+            ),
           ),
         ),
       ),

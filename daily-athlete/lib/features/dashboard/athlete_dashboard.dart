@@ -54,7 +54,7 @@ class AthleteDashboard extends ConsumerWidget {
               streakDays: data.streakDays,
               distanceUnit: unit,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             PlanCard(
               plan: data.activePlan,
               race: overview?.race,
@@ -63,7 +63,7 @@ class AthleteDashboard extends ConsumerWidget {
               now: now,
             ),
             if (overview != null && overview.hasData) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               FormCard(overview: overview),
             ],
             const SizedBox(height: 16),
@@ -90,7 +90,7 @@ class AthleteDashboard extends ConsumerWidget {
             ScreenHeader(
               eyebrow: eyebrowDate(now),
               title: name == null ? '$greeting.' : '$greeting, $name.',
-              trailing: const SettingsAvatarButton(),
+              trailing: SettingsAvatarButton(initial: name),
             ),
             Expanded(child: content),
           ],

@@ -11,6 +11,7 @@ class DaTheme extends ThemeExtension<DaTheme> {
     required this.eyebrow,
     required this.metricLarge,
     required this.metric,
+    required this.metricSmall,
   });
 
   final Color clay;
@@ -25,6 +26,9 @@ class DaTheme extends ThemeExtension<DaTheme> {
   /// Mono 14 w600, tabular figures.
   final TextStyle metric;
 
+  /// Mono 12/16 w400 for durations, distances and axis labels.
+  final TextStyle metricSmall;
+
   Color sportColor(Sport sport) => sport.color;
 
   static const _tabular = [FontFeature.tabularFigures()];
@@ -37,7 +41,7 @@ class DaTheme extends ThemeExtension<DaTheme> {
         fontFamily: 'GeistMono',
         fontSize: 11,
         height: 16 / 11,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
         letterSpacing: 11 * 0.18,
       ),
       metricLarge: const TextStyle(
@@ -50,9 +54,16 @@ class DaTheme extends ThemeExtension<DaTheme> {
       ),
       metric: const TextStyle(
         fontFamily: 'GeistMono',
-        fontSize: 14,
-        height: 20 / 14,
-        fontWeight: FontWeight.w600,
+        fontSize: 15,
+        height: 20 / 15,
+        fontWeight: FontWeight.w500,
+        fontFeatures: _tabular,
+      ),
+      metricSmall: const TextStyle(
+        fontFamily: 'GeistMono',
+        fontSize: 12,
+        height: 16 / 12,
+        fontWeight: FontWeight.w400,
         fontFeatures: _tabular,
       ),
     );
@@ -65,6 +76,7 @@ class DaTheme extends ThemeExtension<DaTheme> {
     TextStyle? eyebrow,
     TextStyle? metricLarge,
     TextStyle? metric,
+    TextStyle? metricSmall,
   }) {
     return DaTheme(
       clay: clay ?? this.clay,
@@ -72,6 +84,7 @@ class DaTheme extends ThemeExtension<DaTheme> {
       eyebrow: eyebrow ?? this.eyebrow,
       metricLarge: metricLarge ?? this.metricLarge,
       metric: metric ?? this.metric,
+      metricSmall: metricSmall ?? this.metricSmall,
     );
   }
 
@@ -84,6 +97,7 @@ class DaTheme extends ThemeExtension<DaTheme> {
       eyebrow: TextStyle.lerp(eyebrow, other.eyebrow, t)!,
       metricLarge: TextStyle.lerp(metricLarge, other.metricLarge, t)!,
       metric: TextStyle.lerp(metric, other.metric, t)!,
+      metricSmall: TextStyle.lerp(metricSmall, other.metricSmall, t)!,
     );
   }
 }

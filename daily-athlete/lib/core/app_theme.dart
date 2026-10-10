@@ -74,6 +74,7 @@ TextTheme _textTheme(TextTheme base) {
       fontSize: 28,
       height: 34 / 28,
       fontWeight: FontWeight.w600,
+      letterSpacing: -0.56,
     ),
     titleMedium: base.titleMedium?.copyWith(
       fontSize: 16,
@@ -81,6 +82,7 @@ TextTheme _textTheme(TextTheme base) {
       fontWeight: FontWeight.w600,
     ),
     bodyMedium: base.bodyMedium?.copyWith(fontSize: 15, height: 20 / 15),
+    bodySmall: base.bodySmall?.copyWith(fontSize: 13, height: 18 / 13),
     labelMedium: base.labelMedium?.copyWith(
       fontSize: 12,
       height: 16 / 12,
@@ -98,6 +100,40 @@ ThemeData _build(ColorScheme scheme, {required Color clay, required Color outlin
     fontFamily: 'Geist',
     scaffoldBackgroundColor: scheme.surface,
     useMaterial3: true,
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: scheme.inverseSurface,
+        foregroundColor: scheme.onInverseSurface,
+        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 44),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: outlineStrong),
+        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 44),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: scheme.primary,
+        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 44),
+      ),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        side: WidgetStatePropertyAll(BorderSide(color: outlineStrong)),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? scheme.primaryContainer : null,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? scheme.onPrimaryContainer : scheme.onSurface,
+        ),
+      ),
+    ),
     cardTheme: CardThemeData(
       color: scheme.surfaceContainerLow,
       elevation: 0,

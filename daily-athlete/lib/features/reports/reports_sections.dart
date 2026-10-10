@@ -225,7 +225,7 @@ class _FormChartCardState extends State<FormChartCard> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final series = _range == 0 ? widget.overview.series : widget.overview.seriesLong;
-    final colors = [scheme.primary, scheme.secondary, scheme.outline];
+    final colors = [scheme.secondary, context.da.clay, scheme.onSurfaceVariant];
     List<FlSpot> spots(double Function(LoadPoint) f) =>
         [for (var i = 0; i < series.length; i++) FlSpot(i.toDouble(), f(series[i]))];
     final lines = [spots((p) => p.ctl), spots((p) => p.atl), spots((p) => p.tsb)];
@@ -257,7 +257,7 @@ class _FormChartCardState extends State<FormChartCard> {
                             reservedSize: 32,
                             getTitlesWidget: (v, meta) => Text(
                               v.round().toString(),
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                              style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ),
                         ),
@@ -342,7 +342,7 @@ class WeeklyHoursCard extends StatelessWidget {
                       reservedSize: 28,
                       getTitlesWidget: (v, meta) => Text(
                         v.round().toString(),
-                        style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                        style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
                       ),
                     ),
                   ),
@@ -357,7 +357,7 @@ class WeeklyHoursCard extends StatelessWidget {
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
                             shortDate(recent[i].weekStart),
-                            style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                            style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
                           ),
                         );
                       },
@@ -401,7 +401,7 @@ class WeeklyHoursCard extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(width: 8, height: 8, decoration: BoxDecoration(color: s.color, shape: BoxShape.circle)),
+                    Container(width: 8, height: 8, decoration: BoxDecoration(color: s.color, borderRadius: BorderRadius.circular(2))),
                     const SizedBox(width: 6),
                     Text(s.displayName, style: textTheme.bodySmall),
                   ],

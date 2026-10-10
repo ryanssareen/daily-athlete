@@ -52,6 +52,7 @@ List<DayStripDay> buildWeekStrip(List<CompletedWorkoutRow> completed, DateTime n
       dayNumber: day.day,
       sports: sports,
       isToday: day == today,
+      isFuture: day.isAfter(today),
     );
   });
 }

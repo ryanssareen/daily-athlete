@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/da_theme.dart';
+
 /// Thin horizontal bar; [value] is 0..1 relative to the largest item.
 class LoadBar extends StatelessWidget {
   const LoadBar({super.key, required this.value, this.color, this.opacity = 1});
@@ -15,12 +17,12 @@ class LoadBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(3),
       child: Stack(
         children: [
-          Container(height: 6, color: scheme.surfaceContainerHighest),
+          Container(height: 6, color: scheme.surfaceContainer),
           FractionallySizedBox(
             widthFactor: value.clamp(0.0, 1.0),
             child: Container(
               height: 6,
-              color: (color ?? scheme.primary).withValues(alpha: opacity),
+              color: (color ?? context.da.clay).withValues(alpha: opacity),
             ),
           ),
         ],

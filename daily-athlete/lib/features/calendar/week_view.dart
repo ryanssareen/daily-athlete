@@ -20,6 +20,7 @@ import '../../models/user.dart';
 import '../dashboard/home_format.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
+import '../shared/dashed_border.dart';
 import '../shared/day_strip.dart';
 import '../shared/eyebrow.dart';
 import '../shared/sport_tile.dart';
@@ -104,6 +105,8 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
           letter: 'MTWTFSS'[i],
           dayNumber: widget.days[i].day,
           isToday: _isSameDay(widget.days[i], now),
+          isFuture: DateTime(widget.days[i].year, widget.days[i].month, widget.days[i].day)
+              .isAfter(DateTime(now.year, now.month, now.day)),
           sports: [
             for (final s in widget.weekMap[DateTime.utc(
                   widget.days[i].year,
@@ -251,8 +254,9 @@ class _RestRow extends StatelessWidget {
         : '${DateFormat.E().format(first).toUpperCase()} ${first.day} – ${DateFormat.E().format(last).toUpperCase()} ${last.day}';
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(color: scheme.outlineVariant, radius: 12),
+      child: DashedBorder(
+        color: context.da.outlineStrong,
+        radius: 12,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -375,7 +379,7 @@ class _WorkoutRow extends StatelessWidget {
                   summary.sport.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium,
+                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 if (isPlannedOnly)
                   Text('Planned', style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
@@ -391,7 +395,7 @@ class _WorkoutRow extends StatelessWidget {
                 if ((cw.distanceM ?? 0) > 0)
                   Text(
                     formatDistanceM(cw.distanceM!, unit),
-                    style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
                   ),
               ],
             ),
@@ -418,8 +422,9 @@ class _WorkoutRow extends StatelessWidget {
                 )
             : null,
         child: isPlannedOnly
-            ? CustomPaint(
-                painter: _DashedBorderPainter(color: summary.sport.color, radius: 16),
+            ? DashedBorder(
+                color: summary.sport.color,
+                radius: 16,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: onTap,
@@ -436,29 +441,3 @@ class _WorkoutRow extends StatelessWidget {
   }
 }
 
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)));
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        canvas.drawPath(metric.extractPath(distance, distance + 6), paint);
-        distance += 10;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter old) => old.color != color || old.radius != radius;
-}

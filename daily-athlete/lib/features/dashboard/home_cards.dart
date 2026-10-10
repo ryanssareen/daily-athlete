@@ -13,6 +13,7 @@ import '../settings/distance_format.dart';
 import '../shared/day_strip.dart';
 import '../shared/eyebrow.dart';
 import '../shared/sport_tile.dart';
+import '../shared/status_pill.dart';
 import 'home_format.dart';
 
 class _StatCell extends StatelessWidget {
@@ -73,7 +74,7 @@ class WeekHeroCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -148,7 +149,7 @@ class WeekHeroCard extends StatelessWidget {
                         Container(
                           width: 8,
                           height: 8,
-                          decoration: BoxDecoration(color: e.key.color, shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: e.key.color, borderRadius: BorderRadius.circular(2)),
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -205,7 +206,7 @@ class PlanCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -250,7 +251,7 @@ class PlanCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('$days', style: context.da.metricLarge),
+                      Text('$days', style: context.da.metricLarge.copyWith(color: context.da.clay)),
                       Text(
                         'days to go',
                         style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
@@ -304,7 +305,6 @@ class FormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final spots = [
       for (var i = 0; i < overview.series.length; i++)
         FlSpot(i.toDouble(), overview.series[i].tsb),
@@ -315,7 +315,7 @@ class FormCard extends StatelessWidget {
       child: InkWell(
         onTap: () => context.go(Routes.reports),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -326,12 +326,11 @@ class FormCard extends StatelessWidget {
                 children: [
                   Text(signed1(overview.tsb), style: context.da.metricLarge),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: StatusPill(
                       formVerdict(overview.tsb),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                      filled: overview.tsb >= -10,
                     ),
                   ),
                 ],
@@ -433,7 +432,7 @@ class RecentSection extends StatelessWidget {
                                   workouts[i].sport.displayName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: textTheme.titleMedium,
+                                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                                 ),
                                 Text(
                                   relativeDayLabel(workouts[i].startedAt, now),
@@ -450,7 +449,7 @@ class RecentSection extends StatelessWidget {
                               if ((workouts[i].distanceM ?? 0) > 0)
                                 Text(
                                   formatDistanceM(workouts[i].distanceM!, distanceUnit),
-                                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                                  style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
                                 ),
                             ],
                           ),

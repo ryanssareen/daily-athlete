@@ -61,14 +61,14 @@ class ReportsListScreen extends ConsumerWidget {
                         if (hasOverview) ...[
                           KpiGrid(overview: overview),
                           if (overview.race != null) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             GoalEventStrip(race: overview.race!),
                           ],
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           FormChartCard(overview: overview),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           WeeklyHoursCard(weekly: overview.weekly),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           BySportCard(sports: overview.sports),
                           const SizedBox(height: 20),
                         ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/da_theme.dart';
 import '../../models/sport.dart';
+import 'dashed_border.dart';
 
 class DayStripDay {
   const DayStripDay({
@@ -9,12 +10,14 @@ class DayStripDay {
     required this.dayNumber,
     this.sports = const [],
     this.isToday = false,
+    this.isFuture = false,
   });
 
   final String letter;
   final int dayNumber;
   final List<Sport> sports;
   final bool isToday;
+  final bool isFuture;
 }
 
 /// Seven-day row: weekday letter, date number and a dot per sport done.
@@ -47,20 +50,24 @@ class DayStrip extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: days[i].isToday ? scheme.primary : null,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${days[i].dayNumber}',
-                          style: context.da.metric.copyWith(
-                            color: days[i].isToday ? scheme.onPrimary : scheme.onSurface,
+                    DashedBorder(
+                      color: days[i].isFuture ? context.da.outlineStrong : Colors.transparent,
+                      radius: 14,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: days[i].isToday ? context.da.clay : null,
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '${days[i].dayNumber}',
+                            style: context.da.metric.copyWith(
+                              color: days[i].isToday ? scheme.onPrimary : scheme.onSurface,
+                            ),
                           ),
                         ),
                       ),
