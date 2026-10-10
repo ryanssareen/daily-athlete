@@ -30,7 +30,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: notifier,
     redirect: (context, state) {
       if (state.uri.scheme == 'da2') {
-        return state.uri.host == 'strava-oauth' ? Routes.settings : Routes.loading;
+        return state.uri.host == 'strava-oauth'
+            ? Routes.settings
+            : Routes.loading;
       }
       final authAsync = ref.read(authNotifierProvider);
       return authAsync.when(
@@ -50,22 +52,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
-      GoRoute(
-        path: '/',
-        redirect: (_, __) => Routes.dashboard,
-      ),
-      GoRoute(
-        path: Routes.loading,
-        builder: (_, __) => const _LoadingScreen(),
-      ),
-      GoRoute(
-        path: Routes.signIn,
-        builder: (_, __) => const SignInScreen(),
-      ),
-      GoRoute(
-        path: Routes.signUp,
-        builder: (_, __) => const SignUpScreen(),
-      ),
+      GoRoute(path: '/', redirect: (_, __) => Routes.dashboard),
+      GoRoute(path: Routes.loading, builder: (_, __) => const _LoadingScreen()),
+      GoRoute(path: Routes.signIn, builder: (_, __) => const SignInScreen()),
+      GoRoute(path: Routes.signUp, builder: (_, __) => const SignUpScreen()),
+      GoRoute(path: Routes.settings, builder: (_, __) => const SettingsTab()),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
@@ -75,9 +66,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'athlete/:id',
-                builder: (_, state) => DashboardTab(
-                  athleteId: state.pathParameters['id'],
-                ),
+                builder: (_, state) =>
+                    DashboardTab(athleteId: state.pathParameters['id']),
               ),
             ],
           ),
@@ -109,18 +99,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
-            path: Routes.settings,
-            builder: (_, __) => const SettingsTab(),
-          ),
-          GoRoute(
             path: Routes.plans,
             builder: (_, __) => const PlanHistoryScreen(),
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, state) => PlanDetailScreen(
-                  planId: state.pathParameters['id']!,
-                ),
+                builder: (_, state) =>
+                    PlanDetailScreen(planId: state.pathParameters['id']!),
               ),
             ],
           ),
@@ -131,7 +116,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: ':kind/:periodKey',
                 builder: (_, state) {
-                  final kind = PeriodKind.fromString(state.pathParameters['kind']!);
+                  final kind = PeriodKind.fromString(
+                    state.pathParameters['kind']!,
+                  );
                   final periodKey = state.pathParameters['periodKey']!;
                   return ReportDetailScreen(kind: kind, periodKey: periodKey);
                 },
@@ -160,8 +147,6 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

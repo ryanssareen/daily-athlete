@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/planned_workout.dart';
 import '../../models/sport.dart';
 import '../settings/distance_format.dart';
+import '../shared/screen_header.dart';
 import '../settings/units_notifier.dart';
 import 'dashboard_providers.dart';
 
@@ -23,53 +24,74 @@ class AthleteDashboard extends ConsumerWidget {
         ? ref.watch(athleteDashboardProvider(athleteId!))
         : ref.watch(myDashboardProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(athleteId != null ? 'Athlete Dashboard' : 'Dashboard'),
-        centerTitle: false,
-      ),
-      body: dataAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) {
-          debugPrint(
-            'AthleteDashboard: failed to load ${athleteId != null ? 'athleteDashboardProvider($athleteId)' : 'myDashboardProvider'} — $err\n$stack',
-          );
-          return Center(
-            child: _ErrorView(
-              error: err.toString(),
-              onRetry: () {
-                if (athleteId != null) {
-                  ref.invalidate(athleteDashboardProvider(athleteId!));
-                } else {
-                  ref.invalidate(myDashboardProvider);
-                }
-              },
-            ),
-          );
-        },
-        data: (data) => RefreshIndicator(
-          onRefresh: () async {
-            if (athleteId != null) {
-              ref.invalidate(athleteDashboardProvider(athleteId!));
-              await ref.read(athleteDashboardProvider(athleteId!).future);
-            } else {
-              ref.invalidate(myDashboardProvider);
-              await ref.read(myDashboardProvider.future);
-            }
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: [
-              _StreakBanner(streakDays: data.streakDays),
-              const SizedBox(height: 12),
-              _WeeklySummaryCard(stats: data.weeklyStats),
-              const SizedBox(height: 12),
-              if (data.nextWorkout != null)
-                _NextWorkoutCard(workout: data.nextWorkout!)
-              else
-                _NoUpcomingCard(),
-            ],
+    final isOwnHome = athleteId == null;
+
+    final content = dataAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) {
+        debugPrint(
+          'AthleteDashboard: failed to load ${athleteId != null ? 'athleteDashboardProvider($athleteId)' : 'myDashboardProvider'} — $err\n$stack',
+        );
+        return Center(
+          child: _ErrorView(
+            error: err.toString(),
+            onRetry: () {
+              if (athleteId != null) {
+                ref.invalidate(athleteDashboardProvider(athleteId!));
+              } else {
+                ref.invalidate(myDashboardProvider);
+              }
+            },
           ),
+        );
+      },
+      data: (data) => RefreshIndicator(
+        onRefresh: () async {
+          if (athleteId != null) {
+            ref.invalidate(athleteDashboardProvider(athleteId!));
+            await ref.read(athleteDashboardProvider(athleteId!).future);
+          } else {
+            ref.invalidate(myDashboardProvider);
+            await ref.read(myDashboardProvider.future);
+          }
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            _StreakBanner(streakDays: data.streakDays),
+            const SizedBox(height: 12),
+            _WeeklySummaryCard(stats: data.weeklyStats),
+            const SizedBox(height: 12),
+            if (data.nextWorkout != null)
+              _NextWorkoutCard(workout: data.nextWorkout!)
+            else
+              _NoUpcomingCard(),
+          ],
+        ),
+      ),
+    );
+
+    if (!isOwnHome) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Athlete Dashboard'),
+          centerTitle: false,
+        ),
+        body: content,
+      );
+    }
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            ScreenHeader(
+              eyebrow: eyebrowDate(DateTime.now()),
+              title: 'Home',
+              trailing: const SettingsAvatarButton(),
+            ),
+            Expanded(child: content),
+          ],
         ),
       ),
     );
@@ -96,8 +118,11 @@ class _StreakBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(Icons.local_fire_department,
-                color: theme.colorScheme.onPrimaryContainer, size: 28),
+            Icon(
+              Icons.local_fire_department,
+              color: theme.colorScheme.onPrimaryContainer,
+              size: 28,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -156,14 +181,19 @@ class _WeeklySummaryCard extends StatelessWidget {
               const SizedBox(height: 12),
               const Divider(height: 1),
               const SizedBox(height: 10),
-              Text('Distance by sport',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                'Distance by sport',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 8),
-              ...stats.distanceBySport.entries.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: _DistanceRow(sport: e.key, meters: e.value),
-                  )),
+              ...stats.distanceBySport.entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: _DistanceRow(sport: e.key, meters: e.value),
+                ),
+              ),
             ],
           ],
         ),
@@ -173,8 +203,11 @@ class _WeeklySummaryCard extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip(
-      {required this.icon, required this.label, required this.value});
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   final IconData icon;
   final String label;
@@ -197,9 +230,12 @@ class _StatChip extends StatelessWidget {
               children: [
                 Icon(icon, size: 16, color: theme.colorScheme.primary),
                 const SizedBox(width: 4),
-                Text(label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -224,12 +260,14 @@ class _DistanceRow extends ConsumerWidget {
     final display = formatDistanceM(meters, unit);
     return Row(
       children: [
-        Text(sport.displayName,
-            style: theme.textTheme.bodyMedium),
+        Text(sport.displayName, style: theme.textTheme.bodyMedium),
         const Spacer(),
-        Text(display,
-            style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600)),
+        Text(
+          display,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -269,15 +307,17 @@ class _NextWorkoutCard extends StatelessWidget {
                     children: [
                       Text(
                         workout.sport.displayName,
-                        style: theme.textTheme.bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       if (workout.rationale != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           workout.rationale!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant),
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -334,14 +374,17 @@ class _NoUpcomingCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(Icons.calendar_today_outlined,
-                color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.calendar_today_outlined,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'No upcoming workouts scheduled.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -369,17 +412,25 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_outlined,
-              size: 56, color: theme.colorScheme.error),
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 56,
+            color: theme.colorScheme.error,
+          ),
           const SizedBox(height: 16),
-          Text('Failed to load dashboard',
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center),
+          Text(
+            'Failed to load dashboard',
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
-          Text(error,
-              style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant),
-              textAlign: TextAlign.center),
+          Text(
+            error,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: onRetry,

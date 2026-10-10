@@ -3,6 +3,7 @@
 // the athlete has ever had (active + archived), newest first. Tapping a row
 // opens plan_detail_screen.dart for that plan.
 
+import '../shared/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,32 +20,41 @@ class PlanHistoryScreen extends ConsumerWidget {
     final plansAsync = ref.watch(planHistoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Your plans'), centerTitle: false),
-      body: plansAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: _ErrorView(
-            error: err.toString(),
-            onRetry: () => ref.invalidate(planHistoryProvider),
-          ),
-        ),
-        data: (plans) {
-          if (plans.isEmpty) {
-            return const _EmptyState();
-          }
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(planHistoryProvider);
-              await ref.read(planHistoryProvider.future);
-            },
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: plans.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, i) => _PlanRow(plan: plans[i]),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const ScreenHeader(title: 'Plan'),
+            Expanded(
+              child: plansAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(
+                  child: _ErrorView(
+                    error: err.toString(),
+                    onRetry: () => ref.invalidate(planHistoryProvider),
+                  ),
+                ),
+                data: (plans) {
+                  if (plans.isEmpty) {
+                    return const _EmptyState();
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(planHistoryProvider);
+                      await ref.read(planHistoryProvider.future);
+                    },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: plans.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, i) => _PlanRow(plan: plans[i]),
+                    ),
+                  );
+                },
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -80,8 +90,9 @@ class _PlanRow extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       _subtitle(plan),
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -89,7 +100,11 @@ class _PlanRow extends StatelessWidget {
               const SizedBox(width: 12),
               _StatusBadge(status: plan.status),
               const SizedBox(width: 4),
-              Icon(Icons.chevron_right, size: 18, color: theme.colorScheme.onSurfaceVariant),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ],
           ),
         ),
@@ -127,7 +142,9 @@ class _StatusBadge extends StatelessWidget {
       child: Text(
         isActive ? 'ACTIVE' : 'ARCHIVED',
         style: theme.textTheme.labelSmall?.copyWith(
-          color: isActive ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.onSurfaceVariant,
+          color: isActive
+              ? theme.colorScheme.onPrimaryContainer
+              : theme.colorScheme.onSurfaceVariant,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.4,
         ),
@@ -148,7 +165,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_note_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.event_note_outlined,
+              size: 48,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 16),
             Text('No plans yet', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
@@ -156,7 +177,9 @@ class _EmptyState extends StatelessWidget {
               "Once you generate a training plan, it'll show up here — "
               'including any plans you later archive or replace.',
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -179,17 +202,31 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_outlined, size: 48, color: theme.colorScheme.error),
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 48,
+            color: theme.colorScheme.error,
+          ),
           const SizedBox(height: 16),
-          Text('Could not load plans', style: theme.textTheme.titleMedium, textAlign: TextAlign.center),
+          Text(
+            'Could not load plans',
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
           Text(
             error,
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+          FilledButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
         ],
       ),
     );

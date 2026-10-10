@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../router/routes.dart';
 
-/// 5-tab bottom navigation shell. Identical tab bar for both athlete and coach.
+/// 5-tab bottom navigation shell (Home, Activities, Calendar, Plan, Reports).
+/// Settings opens from the avatar button on Home.
+/// Identical tab bar for both athlete and coach.
 /// Tab content widgets are role-aware internally.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -12,11 +14,36 @@ class AppShell extends ConsumerWidget {
   final Widget child;
 
   static const _tabs = [
-    (path: Routes.dashboard, icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Home'),
-    (path: Routes.activities, icon: Icons.directions_run_outlined, activeIcon: Icons.directions_run, label: 'Activities'),
-    (path: Routes.calendar, icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'Calendar'),
-    (path: Routes.reports, icon: Icons.insert_chart_outlined, activeIcon: Icons.insert_chart, label: 'Reports'),
-    (path: Routes.settings, icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings'),
+    (
+      path: Routes.dashboard,
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
+      label: 'Home',
+    ),
+    (
+      path: Routes.activities,
+      icon: Icons.directions_run_outlined,
+      activeIcon: Icons.directions_run,
+      label: 'Activities',
+    ),
+    (
+      path: Routes.calendar,
+      icon: Icons.calendar_month_outlined,
+      activeIcon: Icons.calendar_month,
+      label: 'Calendar',
+    ),
+    (
+      path: Routes.plans,
+      icon: Icons.event_note_outlined,
+      activeIcon: Icons.event_note,
+      label: 'Plan',
+    ),
+    (
+      path: Routes.reports,
+      icon: Icons.insert_chart_outlined,
+      activeIcon: Icons.insert_chart,
+      label: 'Reports',
+    ),
   ];
 
   int _selectedIndex(String location) {
@@ -33,18 +60,23 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (i) => context.go(_tabs[i].path),
-        destinations: _tabs
-            .map(
-              (t) => NavigationDestination(
-                icon: Icon(t.icon),
-                selectedIcon: Icon(t.activeIcon),
-                label: t.label,
-              ),
-            )
-            .toList(),
+      bottomNavigationBar: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.2,
+        child: NavigationBar(
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+          indicatorColor: Theme.of(context).colorScheme.primaryContainer,
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (i) => context.go(_tabs[i].path),
+          destinations: _tabs
+              .map(
+                (t) => NavigationDestination(
+                  icon: Icon(t.icon),
+                  selectedIcon: Icon(t.activeIcon),
+                  label: t.label,
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
