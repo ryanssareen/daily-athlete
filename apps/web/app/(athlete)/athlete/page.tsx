@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
+import { sportColor } from "@/components/training-overview/sport-colors";
+import { getGreeting } from "@/lib/greeting";
 import {
   getPlannedInRange,
   getRecentWorkouts,
@@ -48,41 +50,7 @@ function getSportEmoji(sport: string): string {
   return "⚡";
 }
 
-function getSportColor(sport: string): string {
-  const lower = sport.toLowerCase();
-  if (lower.includes("run")) return "#2d6a4f";
-  if (lower.includes("swim")) return "#2563eb";
-  if (lower.includes("bike") || lower.includes("ride")) return "#d97706";
-  if (lower.includes("strength")) return "var(--color-clay)";
-  if (lower.includes("mobility")) return "#0891b2";
-  return "var(--color-ink-subtle)";
-}
-
-// Exported for unit testing. Uses the athlete's own timezone, not the
-// server's (or the UTC fallback baked into users.timezone's DEFAULT) --
-// otherwise every athlete outside UTC gets a greeting for the wrong time
-// of day, and one that flips at the wrong moment relative to their actual
-// morning/afternoon/evening.
-export function getGreeting(timezone: string): string {
-  let hour: number;
-  try {
-    hour = Number(
-      new Date().toLocaleString("en-US", {
-        timeZone: timezone,
-        hour: "numeric",
-        hour12: false,
-      })
-    );
-  } catch {
-    // Intl throws RangeError for a syntactically invalid timezone. A
-    // corrupted or pre-migration users.timezone value must not take down
-    // the whole dashboard render -- fall back to the server clock.
-    hour = new Date().getUTCHours();
-  }
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
+export { getGreeting };
 
 function getFirstName(displayName: string | null, email: string): string {
   // Onboarding writes the athlete's chosen nickname into public.users.display_name.
@@ -533,7 +501,7 @@ export default async function AthleteDashboardPage() {
                         width: 4,
                         height: 28,
                         borderRadius: 2,
-                        background: getSportColor(p.sport),
+                        background: sportColor(p.sport),
                         flexShrink: 0,
                       }}
                     />
@@ -626,7 +594,7 @@ export default async function AthleteDashboardPage() {
                           style={{
                             width: `${pct}%`,
                             height: "100%",
-                            background: getSportColor(sport),
+                            background: sportColor(sport),
                             transition: "width 320ms ease",
                           }}
                         />
