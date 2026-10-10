@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/completed_workout.dart';
 import '../../models/planned_workout.dart';
 import '../../models/sport.dart';
 import '../settings/distance_format.dart';
@@ -64,11 +63,6 @@ class AthleteDashboard extends ConsumerWidget {
               _StreakBanner(streakDays: data.streakDays),
               const SizedBox(height: 12),
               _WeeklySummaryCard(stats: data.weeklyStats),
-              const SizedBox(height: 12),
-              _WeekScheduleCard(
-                planned: data.weekPlanned,
-                completed: data.weekCompleted,
-              ),
               const SizedBox(height: 12),
               if (data.nextWorkout != null)
                 _NextWorkoutCard(workout: data.nextWorkout!)
@@ -152,8 +146,9 @@ class _WeeklySummaryCard extends StatelessWidget {
                 _StatChip(
                   icon: Icons.event_available_outlined,
                   label: 'Done',
-                  value:
-                      '${stats.completedCount} / ${stats.plannedCount}',
+                  value: stats.plannedCount == 0
+                      ? '${stats.completedCount}'
+                      : '${stats.completedCount} / ${stats.plannedCount}',
                 ),
               ],
             ),
@@ -236,63 +231,6 @@ class _DistanceRow extends ConsumerWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600)),
       ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Week schedule card (planned vs completed count as progress bar)
-// ---------------------------------------------------------------------------
-
-class _WeekScheduleCard extends StatelessWidget {
-  const _WeekScheduleCard(
-      {required this.planned, required this.completed});
-
-  final List<PlannedWorkoutRow> planned;
-  final List<CompletedWorkoutRow> completed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final pct = planned.isEmpty
-        ? 0.0
-        : (completed.length / planned.length).clamp(0.0, 1.0);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Week schedule', style: theme.textTheme.titleMedium),
-                Text('${completed.length} / ${planned.length}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 8,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              ),
-            ),
-            if (planned.isEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'No workouts scheduled this week.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
@@ -399,10 +337,12 @@ class _NoUpcomingCard extends StatelessWidget {
             Icon(Icons.calendar_today_outlined,
                 color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 12),
-            Text(
-              'No upcoming workouts scheduled.',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            Expanded(
+              child: Text(
+                'No upcoming workouts scheduled.',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
             ),
           ],
         ),

@@ -12,7 +12,7 @@ class AppShell extends ConsumerWidget {
   final Widget child;
 
   static const _tabs = [
-    (path: Routes.dashboard, icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
+    (path: Routes.dashboard, icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Home'),
     (path: Routes.activities, icon: Icons.directions_run_outlined, activeIcon: Icons.directions_run, label: 'Activities'),
     (path: Routes.calendar, icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'Calendar'),
     (path: Routes.reports, icon: Icons.insert_chart_outlined, activeIcon: Icons.insert_chart, label: 'Reports'),

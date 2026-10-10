@@ -204,7 +204,7 @@ class _ViewSwitcher extends StatelessWidget {
           _views.length,
           (i) => ButtonSegment<_CalendarView>(
             value: _views[i],
-            label: Text(_labels[i]),
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text(_labels[i], maxLines: 1)),
           ),
         ),
         selected: {current},

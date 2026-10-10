@@ -29,6 +29,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: Routes.loading,
     refreshListenable: notifier,
     redirect: (context, state) {
+      if (state.uri.scheme == 'da2') {
+        return state.uri.host == 'strava-oauth' ? Routes.settings : Routes.loading;
+      }
       final authAsync = ref.read(authNotifierProvider);
       return authAsync.when(
         loading: () => Routes.loading,
@@ -47,6 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
+      GoRoute(
+        path: '/',
+        redirect: (_, __) => Routes.dashboard,
+      ),
       GoRoute(
         path: Routes.loading,
         builder: (_, __) => const _LoadingScreen(),

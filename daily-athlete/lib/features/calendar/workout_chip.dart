@@ -4,8 +4,7 @@
 //
 // Planned workouts use a lighter shade (30% opacity) of the sport color.
 // Completed workouts use the full sport color.
-// Sport color map: run=orange, ride=blue, swim=cyan, strength=purple,
-// mobility=green, other=gray.
+// Colors come from Sport.color (the canonical palette shared with web).
 
 import 'package:flutter/material.dart';
 
@@ -16,27 +15,9 @@ import '../../models/sport.dart';
 // Sport color palette
 // ---------------------------------------------------------------------------
 
-/// Full-saturation sport color for completed workouts.
-Color sportColor(Sport sport) {
-  switch (sport) {
-    case Sport.run:
-      return const Color(0xFFFF8C00); // dark orange
-    case Sport.bike:
-      return const Color(0xFF1565C0); // blue[800]
-    case Sport.swim:
-      return const Color(0xFF00ACC1); // cyan[600]
-    case Sport.strength:
-      return const Color(0xFF7B1FA2); // purple[700]
-    case Sport.mobility:
-      return const Color(0xFF388E3C); // green[700]
-    case Sport.other:
-      return const Color(0xFF757575); // grey[600]
-  }
-}
-
 /// Lighter shade for planned (not yet completed) workouts.
 Color plannedSportColor(Sport sport) {
-  return sportColor(sport).withValues(alpha: 0.30);
+  return sport.color.withValues(alpha: 0.30);
 }
 
 // ---------------------------------------------------------------------------
@@ -85,8 +66,8 @@ class WorkoutChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        isCompleted ? sportColor(sport) : plannedSportColor(sport);
-    final textColor = isCompleted ? Colors.white : sportColor(sport);
+        isCompleted ? sport.color : plannedSportColor(sport);
+    final textColor = isCompleted ? Colors.white : sport.color;
 
     return GestureDetector(
       onTap: onTap,
@@ -115,7 +96,7 @@ class WorkoutChip extends StatelessWidget {
                 height: 8,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: isCompleted ? Colors.white : sportColor(sport),
+                    color: isCompleted ? Colors.white : sport.color,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -140,7 +121,7 @@ class SportDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        isCompleted ? sportColor(sport) : plannedSportColor(sport);
+        isCompleted ? sport.color : plannedSportColor(sport);
     return Container(
       width: 6,
       height: 6,
