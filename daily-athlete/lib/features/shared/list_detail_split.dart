@@ -14,7 +14,9 @@ class ListDetailSplit extends StatelessWidget {
     required this.detail,
     this.masterWidth,
     this.detailWidth,
-  }) : assert((masterWidth == null) != (detailWidth == null));
+    this.showDetail = true,
+  }) : assert((masterWidth == null) != (detailWidth == null)),
+       assert(showDetail || detailWidth != null);
 
   final Widget master;
   final Widget detail;
@@ -25,23 +27,31 @@ class ListDetailSplit extends StatelessWidget {
   /// Fixed width of the detail pane (master fills the rest).
   final double? detailWidth;
 
+  /// When false (fixed-width detail only), the detail pane collapses to zero
+  /// width so the master gets the whole screen until something is selected.
+  final bool showDetail;
+
   @override
   Widget build(BuildContext context) {
     if (context.layout != LayoutSize.expanded) return detail;
 
-    final divider = VerticalDivider(
-      width: 1,
-      thickness: 1,
-      color: Theme.of(context).colorScheme.outlineVariant,
-    );
+    // Child count and order stay constant so the master keeps its state when
+    // the detail pane opens or closes.
     return Row(
       children: [
         masterWidth != null
             ? SizedBox(width: masterWidth, child: master)
             : Expanded(child: master),
-        divider,
+        VerticalDivider(
+          width: showDetail ? 1 : 0,
+          thickness: showDetail ? 1 : 0,
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
         detailWidth != null
-            ? SizedBox(width: detailWidth, child: detail)
+            ? SizedBox(
+                width: showDetail ? detailWidth : 0,
+                child: ClipRect(child: detail),
+              )
             : Expanded(child: detail),
       ],
     );

@@ -125,26 +125,24 @@ class _SportFilterBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 40,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        itemCount: _sportTabs.length,
-        itemBuilder: (context, i) {
-          final tab = _sportTabs[i];
-          final isSelected = tab.sport == selected;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
+    // Wrap, not a horizontal list: in narrow panes (iPad split view, small
+    // phones) a scrolling row hides the trailing sports off-screen.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final tab in _sportTabs)
+            FilterChip(
               label: Text(tab.label),
-              selected: isSelected,
+              selected: tab.sport == selected,
+              showCheckmark: false,
               onSelected: (_) {
                 ref.read(sportFilterProvider.notifier).state = tab.sport;
               },
             ),
-          );
-        },
+        ],
       ),
     );
   }

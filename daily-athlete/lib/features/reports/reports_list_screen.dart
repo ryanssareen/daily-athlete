@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../calendar/year_heatmap_view.dart';
 import '../dashboard/overview_api.dart';
 import '../shared/eyebrow.dart';
 import '../shared/screen_header.dart';
@@ -38,8 +39,8 @@ class ReportsListScreen extends ConsumerWidget {
               bottom: Text(
                 'Where your training stands, and how each week went against your plan.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             Expanded(
@@ -53,38 +54,68 @@ class ReportsListScreen extends ConsumerWidget {
                   if (!hasAnyTraining(periods) && !hasOverview) {
                     return const _EmptyState();
                   }
+                  final reviews = [
+                    for (var i = 0; i < periods.length; i++)
+                      ReviewCard(
+                        summary: periods[i],
+                        previous: previousOfKind(periods, i),
+                        maxLoad: periods
+                            .where((p) => p.kind == periods[i].kind)
+                            .fold<double>(0, (a, p) => p.load > a ? p.load : a),
+                      ),
+                  ];
                   return RefreshIndicator(
                     onRefresh: refresh,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                      children: [
-                        if (hasOverview) ...[
-                          KpiGrid(overview: overview),
-                          if (overview.race != null) ...[
-                            const SizedBox(height: 16),
-                            GoalEventStrip(race: overview.race!),
-                          ],
-                          const SizedBox(height: 16),
-                          FormChartCard(overview: overview),
-                          const SizedBox(height: 16),
-                          WeeklyHoursCard(weekly: overview.weekly),
-                          const SizedBox(height: 16),
-                          BySportCard(sports: overview.sports),
-                          const SizedBox(height: 20),
-                        ],
-                        const Eyebrow('Weekly & monthly reviews'),
-                        const SizedBox(height: 8),
-                        for (var i = 0; i < periods.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 10),
-                          ReviewCard(
-                            summary: periods[i],
-                            previous: previousOfKind(periods, i),
-                            maxLoad: periods
-                                .where((p) => p.kind == periods[i].kind)
-                                .fold<double>(0, (a, p) => p.load > a ? p.load : a),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= _wideMinWidth;
+                        return ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            wide ? 28 : 20,
+                            8,
+                            wide ? 28 : 20,
+                            24,
                           ),
-                        ],
-                      ],
+                          children: [
+                            if (hasOverview) ...[
+                              KpiGrid(overview: overview),
+                              if (overview.race != null) ...[
+                                const SizedBox(height: 16),
+                                GoalEventStrip(race: overview.race!),
+                              ],
+                              const SizedBox(height: 16),
+                              if (wide) ...[
+                                _Pair(
+                                  left: FormChartCard(overview: overview),
+                                  right: BySportCard(sports: overview.sports),
+                                ),
+                                const SizedBox(height: 16),
+                                WeeklyHoursCard(weekly: overview.weekly),
+                                const SizedBox(height: 16),
+                                const _HeatmapCard(),
+                              ] else ...[
+                                FormChartCard(overview: overview),
+                                const SizedBox(height: 16),
+                                WeeklyHoursCard(weekly: overview.weekly),
+                                const SizedBox(height: 16),
+                                BySportCard(sports: overview.sports),
+                                const SizedBox(height: 16),
+                                const _HeatmapCard(),
+                              ],
+                              const SizedBox(height: 20),
+                            ],
+                            const Eyebrow('Weekly & monthly reviews'),
+                            const SizedBox(height: 8),
+                            if (wide)
+                              _ReviewGrid(cards: reviews)
+                            else
+                              for (var i = 0; i < reviews.length; i++) ...[
+                                if (i > 0) const SizedBox(height: 10),
+                                reviews[i],
+                              ],
+                          ],
+                        );
+                      },
                     ),
                   );
                 },
@@ -172,6 +203,72 @@ class _ErrorView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Content width at which Reports switches to a two-column dashboard.
+const double _wideMinWidth = 760;
+
+/// Two cards side by side, the left one wider (charts read better wide).
+class _Pair extends StatelessWidget {
+  const _Pair({required this.left, required this.right});
+
+  final Widget left;
+  final Widget right;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 3, child: left),
+        const SizedBox(width: 16),
+        Expanded(flex: 2, child: right),
+      ],
+    );
+  }
+}
+
+/// Year-at-a-glance training heatmap (the Calendar's Year view, in a card).
+class _HeatmapCard extends StatelessWidget {
+  const _HeatmapCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SectionCard(
+      title: 'Training heatmap',
+      note: 'Daily training time over the last 12 months.',
+      child: YearHeatmapView(),
+    );
+  }
+}
+
+class _ReviewGrid extends StatelessWidget {
+  const _ReviewGrid({required this.cards});
+
+  final List<Widget> cards;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < cards.length; i += 2) ...[
+          if (i > 0) const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cards[i]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: i + 1 < cards.length ? cards[i + 1] : const SizedBox(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -4,20 +4,39 @@
     {
       "name": "Next.js (web)",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@da2/web", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@da2/web",
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "Inngest dev server",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["inngest-cli@latest", "dev"],
+      "runtimeArgs": [
+        "inngest-cli@latest",
+        "dev"
+      ],
       "port": 8288
     },
     {
       "name": "Supabase local",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["supabase", "start"],
+      "runtimeArgs": [
+        "supabase",
+        "start"
+      ],
       "port": 54321
+    },
+    {
+      "name": "Next.js (web, local db)",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "eval \"$(supabase status -o env --override-name api.url=NEXT_PUBLIC_SUPABASE_URL --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY | sed 's/^/export /')\" && pnpm --filter @da2/web dev -p 3100"
+      ],
+      "port": 3100
     }
   ]
 }

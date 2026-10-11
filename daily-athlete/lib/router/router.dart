@@ -103,9 +103,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           ShellRoute(
-            builder: (_, _, child) => ListDetailSplit(
+            builder: (_, state, child) => ListDetailSplit(
               master: const CalendarTab(),
-              detailWidth: 380,
+              detailWidth: 340,
+              showDetail: state.uri.path != Routes.calendar,
               detail: child,
             ),
             routes: [

@@ -16,6 +16,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/da_theme.dart';
 import '../../models/activity_summary.dart';
+import '../../models/planned_workout.dart';
 import '../../models/user.dart';
 import '../dashboard/home_format.dart';
 import '../settings/distance_format.dart';
@@ -41,7 +42,8 @@ class WeekView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(calendarWeekRangeProvider);
     final weekDataAsync = ref.watch(calendarWeekDataProvider);
-    final isCoach = ref.watch(roleNotifierProvider).valueOrNull == RoleFlag.coach;
+    final isCoach =
+        ref.watch(roleNotifierProvider).valueOrNull == RoleFlag.coach;
     final days = List.generate(7, (i) => range.start.add(Duration(days: i)));
 
     return weekDataAsync.when(
@@ -94,32 +96,70 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
     final unit = ref.watch(unitsNotifierProvider).valueOrNull?.distance ?? 'km';
     final completed = [
       for (final d in widget.days)
-        ...(widget.weekMap[DateTime.utc(d.year, d.month, d.day)] ?? const <ActivitySummary>[])
+        ...(widget.weekMap[DateTime.utc(d.year, d.month, d.day)] ??
+                const <ActivitySummary>[])
             .where((s) => s.isCompleted),
     ];
-    final totalS = completed.fold<int>(0, (a, s) => a + (s.completed!.durationS ?? 0));
-    final totalM = completed.fold<double>(0, (a, s) => a + (s.completed!.distanceM ?? 0));
+    final totalS = completed.fold<int>(
+      0,
+      (a, s) => a + (s.completed!.durationS ?? 0),
+    );
+    final totalM = completed.fold<double>(
+      0,
+      (a, s) => a + (s.completed!.distanceM ?? 0),
+    );
     final strip = [
       for (var i = 0; i < 7; i++)
         DayStripDay(
           letter: 'MTWTFSS'[i],
           dayNumber: widget.days[i].day,
           isToday: _isSameDay(widget.days[i], now),
-          isFuture: DateTime(widget.days[i].year, widget.days[i].month, widget.days[i].day)
-              .isAfter(DateTime(now.year, now.month, now.day)),
+          isFuture: DateTime(
+            widget.days[i].year,
+            widget.days[i].month,
+            widget.days[i].day,
+          ).isAfter(DateTime(now.year, now.month, now.day)),
           sports: [
-            for (final s in widget.weekMap[DateTime.utc(
-                  widget.days[i].year,
-                  widget.days[i].month,
-                  widget.days[i].day,
-                )] ??
-                const <ActivitySummary>[])
+            for (final s
+                in widget.weekMap[DateTime.utc(
+                      widget.days[i].year,
+                      widget.days[i].month,
+                      widget.days[i].day,
+                    )] ??
+                    const <ActivitySummary>[])
               s.sport,
           ].toSet().toList(),
         ),
     ];
     final blocks = buildAgenda(widget.days, widget.weekMap, now);
+    final totalLine =
+        '${completed.length} sessions · ${fmtHm(totalS)} · ${formatDistanceM(totalM, unit)}';
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= _gridMinWidth) {
+          return _WeekGrid(
+            range: widget.range,
+            days: widget.days,
+            weekMap: widget.weekMap,
+            now: now,
+            isCoach: widget.isCoach,
+            unit: unit,
+            totalLine: totalLine,
+          );
+        }
+        return _buildAgendaList(strip, blocks, now, unit, totalLine);
+      },
+    );
+  }
+
+  Widget _buildAgendaList(
+    List<DayStripDay> strip,
+    List<AgendaBlock> blocks,
+    DateTime now,
+    String unit,
+    String totalLine,
+  ) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
@@ -127,39 +167,41 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
           range: widget.range,
           strip: strip,
           onDayTapped: _scrollTo,
-          totalLine:
-              '${completed.length} sessions · ${fmtHm(totalS)} · ${formatDistanceM(totalM, unit)}',
+          totalLine: totalLine,
         ),
         const SizedBox(height: 16),
         for (final block in blocks)
           switch (block) {
             AgendaRest() => _RestRow(key: _keys[block.firstIndex], rest: block),
             AgendaDay() => _DaySection(
-                key: _keys[block.index],
-                day: block,
-                now: now,
-                isCoach: widget.isCoach,
-                unit: unit,
-              ),
+              key: _keys[block.index],
+              day: block,
+              now: now,
+              isCoach: widget.isCoach,
+              unit: unit,
+            ),
           },
       ],
     );
   }
 
-  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 class _WeekNavCard extends ConsumerWidget {
   const _WeekNavCard({
     required this.range,
-    required this.strip,
-    required this.onDayTapped,
+    this.strip,
+    this.onDayTapped,
     required this.totalLine,
   });
 
   final ({DateTime start, DateTime end}) range;
-  final List<DayStripDay> strip;
-  final ValueChanged<int> onDayTapped;
+
+  /// Omitted in the grid layout, where the columns already show the days.
+  final List<DayStripDay>? strip;
+  final ValueChanged<int>? onDayTapped;
   final String totalLine;
 
   @override
@@ -193,7 +235,8 @@ class _WeekNavCard extends ConsumerWidget {
                 ),
               ],
             ),
-            DayStrip(days: strip, onTap: onDayTapped),
+            if (strip != null)
+              DayStrip(days: strip!, onTap: onDayTapped ?? (_) {}),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -201,7 +244,9 @@ class _WeekNavCard extends ConsumerWidget {
                 children: [
                   Text(
                     'WEEK TOTAL',
-                    style: context.da.eyebrow.copyWith(color: scheme.onSurfaceVariant),
+                    style: context.da.eyebrow.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -267,16 +312,17 @@ class _RestRow extends StatelessWidget {
                   range,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.da.eyebrow.copyWith(color: scheme.onSurfaceVariant),
+                  style: context.da.eyebrow.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 'Rest · ${rest.count} ${rest.count == 1 ? 'day' : 'days'}',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -303,9 +349,15 @@ class _DaySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isToday = day.date.year == now.year && day.date.month == now.month && day.date.day == now.day;
+    final isToday =
+        day.date.year == now.year &&
+        day.date.month == now.month &&
+        day.date.day == now.day;
     final done = day.workouts.where((s) => s.isCompleted).toList();
-    final doneS = done.fold<int>(0, (a, s) => a + (s.completed!.durationS ?? 0));
+    final doneS = done.fold<int>(
+      0,
+      (a, s) => a + (s.completed!.durationS ?? 0),
+    );
     final dow = DateFormat.E().format(day.date).toUpperCase();
     final title = '$dow ${day.date.day}${isToday ? ' · TODAY' : ''}';
 
@@ -318,7 +370,10 @@ class _DaySection extends StatelessWidget {
             children: [
               Expanded(child: Eyebrow(title)),
               if (done.isNotEmpty)
-                Text('${done.length} · ${fmtHm(doneS)}', style: context.da.metric),
+                Text(
+                  '${done.length} · ${fmtHm(doneS)}',
+                  style: context.da.metric,
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -327,19 +382,20 @@ class _DaySection extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               onTap: isCoach
                   ? () => showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => AssignWorkoutSheet(date: day.date),
-                      )
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => AssignWorkoutSheet(date: day.date),
+                    )
                   : null,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  isCoach ? 'Nothing planned. Tap to assign.' : 'Nothing planned.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+                  isCoach
+                      ? 'Nothing planned. Tap to assign.'
+                      : 'Nothing planned.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             )
@@ -379,10 +435,17 @@ class _WorkoutRow extends StatelessWidget {
                   summary.sport.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 if (isPlannedOnly)
-                  Text('Planned', style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  Text(
+                    'Planned',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -395,7 +458,9 @@ class _WorkoutRow extends StatelessWidget {
                 if ((cw.distanceM ?? 0) > 0)
                   Text(
                     formatDistanceM(cw.distanceM!, unit),
-                    style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
+                    style: context.da.metricSmall.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -403,23 +468,13 @@ class _WorkoutRow extends StatelessWidget {
       ),
     );
 
-    void onTap() {
-      if (cw != null) {
-        context.go('/activities/${cw.id}');
-      } else if (planned != null) {
-        context.go('/calendar/${planned.id}');
-      }
-    }
+    void onTap() => _openSummary(context, summary);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         onLongPress: isPlannedOnly
-            ? () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => WorkoutActionSheet(workout: planned),
-                )
+            ? () => _showPlannedActions(context, planned)
             : null,
         child: isPlannedOnly
             ? DashedBorder(
@@ -441,3 +496,270 @@ class _WorkoutRow extends StatelessWidget {
   }
 }
 
+void _openSummary(BuildContext context, ActivitySummary summary) {
+  final cw = summary.completed;
+  final planned = summary.planned;
+  if (cw != null) {
+    context.go('/activities/${cw.id}');
+  } else if (planned != null) {
+    context.go('/calendar/${planned.id}');
+  }
+}
+
+void _showPlannedActions(BuildContext context, PlannedWorkoutRow planned) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => WorkoutActionSheet(workout: planned),
+  );
+}
+
+/// Narrowest pane that still fits seven readable day columns (~60px each).
+const double _gridMinWidth = 460;
+
+/// Tablet week: seven day columns side by side instead of a vertical agenda.
+class _WeekGrid extends StatelessWidget {
+  const _WeekGrid({
+    required this.range,
+    required this.days,
+    required this.weekMap,
+    required this.now,
+    required this.isCoach,
+    required this.unit,
+    required this.totalLine,
+  });
+
+  final ({DateTime start, DateTime end}) range;
+  final List<DateTime> days;
+  final Map<DateTime, List<ActivitySummary>> weekMap;
+  final DateTime now;
+  final bool isCoach;
+  final String unit;
+  final String totalLine;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      children: [
+        _WeekNavCard(range: range, totalLine: totalLine),
+        const SizedBox(height: 16),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < 7; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                Expanded(
+                  child: _GridDay(
+                    date: days[i],
+                    workouts:
+                        weekMap[DateTime.utc(
+                          days[i].year,
+                          days[i].month,
+                          days[i].day,
+                        )] ??
+                        const <ActivitySummary>[],
+                    now: now,
+                    isCoach: isCoach,
+                    unit: unit,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GridDay extends StatelessWidget {
+  const _GridDay({
+    required this.date,
+    required this.workouts,
+    required this.now,
+    required this.isCoach,
+    required this.unit,
+  });
+
+  final DateTime date;
+  final List<ActivitySummary> workouts;
+  final DateTime now;
+  final bool isCoach;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(date.year, date.month, date.day);
+    final isToday = day == today;
+    final isPast = day.isBefore(today);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 320),
+      padding: const EdgeInsets.fromLTRB(6, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: isToday ? scheme.surfaceContainerLow : scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(14),
+        border: isToday ? Border.all(color: context.da.clay, width: 1.5) : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            DateFormat.E().format(date),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: isToday
+                  ? BoxDecoration(
+                      color: context.da.clay,
+                      shape: BoxShape.circle,
+                    )
+                  : null,
+              child: Text(
+                '${date.day}',
+                style: context.da.metric.copyWith(
+                  color: isToday ? Colors.white : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (workouts.isEmpty)
+            _GridEmpty(date: date, isCoach: isCoach, isPast: isPast)
+          else
+            for (final s in workouts) _GridCell(summary: s),
+        ],
+      ),
+    );
+  }
+}
+
+class _GridEmpty extends StatelessWidget {
+  const _GridEmpty({
+    required this.date,
+    required this.isCoach,
+    required this.isPast,
+  });
+
+  final DateTime date;
+  final bool isCoach;
+  final bool isPast;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = Text(
+      isCoach ? 'Assign' : (isPast ? 'Rest' : '—'),
+      textAlign: TextAlign.center,
+      style: Theme.of(
+        context,
+      ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+    );
+    if (!isCoach) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: label,
+      );
+    }
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => AssignWorkoutSheet(date: date),
+      ),
+      child: DashedBorder(
+        color: context.da.outlineStrong,
+        radius: 10,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: label,
+        ),
+      ),
+    );
+  }
+}
+
+class _GridCell extends StatelessWidget {
+  const _GridCell({required this.summary});
+
+  final ActivitySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final planned = summary.planned;
+    final isPlannedOnly = planned != null && !summary.isCompleted;
+    final cw = summary.completed;
+    final sport = summary.sport;
+
+    final content = Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(sportIcon(sport), size: 16, color: sport.color),
+          const SizedBox(height: 4),
+          Text(
+            sport.displayName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
+          ),
+          Text(
+            cw != null ? fmtHm(cw.durationS ?? 0) : 'Planned',
+            maxLines: 1,
+            style: context.da.metricSmall.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final tile = isPlannedOnly
+        ? DashedBorder(
+            color: sport.color,
+            radius: 10,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _openSummary(context, summary),
+              child: content,
+            ),
+          )
+        : Material(
+            color: sport.color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _openSummary(context, summary),
+              child: content,
+            ),
+          );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: GestureDetector(
+        onLongPress: isPlannedOnly
+            ? () => _showPlannedActions(context, planned)
+            : null,
+        child: tile,
+      ),
+    );
+  }
+}
