@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/layout.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/sign_up_screen.dart';
@@ -16,6 +17,7 @@ import '../features/plans/plan_history_screen.dart';
 import '../features/reports/report_detail_screen.dart';
 import '../features/reports/reports_list_screen.dart';
 import '../features/settings/settings_tab.dart';
+import '../features/shared/list_detail_split.dart';
 import '../models/period_review.dart';
 import 'routes.dart';
 
@@ -71,30 +73,58 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(
-            path: Routes.activities,
-            builder: (_, __) => const ActivitiesTab(),
+          ShellRoute(
+            builder: (_, _, child) => ListDetailSplit(
+              master: const ActivitiesTab(),
+              masterWidth: 380,
+              detail: child,
+            ),
             routes: [
               GoRoute(
-                path: ':id',
-                builder: (_, state) {
-                  final id = state.pathParameters['id']!;
-                  final from =
-                      state.uri.queryParameters['from'] ?? 'activities';
-                  return ActivityDetailScreen(workoutId: id, from: from);
-                },
+                path: Routes.activities,
+                builder: (context, _) => context.layout == LayoutSize.expanded
+                    ? const DetailPlaceholder(
+                        icon: Icons.directions_run_outlined,
+                        message: 'Select an activity to see its details.',
+                      )
+                    : const ActivitiesTab(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) {
+                      final id = state.pathParameters['id']!;
+                      final from =
+                          state.uri.queryParameters['from'] ?? 'activities';
+                      return ActivityDetailScreen(workoutId: id, from: from);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
-          GoRoute(
-            path: Routes.calendar,
-            builder: (_, __) => const CalendarTab(),
+          ShellRoute(
+            builder: (_, _, child) => ListDetailSplit(
+              master: const CalendarTab(),
+              detailWidth: 380,
+              detail: child,
+            ),
             routes: [
               GoRoute(
-                path: ':id',
-                builder: (_, state) => PlannedWorkoutDetailScreen(
-                  workoutId: state.pathParameters['id']!,
-                ),
+                path: Routes.calendar,
+                builder: (context, _) => context.layout == LayoutSize.expanded
+                    ? const DetailPlaceholder(
+                        icon: Icons.event_outlined,
+                        message: 'Tap a workout to see it here.',
+                      )
+                    : const CalendarTab(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => PlannedWorkoutDetailScreen(
+                      workoutId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

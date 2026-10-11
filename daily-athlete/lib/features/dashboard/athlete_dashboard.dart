@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/layout.dart';
 import '../settings/units_notifier.dart';
 import '../shared/screen_header.dart';
 import 'dashboard_providers.dart';
@@ -22,7 +23,9 @@ class AthleteDashboard extends ConsumerWidget {
     final dataAsync = isOwnHome
         ? ref.watch(myDashboardProvider)
         : ref.watch(athleteDashboardProvider(athleteId!));
-    final overview = isOwnHome ? ref.watch(athleteOverviewProvider).valueOrNull : null;
+    final overview = isOwnHome
+        ? ref.watch(athleteOverviewProvider).valueOrNull
+        : null;
     final unit = ref.watch(unitsNotifierProvider).valueOrNull?.distance ?? 'km';
     final now = DateTime.now();
 
@@ -41,41 +44,91 @@ class AthleteDashboard extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, stack) {
         debugPrint('AthleteDashboard: failed to load — $err\n$stack');
-        return Center(child: _ErrorView(error: err.toString(), onRetry: refresh));
+        return Center(
+          child: _ErrorView(error: err.toString(), onRetry: refresh),
+        );
       },
-      data: (data) => RefreshIndicator(
-        onRefresh: refresh,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          children: [
-            WeekHeroCard(
-              completed: data.weekCompleted,
-              now: now,
-              streakDays: data.streakDays,
-              distanceUnit: unit,
+      data: (data) {
+        final hero = WeekHeroCard(
+          completed: data.weekCompleted,
+          now: now,
+          streakDays: data.streakDays,
+          distanceUnit: unit,
+        );
+        final plan = PlanCard(
+          plan: data.activePlan,
+          race: overview?.race,
+          aheadCount: data.plannedAheadCount,
+          nextWorkout: data.nextWorkout,
+          now: now,
+        );
+        final form = overview != null && overview.hasData
+            ? FormCard(overview: overview)
+            : null;
+        final recent = RecentSection(
+          workouts: data.recent,
+          now: now,
+          distanceUnit: unit,
+        );
+
+        if (context.layout != LayoutSize.compact) {
+          return RefreshIndicator(
+            onRefresh: refresh,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(28, 4, 28, 28),
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: Column(
+                        children: [hero, const SizedBox(height: 16), plan],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        children: [
+                          if (form != null) ...[
+                            form,
+                            const SizedBox(height: 16),
+                          ],
+                          recent,
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            PlanCard(
-              plan: data.activePlan,
-              race: overview?.race,
-              aheadCount: data.plannedAheadCount,
-              nextWorkout: data.nextWorkout,
-              now: now,
-            ),
-            if (overview != null && overview.hasData) ...[
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: refresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            children: [
+              hero,
               const SizedBox(height: 16),
-              FormCard(overview: overview),
+              plan,
+              if (form != null) ...[const SizedBox(height: 16), form],
+              const SizedBox(height: 16),
+              recent,
             ],
-            const SizedBox(height: 16),
-            RecentSection(workouts: data.recent, now: now, distanceUnit: unit),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
 
     if (!isOwnHome) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Athlete Dashboard'), centerTitle: false),
+        appBar: AppBar(
+          title: const Text('Athlete Dashboard'),
+          centerTitle: false,
+        ),
         body: content,
       );
     }
@@ -114,7 +167,11 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_outlined, size: 56, color: theme.colorScheme.error),
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 56,
+            color: theme.colorScheme.error,
+          ),
           const SizedBox(height: 16),
           Text(
             'Failed to load dashboard',
@@ -124,7 +181,9 @@ class _ErrorView extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             error,
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/layout.dart';
 import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activities_providers.dart';
@@ -48,9 +49,11 @@ class ActivityFeed extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.cloud_off_outlined,
-                          size: 56,
-                          color: Theme.of(context).colorScheme.error),
+                      Icon(
+                        Icons.cloud_off_outlined,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                       const SizedBox(height: 16),
                       const Text(
                         'Failed to load activities.',
@@ -60,15 +63,13 @@ class ActivityFeed extends ConsumerWidget {
                       Text(
                         '$err',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
                       FilledButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(activityFeedProvider),
+                        onPressed: () => ref.invalidate(activityFeedProvider),
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                       ),
@@ -82,8 +83,7 @@ class ActivityFeed extends ConsumerWidget {
                 return const _EmptyFeed();
               }
               return RefreshIndicator(
-                onRefresh: () =>
-                    ref.refresh(activityFeedProvider.future),
+                onRefresh: () => ref.refresh(activityFeedProvider.future),
                 child: ListView.separated(
                   padding: const EdgeInsets.only(bottom: 80),
                   itemCount: rows.length,
@@ -105,7 +105,13 @@ class ActivityFeed extends ConsumerWidget {
   }
 
   void _openDetail(BuildContext context, CompletedWorkoutRow workout) {
-    context.push('/activities/${workout.id}?from=activities');
+    final route = '/activities/${workout.id}?from=activities';
+    // Split view: replace the detail pane instead of stacking pages in it.
+    if (context.layout == LayoutSize.expanded) {
+      context.go(route);
+    } else {
+      context.push(route);
+    }
   }
 }
 
