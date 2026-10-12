@@ -206,6 +206,7 @@ export default async function AthleteActivitiesPage({
         <EmptyState />
       ) : (
         <div
+          className="activity-table"
           style={{
             background: "var(--color-paper)",
             border: "1px solid var(--color-border)",
@@ -215,10 +216,8 @@ export default async function AthleteActivitiesPage({
         >
           {/* Column header */}
           <div
+            className="activity-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "56px 36px 1fr repeat(5, minmax(80px, 100px))",
-              gap: 12,
               padding: "8px 20px",
               borderBottom: "1px solid var(--color-border)",
               background: "var(--color-canvas-soft)",
@@ -242,17 +241,14 @@ export default async function AthleteActivitiesPage({
                 key={w.id}
                 href={`/athlete/workouts/${w.id}?from=activities` as Route}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "56px 36px 1fr repeat(5, minmax(80px, 100px))",
                   alignItems: "center",
-                  gap: 12,
                   padding: "11px 20px",
                   borderBottom: i < workouts.length - 1 ? "1px solid var(--color-border)" : "none",
                   textDecoration: "none",
                   color: "inherit",
                   transition: "background 0.08s",
                 }}
-                className="activity-row"
+                className="activity-row activity-grid"
               >
                 {/* Date */}
                 <div>

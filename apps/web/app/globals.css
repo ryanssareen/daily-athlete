@@ -149,6 +149,30 @@ a {
 /* ---------- Activity table rows -------------------------------------- */
 .activity-row:hover { background: var(--color-canvas-soft); }
 
+/* Columns: date, sport icon, name, then up to 5 stats ordered by importance
+   (getStats in apps/web/app/(athlete)/athlete/activities/page.tsx). Sized against the
+   table's own width, not the viewport, because the app-shell sidebar eats
+   ~220px on desktop. As the table narrows, trailing stats drop off so the
+   name column keeps readable room instead of collapsing to a single letter. */
+.activity-table { container-type: inline-size; }
+.activity-grid {
+  display: grid;
+  grid-template-columns: 56px 36px minmax(140px, 1fr) repeat(5, minmax(72px, 100px));
+  gap: 12px;
+}
+@container (max-width: 880px) {
+  .activity-grid { grid-template-columns: 56px 36px minmax(120px, 1fr) repeat(3, minmax(64px, 90px)); }
+  .activity-grid > :nth-child(n + 7) { display: none; }
+}
+@container (max-width: 600px) {
+  .activity-grid { grid-template-columns: 56px 36px minmax(0, 1fr) repeat(2, minmax(56px, 72px)); }
+  .activity-grid > :nth-child(n + 6) { display: none; }
+}
+@container (max-width: 400px) {
+  .activity-grid { grid-template-columns: 56px 36px minmax(0, 1fr) minmax(56px, 72px); }
+  .activity-grid > :nth-child(n + 5) { display: none; }
+}
+
 /* ---------- Landing page responsive ---------------------------------- */
 .landing-navlink:hover {
   color: var(--color-ink);

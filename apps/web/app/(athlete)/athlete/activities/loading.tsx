@@ -13,6 +13,7 @@ export default function ActivitiesLoading() {
       </div>
 
       <div
+        className="activity-table"
         style={{
           background: "var(--color-paper)",
           border: "1px solid var(--color-border)",
@@ -32,11 +33,9 @@ export default function ActivitiesLoading() {
         {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
+            className="activity-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "56px 36px 1fr repeat(5, minmax(80px, 100px))",
               alignItems: "center",
-              gap: 12,
               padding: "11px 20px",
               borderBottom: i < 7 ? "1px solid var(--color-border)" : "none",
             }}
