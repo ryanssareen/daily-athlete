@@ -114,3 +114,39 @@ export function formatWorkoutDateTime(startedAt: string, timezone: string): stri
   });
   return `${dateStr} · ${timeStr}`;
 }
+
+/**
+ * Today's date in the browser's local timezone as `YYYY-MM-DD` — the default
+ * for an `<input type="date">`. Not `toISOString().split("T")[0]`, which is
+ * the UTC day and is wrong for anyone whose local date differs from UTC's
+ * (before 05:30 in IST, evenings west of UTC).
+ */
+export function localDay(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${d}`;
+}
+
+/**
+ * Converts a date-only manual-log entry (`YYYY-MM-DD`, from an
+ * `<input type="date">`) into the `started_at` instant sent to
+ * `/api/activities/manual`.
+ *
+ * The forms have no time picker, so the instant is chosen to land on the
+ * picked calendar day wherever it is rendered:
+ * - today → `now`, matching the mobile app's default for a just-finished session;
+ * - any other day → 12:00 in the browser's local timezone. Noon keeps the
+ *   session on the right day even when the profile timezone differs from the
+ *   browser's by up to ±12h (e.g. while travelling).
+ *
+ * Never `${day}T00:00:00Z`: UTC midnight renders as the previous evening for
+ * every athlete west of UTC once dates are shown in the athlete's timezone.
+ */
+export function manualStartedAt(day: string, now: Date = new Date()): string {
+  const [y, m, d] = day.split("-").map(Number);
+  const sameLocalDay =
+    now.getFullYear() === y && now.getMonth() + 1 === m && now.getDate() === d;
+  if (sameLocalDay) return now.toISOString();
+  return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+}

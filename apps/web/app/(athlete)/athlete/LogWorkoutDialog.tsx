@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { localDay, manualStartedAt } from "@/lib/format";
+
 const SPORTS = ["run", "swim", "bike", "strength", "mobility", "other"] as const;
 type Sport = (typeof SPORTS)[number];
 
@@ -27,7 +29,7 @@ export default function LogWorkoutDialog() {
   const [errorMsg, setErrorMsg] = useState("");
 
   function handleOpen() {
-    setDate(new Date().toISOString().split("T")[0]);
+    setDate(localDay());
     setErrorMsg("");
     setDurationMin("");
     setOpen(true);
@@ -53,7 +55,7 @@ export default function LogWorkoutDialog() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sport,
-          started_at: `${date}T00:00:00+00:00`,
+          started_at: manualStartedAt(date),
           duration_s: mins * 60,
         }),
         signal: AbortSignal.timeout(15_000),

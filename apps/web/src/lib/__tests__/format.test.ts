@@ -1,8 +1,8 @@
 // Unit tests for the timezone-aware helpers in src/lib/format.ts.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { calendarDayInTimezone } from "@/lib/format";
+import { calendarDayInTimezone, localDay, manualStartedAt } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // calendarDayInTimezone — which day did the athlete actually train?
@@ -45,5 +45,59 @@ describe("calendarDayInTimezone", () => {
 
   it("degrades to the leading date rather than throwing on an unparseable instant", () => {
     expect(calendarDayInTimezone("not-a-date", "Asia/Calcutta")).toBe("not-a-date");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// manualStartedAt — date-only manual log → started_at instant
+// ---------------------------------------------------------------------------
+
+describe("manualStartedAt", () => {
+  const originalTz = process.env.TZ;
+  afterEach(() => {
+    // Assigning undefined would set the literal string "undefined".
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  // Node re-reads TZ on assignment, so local-time Date methods follow it.
+  for (const tz of ["America/Los_Angeles", "America/New_York", "UTC", "Asia/Calcutta", "Pacific/Auckland"]) {
+    it(`keeps a past day on that day for an athlete in ${tz}`, () => {
+      process.env.TZ = tz;
+      const now = new Date("2026-10-12T09:00:00Z");
+      const startedAt = manualStartedAt("2026-10-05", now);
+      expect(calendarDayInTimezone(startedAt, tz)).toBe("2026-10-05");
+    });
+  }
+
+  it("uses local noon for a day other than today, not UTC midnight", () => {
+    process.env.TZ = "America/New_York";
+    // 12:00 EDT on Oct 5 == 16:00 UTC.
+    expect(manualStartedAt("2026-10-05", new Date("2026-10-12T15:00:00Z"))).toBe(
+      "2026-10-05T16:00:00.000Z",
+    );
+  });
+
+  it("uses the current instant when the picked day is today locally", () => {
+    process.env.TZ = "Asia/Calcutta";
+    // 08:39 IST on Oct 12 — still Oct 11 in UTC, but today for the athlete.
+    const now = new Date("2026-10-12T03:09:00Z");
+    expect(manualStartedAt("2026-10-12", now)).toBe(now.toISOString());
+  });
+
+  it("treats a west-of-UTC evening as today, not tomorrow (paired with localDay)", () => {
+    process.env.TZ = "America/Los_Angeles";
+    // 20:00 PDT on Oct 12 is already Oct 13 in UTC.
+    const now = new Date("2026-10-13T03:00:00Z");
+    expect(localDay(now)).toBe("2026-10-12");
+    expect(manualStartedAt(localDay(now), now)).toBe(now.toISOString());
+  });
+
+  it("stays within ±12h of the picked day's noon when browser and profile timezones differ", () => {
+    // Browser in London, profile still on Calcutta (travelling): the session
+    // must not drift onto a neighbouring day in the profile timezone.
+    process.env.TZ = "Europe/London";
+    const startedAt = manualStartedAt("2026-10-05", new Date("2026-10-12T09:00:00Z"));
+    expect(calendarDayInTimezone(startedAt, "Asia/Calcutta")).toBe("2026-10-05");
   });
 });

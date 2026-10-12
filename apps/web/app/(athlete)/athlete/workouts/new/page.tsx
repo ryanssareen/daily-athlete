@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 
+import { localDay, manualStartedAt } from "@/lib/format";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Sport = "run" | "swim" | "bike" | "strength" | "mobility" | "other";
@@ -29,14 +31,6 @@ function toMeters(value: number, unit: DistanceUnit): number {
   if (unit === "km") return value * 1000;
   if (unit === "mi") return value * 1609.344;
   return value;
-}
-
-function todayLocal(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${mo}-${day}`;
 }
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -89,7 +83,7 @@ export default function NewWorkoutPage() {
 
   const [sport, setSport]               = useState<Sport>("run");
   const [name, setName]                 = useState("");
-  const [date, setDate]                 = useState(todayLocal);
+  const [date, setDate]                 = useState(() => localDay());
   const [durationMin, setDurationMin]   = useState("");
   const [distanceVal, setDistanceVal]   = useState("");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("km");
@@ -124,7 +118,7 @@ export default function NewWorkoutPage() {
     try {
       const body: Record<string, unknown> = {
         sport,
-        started_at: `${date}T00:00:00+00:00`,
+        started_at: manualStartedAt(date),
         duration_s: mins * 60,
       };
       if (name.trim()) body.name = name.trim();
