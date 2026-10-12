@@ -39,8 +39,10 @@ import type {
 
 import { createAdminClient } from "@/db/admin";
 import { isCoupled } from "@/ai/adaptive/precedence";
+import { calendarDayInTimezone } from "@/lib/format";
 import {
   buildLoadSeries,
+  localizeLoadInputs,
   validateOps,
   type LoadState,
   type LoadWorkoutInput,
@@ -207,9 +209,25 @@ async function fetchCompletedWorkouts(
   }));
 }
 
-/** "Today" as YYYY-MM-DD (UTC). The validator's recent-edit + ramp reference. */
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * The athlete's zone. Re-validation must use the same athlete-local "today"
+ * the proposal was generated against (adaptive-run resolves asOf the same
+ * way); the UTC day disagrees with it before 05:30 IST or on evenings west of
+ * UTC. A read failure propagates rather than silently defaulting to UTC.
+ *
+ * service-role: explicit user filter required.
+ */
+async function fetchAthleteTimezone(
+  admin: SupabaseClient,
+  athleteId: string
+): Promise<string> {
+  const { data, error } = await admin
+    .from("users")
+    .select("timezone")
+    .eq("id", athleteId)
+    .maybeSingle();
+  if (error) throw new Error(`fetchAthleteTimezone failed: ${error.message}`);
+  return ((data as { timezone?: string | null } | null)?.timezone ?? "UTC") as string;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,15 +262,17 @@ export async function reValidateAndApply(
   // (acceptedEdits may be empty; the RPC handles a zero-op accept.)
 
   // 1. Build current load context (Node) and re-run validateOps.
-  const [plannedWorkouts, completedWorkouts] = await Promise.all([
+  const [plannedWorkouts, rawCompletedWorkouts, timezone] = await Promise.all([
     fetchPlannedWorkouts(admin, reviewRow.athlete_id),
     fetchCompletedWorkouts(admin, reviewRow.athlete_id),
+    fetchAthleteTimezone(admin, reviewRow.athlete_id),
   ]);
+  const completedWorkouts = localizeLoadInputs(rawCompletedWorkouts, timezone);
 
   const byId = new Map<string, ValidatablePlannedWorkout>();
   for (const w of plannedWorkouts) byId.set(w.id, w);
 
-  const asOf = todayKey();
+  const asOf = calendarDayInTimezone(new Date().toISOString(), timezone);
   const loadState: LoadState = buildLoadSeries(completedWorkouts, { asOf });
 
   const validatableOps: ValidatableOp[] = acceptedEdits.map((pe) =>

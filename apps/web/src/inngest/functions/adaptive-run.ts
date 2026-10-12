@@ -117,6 +117,7 @@ export const adaptiveRun = inngest.createFunction(
           recipient: ctx.recipient,
           proposer: new LlmProposer(createLlmClient()),
           asOf: ctx.asOf,
+          timezone: ctx.timezone,
         });
         return { outcome: r.outcome, opCount: r.opCount, droppedCount: r.droppedCount };
       } catch (err) {

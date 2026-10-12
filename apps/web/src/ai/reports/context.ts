@@ -60,9 +60,12 @@ import {
   readStructureLoad,
 } from "@/ai/planned-structure";
 
+import { zonedMidnightUtc } from "@/ai/period-reviews/calendar";
+import { calendarDayInTimezone } from "@/lib/format";
 import {
   addDays,
   buildLoadSeries,
+  localizeLoadInputs,
   toDayKey,
   type LoadState,
   type LoadWorkoutInput,
@@ -171,6 +174,9 @@ export interface GatherReportContextArgs {
   /** MUST be an authenticated caller's id, never client-supplied. */
   athleteId: string;
   completedWorkoutId: string;
+  /** Athlete's zone. The recent-load window ends on the workout's athlete-local
+   * day and history buckets on local days. Omitted -> UTC days. */
+  timezone?: string;
 }
 
 // Bounded history window for the recent-load read, mirroring
@@ -191,7 +197,7 @@ export const RECENT_LOAD_HISTORY_WINDOW_DAYS = 400;
 export async function gatherReportContext(
   args: GatherReportContextArgs
 ): Promise<ReportContext> {
-  const { supabase, athleteId, completedWorkoutId } = args;
+  const { supabase, athleteId, completedWorkoutId, timezone } = args;
 
   // The completed workout is read FIRST (not folded into the Promise.allSettled
   // batch below) because its `started_at` day anchors the recent-load window --
@@ -223,9 +229,15 @@ export async function gatherReportContext(
     superseded_by_id: completedRow.superseded_by_id,
   };
 
-  const asOfDay = toDayKey(completedWorkout.started_at);
-  const historyStart = addDays(asOfDay, -RECENT_LOAD_HISTORY_WINDOW_DAYS);
-  const historyEndExclusive = addDays(asOfDay, 1);
+  const asOfDay = timezone
+    ? calendarDayInTimezone(completedWorkout.started_at, timezone)
+    : toDayKey(completedWorkout.started_at);
+  // Bounds are local midnights resolved through the zone; a bare "YYYY-MM-DD"
+  // would be compared as UTC midnight and cut the athlete's day short.
+  const dayBound = (day: string) =>
+    timezone ? zonedMidnightUtc(timezone, day).toISOString() : day;
+  const historyStart = dayBound(addDays(asOfDay, -RECENT_LOAD_HISTORY_WINDOW_DAYS));
+  const historyEndExclusive = dayBound(addDays(asOfDay, 1));
 
   // Partial-failure isolation, mirroring adaptive/context.ts: gather the
   // remaining independent reads concurrently, but a rejection/error on any
@@ -274,11 +286,14 @@ export async function gatherReportContext(
 
   const loadHistory: LoadWorkoutInput[] =
     loadRes.status === "fulfilled" && !loadRes.value.error
-      ? ((loadRes.value.data ?? []) as RawCompletedHistoryRow[]).map((r) => ({
-          started_at: r.started_at,
-          duration_s: r.duration_s,
-          summary_stats: r.summary_stats,
-        }))
+      ? localizeLoadInputs(
+          ((loadRes.value.data ?? []) as RawCompletedHistoryRow[]).map((r) => ({
+            started_at: r.started_at,
+            duration_s: r.duration_s,
+            summary_stats: r.summary_stats,
+          })),
+          timezone
+        )
       : [];
 
   const recentLoad = buildLoadSeries(loadHistory, { asOf: asOfDay });

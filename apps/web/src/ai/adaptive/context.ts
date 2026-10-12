@@ -27,6 +27,7 @@ import type { EditBaseline, EditOp, PlannedWorkoutStatus } from "@da2/shared";
 
 import {
   buildLoadSeries,
+  localizeLoadInputs,
   type LoadState,
   type LoadWorkoutInput,
 } from "@/training-load/load-series";
@@ -81,6 +82,9 @@ export interface GatherContextArgs {
   athleteId: string;
   /** "today" as "YYYY-MM-DD" (athlete-local day, resolved by the caller). */
   asOf: string;
+  /** Athlete's zone, so completed workouts bucket on the same local days as
+   * `asOf`. Omitted -> UTC days (tests and legacy callers). */
+  timezone?: string;
 }
 
 /**
@@ -89,7 +93,7 @@ export interface GatherContextArgs {
  * profile / empty load history.
  */
 export async function gatherContext(args: GatherContextArgs): Promise<PlanContext> {
-  const { admin, athleteId, asOf } = args;
+  const { admin, athleteId, asOf, timezone } = args;
 
   // Partial-failure isolation: gather independent reads concurrently but never
   // let one rejection abort the others. A failed plan read IS fatal (handled
@@ -156,11 +160,14 @@ export async function gatherContext(args: GatherContextArgs): Promise<PlanContex
   // cold-start load state.
   const completedWorkouts: LoadWorkoutInput[] =
     completedRes.status === "fulfilled" && !completedRes.value.error
-      ? ((completedRes.value.data ?? []) as RawCompletedRow[]).map((r) => ({
-          started_at: r.started_at,
-          duration_s: r.duration_s,
-          summary_stats: r.summary_stats,
-        }))
+      ? localizeLoadInputs(
+          ((completedRes.value.data ?? []) as RawCompletedRow[]).map((r) => ({
+            started_at: r.started_at,
+            duration_s: r.duration_s,
+            summary_stats: r.summary_stats,
+          })),
+          timezone,
+        )
       : [];
 
   // Profile — tolerated; best-effort framing input only.

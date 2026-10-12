@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   addDays,
   buildLoadSeries,
+  localizeLoadInputs,
   dayDiff,
   type LoadWorkoutInput,
 } from "@/training-load";
@@ -60,7 +61,9 @@ export function derivePlanLoadContext(
 export async function gatherGenerationContext(
   admin: SupabaseClient,
   athleteId: string,
-  asOf: string
+  asOf: string,
+  /** Athlete's zone, so history buckets on the same local days as `asOf`. */
+  timezone?: string
 ): Promise<GenerationContext> {
   // service-role: explicit user filter required
   const { data, error } = await admin
@@ -73,11 +76,14 @@ export async function gatherGenerationContext(
     .gte("started_at", addDays(asOf, -HISTORY_WINDOW_DAYS));
   if (error) throw error;
 
-  const completed: LoadWorkoutInput[] = (data ?? []).map((row) => ({
-    started_at: row.started_at as string,
-    duration_s: (row.duration_s as number | null) ?? null,
-    summary_stats: row.summary_stats as Record<string, unknown> | null,
-  }));
+  const completed: LoadWorkoutInput[] = localizeLoadInputs(
+    (data ?? []).map((row) => ({
+      started_at: row.started_at as string,
+      duration_s: (row.duration_s as number | null) ?? null,
+      summary_stats: row.summary_stats as Record<string, unknown> | null,
+    })),
+    timezone
+  );
 
   return {
     load: derivePlanLoadContext(completed, asOf),

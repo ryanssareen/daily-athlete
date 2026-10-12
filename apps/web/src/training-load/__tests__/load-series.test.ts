@@ -6,6 +6,7 @@ import {
   computeWorkoutTss,
   dayDiff,
   durationProxyTss,
+  localizeLoadInputs,
   toDayKey,
   type LoadWorkoutInput,
 } from "@/training-load/load-series";
@@ -234,5 +235,51 @@ describe("buildLoadSeries — determinism", () => {
     ];
     const b = [...a].reverse();
     expect(buildLoadSeries(a)).toEqual(buildLoadSeries(b));
+  });
+});
+
+// --- localizeLoadInputs: bucket by the athlete's training day --------------
+
+describe("localizeLoadInputs", () => {
+  const w = (started_at: string): LoadWorkoutInput => ({
+    started_at,
+    duration_s: 3600,
+    summary_stats: { tss: 60 },
+  });
+
+  it("files an early-morning IST session on the local day, not the UTC day", () => {
+    // 05:00 IST on Oct 13 is still Oct 12 in UTC.
+    const [out] = localizeLoadInputs([w("2026-10-12T23:30:00Z")], "Asia/Calcutta");
+    expect(out.started_at).toBe("2026-10-13");
+  });
+
+  it("files an evening session west of UTC on the local day", () => {
+    // 20:00 PDT on Oct 12 is already Oct 13 in UTC.
+    const [out] = localizeLoadInputs([w("2026-10-13T03:00:00Z")], "America/Los_Angeles");
+    expect(out.started_at).toBe("2026-10-12");
+  });
+
+  it("passes bare YYYY-MM-DD synthetic efforts through unchanged", () => {
+    const input = w("2026-10-12");
+    expect(localizeLoadInputs([input], "Asia/Calcutta")[0]).toBe(input);
+  });
+
+  it("falls back to the UTC day for a missing or invalid zone", () => {
+    for (const tz of [undefined, null, "", "Not/AZone"]) {
+      expect(localizeLoadInputs([w("2026-10-12T23:30:00Z")], tz)[0].started_at).toBe(
+        "2026-10-12",
+      );
+    }
+  });
+
+  it("puts today's early-morning session on today's point of the series", () => {
+    // Without localizing, this run lands on Oct 12 and "today" (Oct 13, the
+    // athlete-local asOf) shows no load.
+    const series = buildLoadSeries(
+      localizeLoadInputs([w("2026-10-12T23:30:00Z")], "Asia/Calcutta"),
+      { asOf: "2026-10-13" },
+    ).series;
+    expect(series.at(-1)).toMatchObject({ date: "2026-10-13" });
+    expect(series.at(-1)!.tss).toBeGreaterThan(0);
   });
 });

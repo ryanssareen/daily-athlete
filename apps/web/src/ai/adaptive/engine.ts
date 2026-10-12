@@ -67,6 +67,8 @@ export interface RunEngineArgs {
   proposer: AdaptiveProposer;
   /** "today" as athlete-local "YYYY-MM-DD" (resolved by the caller). */
   asOf: string;
+  /** Athlete's zone; buckets completed load on the same local days as `asOf`. */
+  timezone?: string;
 }
 
 /**
@@ -76,7 +78,7 @@ export interface RunEngineArgs {
  * to a benign `no_active_plan` outcome (nothing to re-plan).
  */
 export async function runEngine(args: RunEngineArgs): Promise<EngineResult> {
-  const { admin, athleteId, triggerKind, scope, recipient, proposer, asOf } = args;
+  const { admin, athleteId, triggerKind, scope, recipient, proposer, asOf, timezone } = args;
 
   // 1. Precedence pre-check (plan-scoped only) — suppress BEFORE the LLM call.
   if (scope === "plan") {
@@ -89,7 +91,7 @@ export async function runEngine(args: RunEngineArgs): Promise<EngineResult> {
   // 2. Gather + snapshot context.
   let context: PlanContext;
   try {
-    context = await gatherContext({ admin, athleteId, asOf });
+    context = await gatherContext({ admin, athleteId, asOf, timezone });
   } catch (err) {
     if (err instanceof NoActivePlanError) {
       return { outcome: "no_active_plan", opCount: 0, droppedCount: 0 };

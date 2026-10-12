@@ -6,6 +6,7 @@ import { calendarDayInTimezone } from "@/lib/format";
 import {
   addDays,
   buildLoadSeries,
+  localizeLoadInputs,
   type LoadDayPoint,
   type LoadWorkoutInput,
 } from "@/training-load/load-series";
@@ -67,11 +68,14 @@ export async function getTrainingOverview(
   if (workoutsRes.error) throw new Error(`overview workouts failed: ${workoutsRes.error.message}`);
 
   const rows = (workoutsRes.data ?? []) as WorkoutRow[];
-  const loadInputs: LoadWorkoutInput[] = rows.map((w) => ({
-    started_at: w.started_at,
-    duration_s: w.duration_s,
-    summary_stats: w.summary_stats ?? {},
-  }));
+  const loadInputs: LoadWorkoutInput[] = localizeLoadInputs(
+    rows.map((w) => ({
+      started_at: w.started_at,
+      duration_s: w.duration_s,
+      summary_stats: w.summary_stats ?? {},
+    })),
+    timezone,
+  );
   const load = buildLoadSeries(loadInputs, { asOf: today });
   const workouts: OverviewWorkout[] = rows.map((w) => ({
     day: calendarDayInTimezone(w.started_at, timezone),

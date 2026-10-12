@@ -190,10 +190,16 @@ interface StoredReportRow {
 async function loadReport(
   supabase: SupabaseClient,
   athleteId: string,
-  workoutId: string
+  workoutId: string,
+  timezone: string
 ): Promise<WorkoutReportResponse | null> {
   try {
-    const context = await gatherReportContext({ supabase, athleteId, completedWorkoutId: workoutId });
+    const context = await gatherReportContext({
+      supabase,
+      athleteId,
+      completedWorkoutId: workoutId,
+      timezone,
+    });
     const delta = computeExecutionDelta(toDeltaInput(context));
     const fingerprint = computeFingerprint(context);
 
@@ -278,7 +284,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
   // Report section (Unit U7): assembled AFTER hydration so a freshly-
   // enriched summary_stats (laps/zones just arrived) is reflected in the
   // fingerprint on this same render, not one render behind (AE5).
-  const report = await loadReport(supabase, session.user.id, workout.id);
+  const report = await loadReport(supabase, session.user.id, workout.id, session.timezone);
 
   // Prefer the enriched stats when hydration succeeded; otherwise the
   // DB row's existing value. Build a shallow-cloned workout for the

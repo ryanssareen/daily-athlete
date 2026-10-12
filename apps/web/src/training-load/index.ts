@@ -10,6 +10,7 @@ export {
   DURATION_PROXY_TSS_PER_HOUR,
   // Date helpers
   toDayKey,
+  localizeLoadInputs,
   dayDiff,
   addDays,
   // Per-workout + series

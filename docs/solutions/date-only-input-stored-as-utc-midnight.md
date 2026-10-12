@@ -267,7 +267,10 @@ Browser check after the fix: an entry for Oct 5 is stored as 06:30 UTC
   timezone at the read/render boundary" invariant. This doc is its
   write-side corollary: a date-only input has no instant until the client
   picks one in the athlete's local day.
-- Known remaining producer of the same class, as of this writing: the athlete
-  dashboard's "next 7 days" planned window
-  (`apps/web/app/(athlete)/athlete/page.tsx`) derives `todayStr` from
-  `toISOString().split("T")[0]`, i.e. the UTC day, on the server.
+- Same class, read side, fixed in a follow-up: the dashboard's "next 7 days"
+  window and "This week" totals, the calendar's default week, fetch range,
+  day grouping and today-highlight, and the weekly-review apply step's
+  "today" all used the UTC day or UTC week. Training-load series also
+  bucketed `started_at` by UTC date while `asOf` was athlete-local; callers
+  now pass inputs through `localizeLoadInputs`
+  (`apps/web/src/training-load/load-series.ts`) first.

@@ -20,6 +20,7 @@
 // deliberately biases TSB *conservative* (it never over-states load in a way
 // that would green-light an aggressive bump): see `durationProxyTss`.
 
+import { calendarDayInTimezone } from "@/lib/format";
 import { computeTSS } from "@/lib/training-math";
 
 // --- Constants (grounded in the plan's External References) -----------------
@@ -120,6 +121,27 @@ export function toDayKey(isoDate: string): string {
     throw new Error(`toDayKey: unparseable date "${isoDate}"`);
   }
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The read-boundary normalization `toDayKey` assumes: rewrite each input's
+ * `started_at` instant to the athlete-local day it happened on, so the series
+ * buckets by the athlete's training day rather than the UTC date. Without it an
+ * IST run at 05:00 lands on the previous day while `asOf` (always resolved in
+ * the athlete's zone) is today — the series and its "today" disagree.
+ *
+ * Bare "YYYY-MM-DD" inputs (synthetic efforts on a planned date) are already
+ * days and pass through unchanged.
+ */
+export function localizeLoadInputs<T extends LoadWorkoutInput>(
+  inputs: T[],
+  timezone: string | null | undefined,
+): T[] {
+  return inputs.map((w) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(w.started_at)
+      ? w
+      : { ...w, started_at: calendarDayInTimezone(w.started_at, timezone) },
+  );
 }
 
 /** Days between two "YYYY-MM-DD" keys (b − a), calendar days. */

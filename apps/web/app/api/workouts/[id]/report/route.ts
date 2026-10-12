@@ -112,11 +112,21 @@ async function assemble(
   athleteId: string,
   completedWorkoutId: string
 ): Promise<AssembleResult> {
+  // The athlete's zone anchors the recent-load window on the workout's local
+  // day. Tolerated: a failed read degrades to UTC days, not a failed report.
+  // service-role: explicit user filter required
+  const { data: tzRow } = await supabase
+    .from("users")
+    .select("timezone")
+    .eq("id", athleteId)
+    .maybeSingle();
+  const timezone = (tzRow as { timezone?: string | null } | null)?.timezone ?? undefined;
+
   let context: ReportContext;
   try {
     // service-role: explicit user filter required — gatherReportContext
     // filters every read on this athleteId (see its module header).
-    context = await gatherReportContext({ supabase, athleteId, completedWorkoutId });
+    context = await gatherReportContext({ supabase, athleteId, completedWorkoutId, timezone });
   } catch (err) {
     if (err instanceof CompletedWorkoutNotFoundError) {
       return { ok: false, status: 404 };

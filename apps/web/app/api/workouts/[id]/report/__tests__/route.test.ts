@@ -214,6 +214,16 @@ class QueryFake {
 function makeAdminFake() {
   return {
     from(table: string) {
+      if (table === "users") {
+        // users.timezone lookup that anchors the report's recent-load window.
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { timezone: "UTC" }, error: null }),
+            }),
+          }),
+        };
+      }
       if (table !== "workout_reports") throw new Error(`unexpected table on admin client: ${table}`);
       return {
         select(cols: string, opts?: { count?: string; head?: boolean }) {

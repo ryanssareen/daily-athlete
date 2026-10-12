@@ -160,10 +160,10 @@ export async function runGeneratePlan(
 
   // 3. Parse inputs + derive athlete-local "today".
   const input = GeneratePlanInputSchema.parse(attempt.inputs);
-  const asOf = await resolveAthleteToday(admin, athlete_id, deps.now ?? new Date());
+  const { asOf, timezone } = await resolveAthleteToday(admin, athlete_id, deps.now ?? new Date());
 
   // 4. Generate (rate-limit/transient propagate; invalid-output -> infeasible).
-  const ctx = await gatherGenerationContext(admin, athlete_id, asOf);
+  const ctx = await gatherGenerationContext(admin, athlete_id, asOf, timezone);
   const result = await generate(input, ctx, { client, today: asOf });
 
   if (result.status === "infeasible") {
@@ -212,12 +212,14 @@ export async function runGeneratePlan(
   return { status: "raced" };
 }
 
-/** Athlete-local YYYY-MM-DD (default UTC). Mirrors adaptive-run's resolution. */
+/** Athlete-local "today" (YYYY-MM-DD) plus the zone it was resolved in
+ * (default UTC), so the caller can bucket load history on the same local days.
+ * Mirrors adaptive-run's resolution. */
 async function resolveAthleteToday(
   admin: SupabaseClient,
   athleteId: string,
   now: Date
-): Promise<string> {
+): Promise<{ asOf: string; timezone: string }> {
   // service-role: explicit user filter required
   const { data: user, error } = await admin
     .from("users")
@@ -227,7 +229,10 @@ async function resolveAthleteToday(
   if (error) throw error;
   const tz = (user?.timezone as string | null) ?? "UTC";
   const p = localPartsInTimezone(tz, now);
-  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+  return {
+    asOf: `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`,
+    timezone: tz,
+  };
 }
 
 export const generatePlan = inngest.createFunction(

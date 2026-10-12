@@ -14,7 +14,8 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { SportSchema } from "@da2/shared";
-import { buildLoadSeries, type LoadWorkoutInput } from "@/training-load";
+import { calendarDayInTimezone } from "@/lib/format";
+import { buildLoadSeries, localizeLoadInputs, type LoadWorkoutInput } from "@/training-load";
 
 import { rlsClientFromAuth } from "./identity";
 import {
@@ -241,22 +242,35 @@ export function registerAllTools(server: McpServer): void {
       annotations: { readOnlyHint: true },
     },
     async (args, extra) => {
-      const { supabase } = ctxFrom(extra);
+      const { supabase, userId } = ctxFrom(extra);
       const days = args.days ?? 90;
-      const since = new Date(Date.now() - days * 86_400_000).toISOString();
-      const { data, error } = await supabase
-        .from("completed_workouts")
-        .select("started_at, duration_s, summary_stats")
-        .is("deleted_at", null)
-        .gte("started_at", since)
-        .order("started_at", { ascending: true });
-      if (error) return dbFail("read_failed", error);
-      const inputs: LoadWorkoutInput[] = (data ?? []).map((w) => ({
-        started_at: w.started_at as string,
-        duration_s: (w.duration_s as number | null) ?? null,
-        summary_stats: (w.summary_stats as Record<string, unknown>) ?? {},
-      }));
-      const load = buildLoadSeries(inputs);
+      const now = new Date();
+      const since = new Date(now.getTime() - days * 86_400_000).toISOString();
+      const [workoutsRes, userRes] = await Promise.all([
+        supabase
+          .from("completed_workouts")
+          .select("started_at, duration_s, summary_stats")
+          .is("deleted_at", null)
+          .gte("started_at", since)
+          .order("started_at", { ascending: true }),
+        supabase.from("users").select("timezone").eq("id", userId).maybeSingle(),
+      ]);
+      if (workoutsRes.error) return dbFail("read_failed", workoutsRes.error);
+      // Tolerated: an unreadable zone degrades to UTC days.
+      const timezone = (userRes.data?.timezone as string | null | undefined) ?? "UTC";
+      const inputs: LoadWorkoutInput[] = localizeLoadInputs(
+        (workoutsRes.data ?? []).map((w) => ({
+          started_at: w.started_at as string,
+          duration_s: (w.duration_s as number | null) ?? null,
+          summary_stats: (w.summary_stats as Record<string, unknown>) ?? {},
+        })),
+        timezone
+      );
+      // Extend to the athlete's today so CTL/ATL decay across rest days since
+      // the last workout instead of reading "as of" that workout.
+      const load = buildLoadSeries(inputs, {
+        asOf: calendarDayInTimezone(now.toISOString(), timezone),
+      });
       return ok({
         window_days: days,
         workout_count: inputs.length,

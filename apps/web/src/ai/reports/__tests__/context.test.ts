@@ -400,6 +400,53 @@ describe("gatherReportContext", () => {
     expect(ctx.recentLoad.ctl).toBeGreaterThan(0);
   });
 
+  it("anchors recentLoad on the workout's athlete-local day when a timezone is given", async () => {
+    // Reported workout: 05:00 IST on Jun 11 == 23:30 UTC on Jun 10.
+    const reported = completedRow({ started_at: "2026-06-10T23:30:00.000Z" });
+    const histRow = (id: string, started_at: string): Row => ({
+      id,
+      athlete_id: ATHLETE_ID,
+      sport: "run",
+      started_at,
+      distance_m: 5000,
+      duration_s: 1800,
+      summary_stats: { tss: 40 },
+      superseded_by_id: null,
+      deleted_at: null,
+    });
+    const supabase = makeFakeSupabase({
+      completed_workouts: [
+        reported,
+        // Later the same IST day (07:30 IST Jun 11) -- inside the local window,
+        // but after UTC midnight Jun 11, so a UTC window would drop it.
+        histRow("same-local-day", "2026-06-11T02:00:00.000Z"),
+        // 00:30 IST Jun 12 -- the next local day, outside the window.
+        histRow("next-local-day", "2026-06-11T19:00:00.000Z"),
+      ],
+      workout_matches: [],
+    });
+
+    const local = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+      timezone: "Asia/Calcutta",
+    });
+    const lastLocal = local.recentLoad.series.at(-1)!;
+    expect(lastLocal.date).toBe("2026-06-11");
+    // Both Jun 11 IST sessions land on that day; the Jun 12 one is excluded.
+    expect(local.recentLoad.series.map((p) => p.date)).not.toContain("2026-06-12");
+    expect(lastLocal.tss).toBe(55 + 40);
+
+    // Without a timezone the window is the UTC day of the workout (Jun 10).
+    const utc = await gatherReportContext({
+      supabase,
+      athleteId: ATHLETE_ID,
+      completedWorkoutId: COMPLETED_ID,
+    });
+    expect(utc.recentLoad.series.at(-1)!.date).toBe("2026-06-10");
+  });
+
   it("returns match: null (not a throw) when the workout_matches read itself errors", async () => {
     const supabase = makeFakeSupabase(
       { completed_workouts: [completedRow()], workout_matches: [matchRow()] },

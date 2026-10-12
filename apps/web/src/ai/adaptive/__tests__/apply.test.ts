@@ -14,7 +14,7 @@
 //   - coupled trigger, no drops: all surviving op-ids pass to the RPC.
 //   - the RPC's per-op results (skipped_stale, etc.) flow through unchanged.
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WeeklyReviewRow } from "@da2/shared";
 
@@ -30,6 +30,10 @@ interface FakeState {
   rpcResult: Record<string, unknown>;
   rpcArgs: Record<string, unknown> | null;
   supersedeUpdates: Record<string, unknown>[];
+  /** users.timezone for the athlete (default "UTC"). */
+  timezone?: string;
+  /** When set, the users.timezone read returns this error. */
+  timezoneError?: string;
 }
 
 function makeFakeAdmin(state: FakeState) {
@@ -43,6 +47,13 @@ function makeFakeAdmin(state: FakeState) {
     }
     is() {
       return this._resolve();
+    }
+    maybeSingle() {
+      // users.timezone lookup for the athlete-local "today".
+      if (state.timezoneError) {
+        return Promise.resolve({ data: null, error: { message: state.timezoneError } });
+      }
+      return Promise.resolve({ data: { timezone: state.timezone ?? "UTC" }, error: null });
     }
     private _resolve() {
       if (this.table === "planned_workouts") {
@@ -308,5 +319,67 @@ describe("reValidateAndApply", () => {
 
     expect(result.status).toBe("partially_accepted");
     expect(result.results[0].outcome).toBe("skipped_stale");
+  });
+
+  describe("athlete-local today", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // Unattributed edit 14 days before Jun 2: inside the 14-day protection
+    // window on Jun 2, outside it on Jun 3.
+    const recentlyEdited = (): FakeState => ({
+      plannedWorkouts: [
+        {
+          id: UUID_A,
+          scheduled_date: "2026-06-10",
+          structure: { duration_s: 3600 },
+          planned_load: 50,
+          status: "planned",
+          edited_by_kind: null,
+          edited_at: "2026-05-19T00:00:00.000Z",
+        },
+      ],
+      completedWorkouts: [],
+      rpcResult: { status: "accepted", superseded: false, results: [] },
+      rpcArgs: null,
+      supersedeUpdates: [],
+    });
+    const skipReview = () =>
+      reviewWith("weekly", [
+        {
+          op: { op_id: "op-skip", kind: "skip", workout_id: UUID_A, reason: "rest" },
+          baseline: { version: 1 },
+        },
+      ]);
+
+    it("measures the protection window from the athlete's day, not the UTC day", async () => {
+      // 20:00 UTC Jun 2 == 01:30 IST Jun 3.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-06-02T20:00:00.000Z"));
+
+      // UTC athlete: still Jun 2 -> edit is 14 days old -> protected -> coupled abort.
+      const utcState = recentlyEdited();
+      const utc = await reValidateAndApply(skipReview(), ["op-skip"], "ath-1", {
+        admin: makeFakeAdmin(utcState) as never,
+      });
+      expect(utc.status).toBe("superseded");
+
+      // IST athlete: already Jun 3 -> 15 days old -> not protected -> applied.
+      const istState = { ...recentlyEdited(), timezone: "Asia/Calcutta" };
+      const ist = await reValidateAndApply(skipReview(), ["op-skip"], "ath-1", {
+        admin: makeFakeAdmin(istState) as never,
+      });
+      expect(ist.superseded).toBe(false);
+      expect(istState.rpcArgs).not.toBeNull();
+    });
+
+    it("propagates a users.timezone read failure instead of defaulting to UTC", async () => {
+      const state = { ...recentlyEdited(), timezoneError: "users read boom" };
+      await expect(
+        reValidateAndApply(skipReview(), ["op-skip"], "ath-1", { admin: makeFakeAdmin(state) as never })
+      ).rejects.toThrow(/fetchAthleteTimezone failed/);
+      expect(state.rpcArgs).toBeNull();
+    });
   });
 });
