@@ -99,7 +99,7 @@ function zoneOffsetMs(timezone: string, instant: Date): number {
  * on the instant the day actually starts, which is the correct and only useful
  * answer; it is never NaN or a throw.
  */
-function zonedMidnightUtc(timezone: string, localDay: string): Date {
+export function zonedMidnightUtc(timezone: string, localDay: string): Date {
   const [y, m, d] = localDay.split("-").map(Number);
   const wallAsUtc = Date.UTC(y, m - 1, d, 0, 0, 0);
 

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { zonedMidnightUtc } from "@/ai/period-reviews/calendar";
 import { getUserWithRoles } from "@/auth/roles";
+import { calendarDayInTimezone } from "@/lib/format";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
 import {
@@ -37,8 +39,11 @@ function getSportEmoji(sport: string): string {
   return "⚡";
 }
 
-function getMondayOfWeek(dateStr?: string): Date {
-  const base = dateStr ? new Date(dateStr + "T00:00:00Z") : new Date();
+// Days here are athlete-local calendar days carried as UTC-midnight Dates, so
+// UTC getters/setters are plain calendar arithmetic (and the formatters below
+// render them with timeZone: "UTC" for the same reason).
+function getMondayOfWeek(dateStr: string): Date {
+  const base = new Date(dateStr + "T00:00:00Z");
   const dayOfWeek = base.getUTCDay();
   const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(base);
@@ -223,13 +228,21 @@ export default async function AthleteCalendarPage({
   if (!session) redirect("/sign-in");
 
   const params = await searchParams;
-  const monday = getMondayOfWeek(params.week);
+  const timezone = session.timezone;
+  // "Today" and the default week come from the athlete's calendar, not the
+  // server's UTC clock.
+  const todayStr = calendarDayInTimezone(new Date().toISOString(), timezone);
+  const monday = getMondayOfWeek(params.week ?? todayStr);
   const sunday = addDays(monday, 6);
-  const sundayEnd = new Date(sunday);
-  sundayEnd.setUTCHours(23, 59, 59, 999);
 
   const fromStr = toDateString(monday);
   const toStr = toDateString(sunday);
+  // Completed workouts are instants: fetch from the athlete's local Monday
+  // 00:00 to just before the next local Monday, resolved through the zone.
+  const weekStartUtc = zonedMidnightUtc(timezone, fromStr);
+  const weekEndUtc = new Date(
+    zonedMidnightUtc(timezone, toDateString(addDays(monday, 7))).getTime() - 1
+  );
 
   const prevMonday = toDateString(addDays(monday, -7));
   const nextMonday = toDateString(addDays(monday, 7));
@@ -239,7 +252,7 @@ export default async function AthleteCalendarPage({
 
   const [planned, completed] = await Promise.all([
     getPlannedInRange(supabase, userId, fromStr, toStr),
-    getWorkoutsInRange(supabase, userId, monday.toISOString(), sundayEnd.toISOString()),
+    getWorkoutsInRange(supabase, userId, weekStartUtc.toISOString(), weekEndUtc.toISOString()),
   ]);
 
   // A planned workout with a live match renders as one card carrying the
@@ -263,7 +276,7 @@ export default async function AthleteCalendarPage({
   const completedByDay = new Map<string, WorkoutRow[]>();
   for (const w of completed) {
     if (matchedCompletedIds.has(w.id)) continue; // rendered via its matched planned chip instead
-    const day = w.started_at.split("T")[0];
+    const day = calendarDayInTimezone(w.started_at, timezone);
     if (!completedByDay.has(day)) completedByDay.set(day, []);
     completedByDay.get(day)!.push(w);
   }
@@ -280,7 +293,6 @@ export default async function AthleteCalendarPage({
     };
   });
 
-  const todayStr = toDateString(new Date());
 
   const navButtonStyle = {
     display: "inline-flex",

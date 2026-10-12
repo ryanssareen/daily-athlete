@@ -3,6 +3,8 @@ import type { Route } from "next";
 import { redirect } from "next/navigation";
 
 import { getUserWithRoles } from "@/auth/roles";
+import { calendarDayInTimezone } from "@/lib/format";
+import { addDays } from "@/training-load/load-series";
 import { createClient } from "@/auth/server";
 import ReviewBanner from "@/adaptive/ReviewBanner";
 import {
@@ -230,15 +232,15 @@ export default async function AthleteDashboardPage() {
   const supabase = await createClient();
   const userId = session.user.id;
 
-  // Date math for "next 7 days" planned window
+  // "Next 7 days" planned window, in the athlete's own calendar. scheduled_date
+  // is an athlete-local day; the server's UTC day is off by one before 05:30
+  // IST or on evenings west of UTC.
   const now = new Date();
-  const todayStr = now.toISOString().split("T")[0];
-  const in7 = new Date(now);
-  in7.setUTCDate(now.getUTCDate() + 7);
-  const in7Str = in7.toISOString().split("T")[0];
+  const todayStr = calendarDayInTimezone(now.toISOString(), session.timezone);
+  const in7Str = addDays(todayStr, 7);
 
   const [weekStats, recentWorkouts, upcomingPlanned, userRow] = await Promise.all([
-    getThisWeekStats(supabase, userId),
+    getThisWeekStats(supabase, userId, session.timezone, now),
     getRecentWorkouts(supabase, userId, 6),
     getPlannedInRange(supabase, userId, todayStr, in7Str),
     supabase

@@ -567,7 +567,7 @@ describe("canonical read helpers exclude superseded rows", () => {
       .update({ superseded_by_id: strava!.id })
       .eq("id", manual!.id);
 
-    const stats = await getThisWeekStats(user.client, user.id);
+    const stats = await getThisWeekStats(user.client, user.id, "UTC");
 
     // Only the Strava row counts; manual is superseded
     expect(stats.count).toBe(1);

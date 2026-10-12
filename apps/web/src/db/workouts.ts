@@ -3,6 +3,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EditedByKind } from "@da2/shared";
 
+import { periodKeyForInstant, periodRangeUtc } from "@/ai/period-reviews/calendar";
+
 export interface WorkoutRow {
   id: string;
   started_at: string;
@@ -226,28 +228,36 @@ export async function getMatchesForPlannedIds(
 }
 
 /**
- * Returns stats for the current calendar week (Mon–today) in UTC.
+ * `[startUtc, endUtc)` of the ISO week containing `now`, as the athlete sees it
+ * in `timezone`. Exported for unit testing.
+ */
+export function thisWeekRangeUtc(
+  timezone: string,
+  now: Date
+): { startUtc: Date; endUtc: Date } {
+  return periodRangeUtc("weekly", periodKeyForInstant("weekly", timezone, now), timezone);
+}
+
+/**
+ * Returns stats for the athlete's current ISO week (Mon–Sun), with the week's
+ * edges at local midnight in `timezone`. A UTC week mis-files sessions near
+ * the boundary: a Monday-morning IST run is still Sunday in UTC and would
+ * count toward last week.
  */
 export async function getThisWeekStats(
   supabase: SupabaseClient,
-  athleteId: string
+  athleteId: string,
+  timezone: string,
+  now: Date = new Date()
 ): Promise<WeekStats> {
-  const now = new Date();
-  // Find Monday of current week in UTC (ISO week starts Mon).
-  const dayOfWeek = now.getUTCDay(); // 0=Sun,1=Mon,...,6=Sat
-  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(now);
-  monday.setUTCDate(now.getUTCDate() - daysFromMonday);
-  monday.setUTCHours(0, 0, 0, 0);
-
-  const todayEnd = new Date(now);
-  todayEnd.setUTCHours(23, 59, 59, 999);
+  const { startUtc, endUtc } = thisWeekRangeUtc(timezone, now);
 
   const workouts = await getWorkoutsInRange(
     supabase,
     athleteId,
-    monday.toISOString(),
-    todayEnd.toISOString()
+    startUtc.toISOString(),
+    // getWorkoutsInRange is inclusive on both ends; the week range is half-open.
+    new Date(endUtc.getTime() - 1).toISOString()
   );
 
   const stats: WeekStats = {
