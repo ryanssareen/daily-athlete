@@ -17,6 +17,7 @@ docs/
   plans/        Implementation plans (ce:plan output) — protected, contain progress checkboxes
   solutions/    Institutional learnings — protected
 infra/        Provisioning runbook (Supabase / Vercel / queue / EAS)
+CONCEPTS.md   Shared domain vocabulary (workouts, training days, timezone) — relevant when orienting to the domain
 ```
 
 The backend is **not** a separate service. All API endpoints, webhooks, and background-job triggers live inside `apps/web` as App Router Route Handlers and run as Vercel serverless functions. There is no Python in this repo.
