@@ -200,10 +200,17 @@ Browser check after the fix: an entry for Oct 5 is stored as 06:30 UTC
 - **No future check at the API.** `/api/activities/manual` doesn't reject a
   future `started_at` (it only validates the format), so a client bug like
   the one above would be stored without complaint.
-- **Existing rows not backfilled.** Rows logged on web before the fix still
-  have UTC midnight. They can't be reliably told apart from real entries:
-  `source = 'manual'` covers both clients and nothing records which client
-  wrote a row. So they were left alone.
+- **Existing rows backfilled by a follow-up migration.**
+  `supabase/migrations/0033_backfill_manual_workouts_utc_midnight.sql` moves
+  every `source = 'manual'` row at exactly 00:00:00 UTC to 12:00 on that UTC
+  date in the owner's `users.timezone` (invalid zone → UTC), clamped to no
+  later than the local day the row was created. The clamp matters because the
+  old quick-log dialog defaulted its date to the UTC day: a west-of-UTC
+  athlete logging in the evening stored tomorrow's date, and only the bug
+  hid it. No client column is needed: a mobile entry only lands on 00:00 UTC
+  when the device is on a +00:00 offset, and the rewrite keeps its day. Existing
+  `workout_matches` were not re-run, so a west-of-UTC legacy row the matcher
+  had paired with the previous day's plan keeps that pairing.
 - **Mobile past-dated entries.** A day picked on mobile comes back from
   `showDatePicker` as local midnight, so it has the drift sensitivity that
   noon avoids on web. Not changed in this fix.
