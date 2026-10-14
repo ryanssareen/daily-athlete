@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/plan.dart';
+import 'plan_overview.dart';
 import 'plans_providers.dart';
 
 class PlanHistoryScreen extends ConsumerWidget {
@@ -38,16 +39,34 @@ class PlanHistoryScreen extends ConsumerWidget {
                   if (plans.isEmpty) {
                     return const _EmptyState();
                   }
+                  final active = plans.where((p) => p.status == PlanStatus.active).firstOrNull;
+                  final others = plans.where((p) => p.id != active?.id).toList();
                   return RefreshIndicator(
                     onRefresh: () async {
                       ref.invalidate(planHistoryProvider);
+                      if (active != null) ref.invalidate(planWorkoutsProvider(active.id));
                       await ref.read(planHistoryProvider.future);
                     },
-                    child: ListView.separated(
+                    child: ListView(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      itemCount: plans.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, i) => _PlanRow(plan: plans[i]),
+                      children: [
+                        if (active != null) _ActivePlan(plan: active),
+                        if (others.isNotEmpty) ...[
+                          const SizedBox(height: 28),
+                          Text(
+                            'PAST PLANS',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  letterSpacing: 1,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          for (final p in others) ...[
+                            _PlanRow(plan: p),
+                            const SizedBox(height: 10),
+                          ],
+                        ],
+                      ],
                     ),
                   );
                 },
@@ -56,6 +75,28 @@ class PlanHistoryScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ActivePlan extends ConsumerWidget {
+  const _ActivePlan({required this.plan});
+
+  final PlanRow plan;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final workoutsAsync = ref.watch(planWorkoutsProvider(plan.id));
+    return workoutsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, _) => Text(
+        "Could not load your plan's workouts.",
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      ),
+      data: (workouts) => PlanOverview(plan: plan, workouts: workouts),
     );
   }
 }

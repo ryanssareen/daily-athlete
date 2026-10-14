@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/plan.dart';
+import 'plan_overview.dart';
 import 'plans_providers.dart';
 
 class PlanDetailScreen extends ConsumerWidget {
@@ -38,56 +39,53 @@ class PlanDetailScreen extends ConsumerWidget {
   }
 }
 
-class _PlanDetailBody extends StatelessWidget {
+class _PlanDetailBody extends ConsumerWidget {
   const _PlanDetailBody({required this.plan});
 
   final PlanRow plan;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final workoutsAsync = ref.watch(planWorkoutsProvider(plan.id));
+    final title = plan.eventType?.isNotEmpty == true ? plan.eventType! : 'Training plan';
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                plan.eventType?.isNotEmpty == true ? plan.eventType! : 'Training plan',
-                style: theme.textTheme.headlineSmall,
-              ),
-            ),
+            Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
             _StatusChip(status: plan.status),
           ],
         ),
-        const SizedBox(height: 20),
-        _DetailRow(
-          label: 'Event date',
-          value: plan.eventDate == null ? '—' : DateFormat.yMMMMd().format(plan.eventDate!),
-        ),
-        _DetailRow(
-          label: 'Created',
-          value: plan.createdAt == null ? '—' : DateFormat.yMMMMd().add_jm().format(plan.createdAt!),
-        ),
-        _DetailRow(label: 'Source', value: _sourceLabel(plan.source)),
-        if (plan.archivedAt != null)
-          _DetailRow(
-            label: 'Archived',
-            value: DateFormat.yMMMMd().add_jm().format(plan.archivedAt!),
+        const SizedBox(height: 16),
+        workoutsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
           ),
+          error: (_, _) => Text(
+            "Could not load this plan's workouts.",
+            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+          ),
+          data: (workouts) => PlanOverview(plan: plan, workouts: workouts),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          _footnote(plan),
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
       ],
     );
   }
 
-  String _sourceLabel(PlanSource source) {
-    switch (source) {
-      case PlanSource.aiGenerated:
-        return 'AI generated';
-      case PlanSource.coachAssigned:
-        return 'Assigned by coach';
-      case PlanSource.imported:
-        return 'Imported';
-    }
+  String _footnote(PlanRow plan) {
+    final parts = <String>[
+      if (plan.createdAt != null) 'Created ${DateFormat.yMMMd().format(plan.createdAt!)}',
+      if (plan.archivedAt != null) 'archived ${DateFormat.yMMMd().format(plan.archivedAt!)}',
+      if (plan.source == PlanSource.coachAssigned) 'assigned by your coach',
+    ];
+    return parts.join(' · ');
   }
 }
 
@@ -115,30 +113,6 @@ class _StatusChip extends StatelessWidget {
           fontWeight: FontWeight.w600,
           letterSpacing: 0.4,
         ),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
       ),
     );
   }
