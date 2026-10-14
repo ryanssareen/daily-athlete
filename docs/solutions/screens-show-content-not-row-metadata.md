@@ -48,5 +48,7 @@ content is *derived* from its `planned_workouts`.
 - `daily-athlete/lib/features/activities/activity_detail_screen.dart` — `_extraStats`
   allowlist replaces the raw overflow dump.
 
-The web `/plan` page has the same gap (`PlanSummaryCard` shows little beyond an upcoming
-count) and is not yet fixed.
+Web got the same fix: `apps/web/src/plan/plan-summary.ts` (pure, tested) and
+`apps/web/src/plan/PlanOverview.tsx`, used by `/plan` (active plan) and `/plans/[id]`. It
+replaced `PlanSummaryCard`, which showed only an upcoming count and a "View on calendar"
+link — the same "tab that points at another tab" failure.

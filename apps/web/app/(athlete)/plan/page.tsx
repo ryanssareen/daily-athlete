@@ -25,7 +25,8 @@ import { createClient } from "@/auth/server";
 import ProposalReview from "@/adaptive/ProposalReview";
 import GeneratePlanCard from "@/plan/GeneratePlanCard";
 import { PlanHistoryList } from "@/plan/PlanHistoryList";
-import { PlanSummaryCard } from "@/plan/PlanSummaryCard";
+import { PlanOverview } from "@/plan/PlanOverview";
+import { todayIn, type PlanWorkoutInput } from "@/plan/plan-summary";
 
 function PlanHistorySection({ plans, activePlanId }: { plans: PlanRow[]; activePlanId?: string }) {
   // The active plan already has its own summary card above -- listing it
@@ -142,19 +143,24 @@ export default async function AthleteReviewPage({
     );
   }
 
-  // Active plan: count what's still ahead on the calendar for the summary
-  // card. Runs alongside ProposalReview's own client-side fetch, not before
-  // it -- the review content doesn't wait on this.
-  const { count: upcomingCount } = await supabase
+  // Active plan: load its workouts so the overview can show what the plan
+  // actually contains (weeks, volume, sport mix, what's next) rather than
+  // just its metadata. RLS-scoped, same as the plans query above.
+  const { data: planWorkouts } = await supabase
     .from("planned_workouts")
-    .select("id", { count: "exact", head: true })
+    .select("id, scheduled_date, sport, status, structure")
     .eq("plan_id", activePlan!.id)
-    .eq("status", "planned")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .order("scheduled_date")
+    .returns<PlanWorkoutInput[]>();
 
   return (
     <div style={{ width: "100%", padding: "8px 0 80px" }}>
-      <PlanSummaryCard plan={activePlan!} upcomingCount={upcomingCount ?? 0} />
+      <PlanOverview
+        plan={activePlan!}
+        workouts={planWorkouts ?? []}
+        today={todayIn(session.timezone)}
+      />
       <ProposalReview
         athleteId={session.user.id}
         reviewId={id}
