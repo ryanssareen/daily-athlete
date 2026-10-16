@@ -8,12 +8,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import type { PlanRow } from "@da2/shared";
+import type { PlanRow, PlanView } from "@da2/shared";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import { createAdminClient } from "@/db/admin";
 import { PlanActions } from "@/plan/PlanActions";
-import { formatDate, formatEventDate } from "@/plan/format";
+import { formatDate } from "@/plan/format";
+import { PlanOverview } from "@/plan/PlanOverview";
+import { buildPlanView } from "@/plan/plan-view";
+import { todayIn, type PlanWorkoutInput } from "@/plan/plan-summary";
 
 export default async function PlanDetailPage({
   params,
@@ -78,12 +82,21 @@ export default async function PlanDetailPage({
   // status === "active" IS "this is the current plan" -- no extra query.
   const isCurrentActivePlan = plan.status === "active";
 
-  const { count: upcomingCount } = await supabase
+  const { data: planWorkouts } = await supabase
     .from("planned_workouts")
-    .select("id", { count: "exact", head: true })
+    .select("id, scheduled_date, sport, status, structure")
     .eq("plan_id", plan.id)
-    .eq("status", "planned")
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .order("scheduled_date")
+    .returns<PlanWorkoutInput[]>();
+  const upcomingCount = (planWorkouts ?? []).filter((w) => w.status === "planned").length;
+
+  let view: PlanView | null = null;
+  try {
+    view = await buildPlanView(createAdminClient(), session.user.id, plan, session.timezone, new Date());
+  } catch (err) {
+    console.error("plan detail page view failed", { planId: plan.id }, err);
+  }
 
   return (
     <div style={{ width: "100%", padding: "8px 0 80px" }}>
@@ -93,18 +106,23 @@ export default async function PlanDetailPage({
       >
         ← Your plans
       </Link>
-      <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--color-ink)", margin: "12px 0 4px" }}>
-        {plan.event_type || "Training plan"}
-      </h1>
-      <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "0 0 24px" }}>
-        {plan.status === "active" ? "Active" : "Archived"}
-        {plan.event_date && ` · Event: ${formatEventDate(plan.event_date)}`}
-        {` · Created ${formatDate(plan.created_at)}`}
-      </p>
+      <div style={{ margin: "12px 0 16px" }}>
+        <PlanOverview
+          plan={plan}
+          workouts={planWorkouts ?? []}
+          today={todayIn(session.timezone)}
+          view={view}
+        />
+        <p style={{ fontSize: 12, color: "var(--color-ink-subtle)", margin: 0 }}>
+          {plan.status === "active" ? "Active" : "Archived"}
+          {` · Created ${formatDate(plan.created_at)}`}
+          {plan.source === "coach_assigned" && " · Assigned by your coach"}
+        </p>
+      </div>
       <PlanActions
         plan={plan}
         isCurrentActivePlan={isCurrentActivePlan}
-        hasUpcomingWorkouts={(upcomingCount ?? 0) > 0}
+        hasUpcomingWorkouts={upcomingCount > 0}
       />
     </div>
   );

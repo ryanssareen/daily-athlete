@@ -5,6 +5,7 @@
 // - Coach: athlete selector at top (reads/writes calendarAthleteIdProvider)
 // - Delegates to DayView, WeekView, MonthView, YearHeatmapView
 
+import '../shared/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,27 +29,25 @@ enum _CalendarView { day, week, month, year }
 // ---------------------------------------------------------------------------
 
 /// Returns [[id, displayName], ...] for athletes linked to the current coach.
-final _calendarAthleteListProvider =
-    FutureProvider<List<List<String>>>((ref) async {
+final _calendarAthleteListProvider = FutureProvider<List<List<String>>>((
+  ref,
+) async {
   final supabase = Supabase.instance.client;
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) return [];
 
   final data = await supabase
       .from('coach_athlete_links')
-      .select(
-          'athlete_user_id, users!athlete_user_id(id, display_name, email)')
+      .select('athlete_user_id, users!athlete_user_id(id, display_name, email)')
       .eq('coach_user_id', userId)
       .eq('status', 'active')
       .isFilter('deleted_at', null);
 
   return (data as List<dynamic>).map((row) {
     final user = row['users'] as Map<String, dynamic>? ?? {};
-    final id = user['id'] as String? ??
-        row['athlete_user_id'] as String;
-    final name = user['display_name'] as String? ??
-        user['email'] as String? ??
-        id;
+    final id = user['id'] as String? ?? row['athlete_user_id'] as String;
+    final name =
+        user['display_name'] as String? ?? user['email'] as String? ?? id;
     return [id, name];
   }).toList();
 });
@@ -76,8 +75,10 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
     final monday = date.subtract(Duration(days: weekday - 1));
     final start = DateTime.utc(monday.year, monday.month, monday.day);
     final end = start.add(const Duration(days: 6));
-    ref.read(calendarWeekRangeProvider.notifier).state =
-        (start: start, end: end);
+    ref.read(calendarWeekRangeProvider.notifier).state = (
+      start: start,
+      end: end,
+    );
 
     setState(() => _currentView = _CalendarView.day);
   }
@@ -88,26 +89,22 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
     final isCoach = roleAsync.valueOrNull == RoleFlag.coach;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Calendar'),
-        centerTitle: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: _ViewSwitcher(
-            current: _currentView,
-            onChanged: (v) => setState(() => _currentView = v),
-          ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            ScreenHeader(
+              title: 'Calendar',
+              trailing: isCoach ? const _CalendarAthleteSelector() : null,
+              bottom: _ViewSwitcher(
+                current: _currentView,
+                onChanged: (v) => setState(() => _currentView = v),
+              ),
+            ),
+            Expanded(child: _buildBody()),
+          ],
         ),
-        actions: isCoach
-            ? [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: const _CalendarAthleteSelector(),
-                ),
-              ]
-            : null,
       ),
-      body: _buildBody(),
     );
   }
 
@@ -155,8 +152,7 @@ class _CalendarAthleteSelector extends ConsumerWidget {
         final items = <DropdownMenuItem<String?>>[
           const DropdownMenuItem(value: null, child: Text('All athletes')),
           ...list.map(
-            (pair) =>
-                DropdownMenuItem(value: pair[0], child: Text(pair[1])),
+            (pair) => DropdownMenuItem(value: pair[0], child: Text(pair[1])),
           ),
         ];
 
@@ -178,20 +174,16 @@ class _CalendarAthleteSelector extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _ViewSwitcher extends StatelessWidget {
-  const _ViewSwitcher({
-    required this.current,
-    required this.onChanged,
-  });
+  const _ViewSwitcher({required this.current, required this.onChanged});
 
   final _CalendarView current;
   final void Function(_CalendarView) onChanged;
 
-  static const _labels = ['Day', 'Week', 'Month', 'Year'];
+  static const _labels = ['Day', 'Week', 'Month'];
   static const _views = [
     _CalendarView.day,
     _CalendarView.week,
     _CalendarView.month,
-    _CalendarView.year,
   ];
 
   @override
@@ -204,16 +196,17 @@ class _ViewSwitcher extends StatelessWidget {
           _views.length,
           (i) => ButtonSegment<_CalendarView>(
             value: _views[i],
-            label: Text(_labels[i]),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(_labels[i], maxLines: 1),
+            ),
           ),
         ),
         selected: {current},
         onSelectionChanged: (Set<_CalendarView> selected) {
           if (selected.isNotEmpty) onChanged(selected.first);
         },
-        style: SegmentedButton.styleFrom(
-          textStyle: theme.textTheme.labelSmall,
-        ),
+        style: SegmentedButton.styleFrom(textStyle: theme.textTheme.labelSmall),
       ),
     );
   }

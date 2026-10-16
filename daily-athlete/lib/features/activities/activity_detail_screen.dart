@@ -10,25 +10,14 @@ import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
 import 'report_section.dart';
 
-// Keys that appear in named sections — excluded from the overflow card.
-const _namedKeys = {
-  'name',
-  'average_speed',
-  'max_speed',
-  'average_heartrate',
-  'max_heartrate',
-  'average_watts',
-  'max_watts',
-  'total_elevation_gain',
-  'suffer_score',
-  'average_cadence',
-  'map_polyline',
-};
-
-// Encoded route-shape strings (Strava's `polyline` / `summary_polyline`, or
-// any similarly named variant) aren't meant for display — matched by
-// substring since the exact key name has drifted from _namedKeys before.
-bool _isPolylineKey(String key) => key.toLowerCase().contains('polyline');
+const _extraStats = <({String key, String label, String unit})>[
+  (key: 'calories', label: 'Calories', unit: ' kcal'),
+  (key: 'kilojoules', label: 'Energy', unit: ' kJ'),
+  (key: 'weighted_average_watts', label: 'Normalized Power', unit: ' W'),
+  (key: 'max_watts', label: 'Max Power', unit: ' W'),
+  (key: 'average_cadence', label: 'Avg Cadence', unit: ' rpm'),
+  (key: 'average_temp', label: 'Avg Temp', unit: ' °C'),
+];
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -294,43 +283,22 @@ class _DetailScaffold extends StatelessWidget {
   }
 
   Widget _buildOverflow(BuildContext context) {
-    final overflowEntries = workout.summaryStats.entries
-        .where((e) =>
-            !_namedKeys.contains(e.key) && !_isPolylineKey(e.key) && e.value != null)
-        .toList();
+    final rows = <Widget>[];
+    for (final stat in _extraStats) {
+      if (stat.key == 'average_cadence' && workout.sport == Sport.swim) continue;
+      final raw = workout.summaryStats[stat.key];
+      if (raw is! num || raw <= 0) continue;
+      rows.add(_StatRow(label: stat.label, value: '${raw.round()}${stat.unit}'));
+    }
 
-    if (overflowEntries.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty) return const SizedBox.shrink();
 
     return Column(
       children: [
         const SizedBox(height: 16),
-        _SectionCard(
-          title: 'More stats',
-          children: overflowEntries
-              .map(
-                (e) => _StatRow(
-                  label: _labelFor(e.key),
-                  value: _valueFor(e.value),
-                ),
-              )
-              .toList(),
-        ),
+        _SectionCard(title: 'More stats', children: rows),
       ],
     );
-  }
-
-  static String _labelFor(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
-
-  static String _valueFor(dynamic value) {
-    if (value == null) return '—';
-    if (value is double) return value.toStringAsFixed(1);
-    return value.toString();
   }
 
   static String _formatDateTime(DateTime localDt) {

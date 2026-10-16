@@ -1,3 +1,4 @@
+import '../shared/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,43 +18,55 @@ class CoachDashboard extends ConsumerWidget {
     final rosterAsync = ref.watch(coachRosterProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Coach Dashboard'),
-        centerTitle: false,
-      ),
-      body: rosterAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(
-          child: _ErrorView(
-            error: err.toString(),
-            onRetry: () => ref.invalidate(coachRosterProvider),
-          ),
-        ),
-        data: (roster) {
-          if (roster.isEmpty) {
-            return const _EmptyRosterView();
-          }
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(coachRosterProvider);
-              await ref.read(coachRosterProvider.future);
-            },
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: roster.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final entry = roster[index];
-                return AthleteRosterCard(
-                  entry: entry,
-                  onTap: () => context.go(
-                    Routes.athleteDetail.replaceFirst(':id', entry.athleteId),
-                  ),
-                );
-              },
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const ScreenHeader(
+              title: 'Roster',
+              trailing: SettingsAvatarButton(),
             ),
-          );
-        },
+            Expanded(
+              child: rosterAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(
+                  child: _ErrorView(
+                    error: err.toString(),
+                    onRetry: () => ref.invalidate(coachRosterProvider),
+                  ),
+                ),
+                data: (roster) {
+                  if (roster.isEmpty) {
+                    return const _EmptyRosterView();
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(coachRosterProvider);
+                      await ref.read(coachRosterProvider.future);
+                    },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      itemCount: roster.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final entry = roster[index];
+                        return AthleteRosterCard(
+                          entry: entry,
+                          onTap: () => context.go(
+                            Routes.athleteDetail.replaceFirst(
+                              ':id',
+                              entry.athleteId,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -71,8 +84,11 @@ class _EmptyRosterView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.group_outlined,
-                size: 64, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.group_outlined,
+              size: 64,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 16),
             Text(
               'No athletes yet',
@@ -83,7 +99,8 @@ class _EmptyRosterView extends StatelessWidget {
             Text(
               'Invite athletes via the Settings tab to see their training here.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant),
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -107,17 +124,25 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_outlined,
-              size: 56, color: theme.colorScheme.error),
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 56,
+            color: theme.colorScheme.error,
+          ),
           const SizedBox(height: 16),
-          Text('Failed to load roster',
-              style: theme.textTheme.titleMedium,
-              textAlign: TextAlign.center),
+          Text(
+            'Failed to load roster',
+            style: theme.textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 8),
-          Text(error,
-              style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant),
-              textAlign: TextAlign.center),
+          Text(
+            error,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: onRetry,

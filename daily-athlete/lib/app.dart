@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/app_theme.dart';
 import 'features/settings/theme_notifier.dart';
 import 'router/router.dart';
 
@@ -17,20 +18,8 @@ class DA2App extends ConsumerWidget {
     return MaterialApp.router(
       title: 'DA2',
       routerConfig: router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFC0392B), // pomegranate red
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFC0392B),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: lightTheme,
+      darkTheme: darkTheme,
       themeMode: themeMode,
     );
   }

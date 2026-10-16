@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/layout.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/sign_up_screen.dart';
@@ -16,6 +17,7 @@ import '../features/plans/plan_history_screen.dart';
 import '../features/reports/report_detail_screen.dart';
 import '../features/reports/reports_list_screen.dart';
 import '../features/settings/settings_tab.dart';
+import '../features/shared/list_detail_split.dart';
 import '../models/period_review.dart';
 import 'routes.dart';
 
@@ -29,6 +31,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: Routes.loading,
     refreshListenable: notifier,
     redirect: (context, state) {
+      if (state.uri.scheme == 'da2') {
+        return state.uri.host == 'strava-oauth'
+            ? Routes.settings
+            : Routes.loading;
+      }
       final authAsync = ref.read(authNotifierProvider);
       return authAsync.when(
         loading: () => Routes.loading,
@@ -47,18 +54,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
-      GoRoute(
-        path: Routes.loading,
-        builder: (_, __) => const _LoadingScreen(),
-      ),
-      GoRoute(
-        path: Routes.signIn,
-        builder: (_, __) => const SignInScreen(),
-      ),
-      GoRoute(
-        path: Routes.signUp,
-        builder: (_, __) => const SignUpScreen(),
-      ),
+      GoRoute(path: '/', redirect: (_, __) => Routes.dashboard),
+      GoRoute(path: Routes.loading, builder: (_, __) => const _LoadingScreen()),
+      GoRoute(path: Routes.signIn, builder: (_, __) => const SignInScreen()),
+      GoRoute(path: Routes.signUp, builder: (_, __) => const SignUpScreen()),
+      GoRoute(path: Routes.settings, builder: (_, __) => const SettingsTab()),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
@@ -68,42 +68,66 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'athlete/:id',
-                builder: (_, state) => DashboardTab(
-                  athleteId: state.pathParameters['id'],
-                ),
+                builder: (_, state) =>
+                    DashboardTab(athleteId: state.pathParameters['id']),
               ),
             ],
           ),
-          GoRoute(
-            path: Routes.activities,
-            builder: (_, __) => const ActivitiesTab(),
+          ShellRoute(
+            builder: (_, _, child) => ListDetailSplit(
+              master: const ActivitiesTab(),
+              masterWidth: 380,
+              detail: child,
+            ),
             routes: [
               GoRoute(
-                path: ':id',
-                builder: (_, state) {
-                  final id = state.pathParameters['id']!;
-                  final from =
-                      state.uri.queryParameters['from'] ?? 'activities';
-                  return ActivityDetailScreen(workoutId: id, from: from);
-                },
+                path: Routes.activities,
+                builder: (context, _) => context.layout == LayoutSize.expanded
+                    ? const DetailPlaceholder(
+                        icon: Icons.directions_run_outlined,
+                        message: 'Select an activity to see its details.',
+                      )
+                    : const ActivitiesTab(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) {
+                      final id = state.pathParameters['id']!;
+                      final from =
+                          state.uri.queryParameters['from'] ?? 'activities';
+                      return ActivityDetailScreen(workoutId: id, from: from);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
-          GoRoute(
-            path: Routes.calendar,
-            builder: (_, __) => const CalendarTab(),
+          ShellRoute(
+            builder: (_, state, child) => ListDetailSplit(
+              master: const CalendarTab(),
+              detailWidth: 340,
+              showDetail: state.uri.path != Routes.calendar,
+              detail: child,
+            ),
             routes: [
               GoRoute(
-                path: ':id',
-                builder: (_, state) => PlannedWorkoutDetailScreen(
-                  workoutId: state.pathParameters['id']!,
-                ),
+                path: Routes.calendar,
+                builder: (context, _) => context.layout == LayoutSize.expanded
+                    ? const DetailPlaceholder(
+                        icon: Icons.event_outlined,
+                        message: 'Tap a workout to see it here.',
+                      )
+                    : const CalendarTab(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => PlannedWorkoutDetailScreen(
+                      workoutId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-          GoRoute(
-            path: Routes.settings,
-            builder: (_, __) => const SettingsTab(),
           ),
           GoRoute(
             path: Routes.plans,
@@ -111,9 +135,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (_, state) => PlanDetailScreen(
-                  planId: state.pathParameters['id']!,
-                ),
+                builder: (_, state) =>
+                    PlanDetailScreen(planId: state.pathParameters['id']!),
               ),
             ],
           ),
@@ -124,7 +147,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: ':kind/:periodKey',
                 builder: (_, state) {
-                  final kind = PeriodKind.fromString(state.pathParameters['kind']!);
+                  final kind = PeriodKind.fromString(
+                    state.pathParameters['kind']!,
+                  );
                   final periodKey = state.pathParameters['periodKey']!;
                   return ReportDetailScreen(kind: kind, periodKey: periodKey);
                 },
@@ -153,8 +178,6 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

@@ -117,6 +117,8 @@ class AthleteDashboardData {
     required this.streakDays,
     required this.weekPlanned,
     required this.weekCompleted,
+    this.plannedAheadCount = 0,
+    this.recent = const [],
   });
 
   final PlanRow? activePlan;
@@ -125,6 +127,8 @@ class AthleteDashboardData {
   final int streakDays;
   final List<PlannedWorkoutRow> weekPlanned;
   final List<CompletedWorkoutRow> weekCompleted;
+  final int plannedAheadCount;
+  final List<CompletedWorkoutRow> recent;
 }
 
 class AthleteRosterEntry {
@@ -262,7 +266,7 @@ class AthleteDashboardNotifier
           .isFilter('deleted_at', null)
           .gte('scheduled_date', todayStr)
           .order('scheduled_date', ascending: true)
-          .limit(10),
+          .limit(100),
       // [4] Recent completed workouts for streak (last 365 days)
       supabase
           .from('completed_workouts')
@@ -271,6 +275,14 @@ class AthleteDashboardNotifier
           .isFilter('deleted_at', null)
           .gte('started_at',
               now.subtract(const Duration(days: 365)).toIso8601String()),
+      // [5] Three most recent completed workouts for the Recent list
+      supabase
+          .from('completed_workouts')
+          .select()
+          .eq('athlete_id', athleteId)
+          .isFilter('deleted_at', null)
+          .order('started_at', ascending: false)
+          .limit(3),
     ]);
 
     final planRows = (results[0] as List<dynamic>)
@@ -294,6 +306,10 @@ class AthleteDashboardNotifier
       return DateTime.parse(map['started_at'] as String);
     }).toList();
 
+    final recent = (results[5] as List<dynamic>)
+        .map((e) => CompletedWorkoutRow.fromJson(e as Map<String, dynamic>))
+        .toList();
+
     final stats = WeeklyStats(
       totalHours: totalHours(weekCompleted),
       distanceBySport: distanceBySport(weekCompleted),
@@ -308,6 +324,8 @@ class AthleteDashboardNotifier
       streakDays: calculateStreak(allDates, now),
       weekPlanned: weekPlanned,
       weekCompleted: weekCompleted,
+      plannedAheadCount: futurePlanned.length,
+      recent: recent,
     );
   }
 }

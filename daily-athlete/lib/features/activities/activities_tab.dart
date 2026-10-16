@@ -1,3 +1,4 @@
+import '../shared/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,27 +27,25 @@ class ActivitiesTab extends ConsumerWidget {
     final isCoach = roleAsync.valueOrNull == RoleFlag.coach;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Activities'),
-        bottom: isCoach
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      const Text('Athlete: '),
-                      const AthleteSelectorDropdown(),
-                    ],
-                  ),
-                ),
-              )
-            : null,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            ScreenHeader(
+              title: 'Activities',
+              bottom: isCoach
+                  ? Row(
+                      children: [
+                        const Text('Athlete: '),
+                        const Expanded(child: AthleteSelectorDropdown()),
+                      ],
+                    )
+                  : null,
+            ),
+            const Expanded(child: ActivityFeed()),
+          ],
+        ),
       ),
-      body: const ActivityFeed(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showManualLogSheet(context),
         tooltip: 'Log activity',

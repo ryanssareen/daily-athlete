@@ -134,6 +134,14 @@ When operating in this repo:
 - Don't use `&&`/`||`/`;` chains to mask missing prerequisites.
 - For broad codebase questions, use the Explore subagent type rather than streaming `grep -r` output.
 
+## Screens show content, not row metadata
+
+A detail screen or tab must show what the entity *contains* and what the athlete should do
+next, not the columns of its row. Bookkeeping (`source`, `created_at`, ids, status) is a
+footnote. Never dump open-ended JSON (`summary_stats`, `structure`) as key/value rows —
+allowlist and label the useful keys. A plan's content is derived from its planned workouts.
+See `docs/solutions/screens-show-content-not-row-metadata.md`.
+
 ## Closing a unit
 
 A Wave/Phase implementation unit is "done" when:

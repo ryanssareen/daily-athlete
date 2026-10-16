@@ -1,0 +1,69 @@
+{
+  "planId": "7f0c3a52-6c1e-4f59-9a52-0d9a1d3b8a11",
+  "story": {
+    "paragraphs": [
+      "A 4-week block toward the Spring Half Marathon on Nov 9, about 27 hours in total with running leading the load.",
+      "Volume builds through week 2, eases in week 3, and the final week tapers toward the event."
+    ],
+    "whyQuote": "Easy aerobic running after the long run keeps the legs fresh for quality days."
+  },
+  "weeks": [
+    {
+      "start": "2026-10-12",
+      "phase": "build",
+      "focus": "Run-led week with a long run on Sunday",
+      "plannedSeconds": 25200,
+      "executedSeconds": 22800,
+      "dueSeconds": 21600,
+      "compliance": 1.06,
+      "skippedCount": 1,
+      "current": true,
+      "sessions": [
+        {
+          "id": "b1a2c3d4-0000-4000-8000-000000000001",
+          "date": "2026-10-13",
+          "sport": "run",
+          "plannedSeconds": 2700,
+          "plannedLoad": 42,
+          "intensity": "Zone 2",
+          "rationale": "Easy aerobic after Sunday's long run",
+          "status": "completed",
+          "verdict": { "code": "executed_as_prescribed", "headline": "Executed as prescribed" }
+        },
+        {
+          "id": "b1a2c3d4-0000-4000-8000-000000000002",
+          "date": "2026-10-16",
+          "sport": "bike",
+          "plannedSeconds": 5400,
+          "plannedLoad": null,
+          "intensity": null,
+          "rationale": null,
+          "status": "planned",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "start": "2026-10-19",
+      "phase": null,
+      "focus": "Mixed week",
+      "plannedSeconds": 0,
+      "executedSeconds": 0,
+      "dueSeconds": 0,
+      "compliance": null,
+      "skippedCount": 0,
+      "current": false,
+      "sessions": []
+    }
+  ],
+  "forecast": {
+    "status": "ok",
+    "endOfBlockDate": "2026-11-08",
+    "ctl": 52.4,
+    "atl": 48.1,
+    "tsb": 4.3,
+    "formVerdict": "Fresh and ready to perform",
+    "eventDay": { "date": "2026-11-09", "tsb": 7.8, "formVerdict": "Fresh and ready to perform" }
+  },
+  "sectionErrors": []
+}

@@ -2,42 +2,15 @@
 //
 // Sport-colored workout pill widget for calendar grid cells.
 //
-// Planned workouts use a lighter shade (30% opacity) of the sport color.
+// Planned workouts are a dashed sport-color outline with no fill.
 // Completed workouts use the full sport color.
-// Sport color map: run=orange, ride=blue, swim=cyan, strength=purple,
-// mobility=green, other=gray.
+// Colors come from Sport.color (the canonical palette shared with web).
 
 import 'package:flutter/material.dart';
 
 import '../../models/activity_summary.dart';
 import '../../models/sport.dart';
-
-// ---------------------------------------------------------------------------
-// Sport color palette
-// ---------------------------------------------------------------------------
-
-/// Full-saturation sport color for completed workouts.
-Color sportColor(Sport sport) {
-  switch (sport) {
-    case Sport.run:
-      return const Color(0xFFFF8C00); // dark orange
-    case Sport.bike:
-      return const Color(0xFF1565C0); // blue[800]
-    case Sport.swim:
-      return const Color(0xFF00ACC1); // cyan[600]
-    case Sport.strength:
-      return const Color(0xFF7B1FA2); // purple[700]
-    case Sport.mobility:
-      return const Color(0xFF388E3C); // green[700]
-    case Sport.other:
-      return const Color(0xFF757575); // grey[600]
-  }
-}
-
-/// Lighter shade for planned (not yet completed) workouts.
-Color plannedSportColor(Sport sport) {
-  return sportColor(sport).withValues(alpha: 0.30);
-}
+import '../shared/dashed_border.dart';
 
 // ---------------------------------------------------------------------------
 // WorkoutChip widget
@@ -84,18 +57,13 @@ class WorkoutChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isCompleted ? sportColor(sport) : plannedSportColor(sport);
-    final textColor = isCompleted ? Colors.white : sportColor(sport);
+    final textColor = isCompleted ? Colors.white : sport.color;
 
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
+    final chip = Container(
         margin: const EdgeInsets.symmetric(vertical: 1),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: color,
+          color: isCompleted ? sport.color : null,
           borderRadius: BorderRadius.circular(8),
         ),
         child: label != null
@@ -115,12 +83,19 @@ class WorkoutChip extends StatelessWidget {
                 height: 8,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: isCompleted ? Colors.white : sportColor(sport),
+                    color: isCompleted ? Colors.white : sport.color,
                     shape: BoxShape.circle,
                   ),
                 ),
               ),
-      ),
+    );
+
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: isCompleted
+          ? chip
+          : DashedBorder(color: sport.color, radius: 8, child: chip),
     );
   }
 }
@@ -129,7 +104,7 @@ class WorkoutChip extends StatelessWidget {
 // SportDot — minimal dot badge for month-view cells (up to 3 per day)
 // ---------------------------------------------------------------------------
 
-/// A 6 px filled circle dot in the sport color. Used in Month view day cells
+/// A 6 px dot in the sport color (filled when done, a ring when planned). Used in Month view day cells
 /// as compact workout badges (up to 3 shown per day, rest truncated).
 class SportDot extends StatelessWidget {
   const SportDot({super.key, required this.sport, this.isCompleted = true});
@@ -139,13 +114,15 @@ class SportDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isCompleted ? sportColor(sport) : plannedSportColor(sport);
     return Container(
       width: 6,
       height: 6,
       margin: const EdgeInsets.symmetric(horizontal: 1),
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: isCompleted ? sport.color : null,
+        border: isCompleted ? null : Border.all(color: sport.color),
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
