@@ -14,6 +14,7 @@ export * from "./entitlement";
 export * from "./period-review";
 export * from "./plan";
 export * from "./plan-generation";
+export * from "./plan-view";
 export * from "./planned-workout";
 export * from "./realtime-allowlist";
 export * from "./strava-backfill";
