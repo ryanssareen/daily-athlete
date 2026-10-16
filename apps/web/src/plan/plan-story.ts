@@ -7,6 +7,7 @@ import {
 
 import { readStructureDurationSeconds } from "@/ai/planned-structure";
 import { sportLabel } from "@/components/training-overview/sport-colors";
+import { dayDiff } from "@/training-load/load-series";
 
 import { formatDurationShort, mondayOf } from "./plan-summary";
 import type { CountedSession } from "./plan-view-types";
@@ -18,7 +19,6 @@ export const TAPER_MAX_WEEKS = 2;
 const PHASE_ORDER: readonly PlanPhase[] = ["build", "recovery", "peak", "taper"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MS_PER_DAY = 86_400_000;
 
 function utcDate(dateOnly: string): Date {
   return new Date(`${dateOnly}T00:00:00Z`);
@@ -27,10 +27,6 @@ function utcDate(dateOnly: string): Date {
 function formatDay(dateOnly: string): string {
   const d = utcDate(dateOnly);
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
-}
-
-function daysBetween(from: string, to: string): number {
-  return Math.round((utcDate(to).getTime() - utcDate(from).getTime()) / MS_PER_DAY);
 }
 
 function seconds(session: CountedSession): number | null {
@@ -42,7 +38,7 @@ function readStoredPhase(session: CountedSession): PlanPhase | null {
   return parsed.success ? parsed.data : null;
 }
 
-function groupByWeek(sessions: CountedSession[]): Map<string, CountedSession[]> {
+export function groupByWeek(sessions: CountedSession[]): Map<string, CountedSession[]> {
   const weeks = new Map<string, CountedSession[]>();
   for (const session of sessions) {
     const key = mondayOf(session.date);
@@ -81,7 +77,10 @@ export function detectPhases(input: {
   const stored = sessions.map(readStoredPhase);
   if (stored.every((phase): phase is PlanPhase => phase != null)) {
     for (const [monday, weekSessions] of weeks) {
-      result.set(monday, mostCommonPhase(weekSessions.map((s) => readStoredPhase(s) as PlanPhase)));
+      result.set(monday, mostCommonPhase(weekSessions.flatMap((s) => {
+          const phase = readStoredPhase(s);
+          return phase ? [phase] : [];
+        })));
     }
     return result;
   }
@@ -100,7 +99,7 @@ export function detectPhases(input: {
   const taper = new Set<string>();
   if (eventDate != null) {
     const beforeEvent = measured
-      .filter((w) => w.monday <= eventDate && daysBetween(w.monday, eventDate) <= TAPER_MAX_WEEKS * 7)
+      .filter((w) => w.monday <= eventDate && dayDiff(w.monday, eventDate) <= TAPER_MAX_WEEKS * 7)
       .slice(-TAPER_MAX_WEEKS);
     for (const w of beforeEvent) {
       const index = measured.findIndex((m) => m.monday === w.monday);
@@ -223,7 +222,7 @@ function composeEventSentence(
   today: string,
 ): string | null {
   if (eventDate == null || eventDate < today) return null;
-  const days = daysBetween(today, eventDate);
+  const days = dayDiff(today, eventDate);
   const distance = days === 0 ? "today" : `in ${pluralize(days, "day")}`;
   const label = eventType != null && eventType.trim() !== "" ? `Your ${eventType.trim()}` : "Your goal event";
   return `${label} is on ${formatDay(eventDate)}, ${distance}.`;
@@ -253,7 +252,7 @@ export function composePlanStory(input: {
   const weekCount =
     mondays.length === 0
       ? 0
-      : Math.round(daysBetween(mondays[0], mondays[mondays.length - 1]) / 7) + 1;
+      : Math.round(dayDiff(mondays[0], mondays[mondays.length - 1]) / 7) + 1;
 
   const first =
     sessions.length === 0

@@ -34,7 +34,7 @@ class _PlanOutlineState extends State<PlanOutline> {
     final theme = Theme.of(context);
     if (widget.weeks.isEmpty) {
       return Text(
-        'No workouts scheduled yet',
+        noWorkoutsCopy,
         style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       );
     }

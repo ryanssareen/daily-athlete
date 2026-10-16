@@ -14,8 +14,8 @@ import {
 import type { LoadWorkoutInput } from "@/training-load/load-series";
 
 import { forecastPlan } from "./plan-forecast";
-import { computeWeekResults, type WeekResults } from "./plan-results";
-import { composePlanStory, composeWeekFocus, detectPhases } from "./plan-story";
+import { computeWeekResults, emptyWeek } from "./plan-results";
+import { composePlanStory, composeWeekFocus, detectPhases, groupByWeek } from "./plan-story";
 import { mondayOf, todayIn } from "./plan-summary";
 import type { CountedSession, MatchedCompleted } from "./plan-view-types";
 
@@ -167,15 +167,6 @@ async function loadHistory(
   }));
 }
 
-const EMPTY_RESULTS: WeekResults = {
-  plannedSeconds: 0,
-  executedSeconds: 0,
-  dueSeconds: 0,
-  compliance: null,
-  skippedCount: 0,
-  sessions: [],
-};
-
 export async function buildPlanView(
   admin: SupabaseClient,
   athleteId: string,
@@ -220,8 +211,8 @@ export async function buildPlanView(
 
   let forecast: PlanViewForecast = { status: "unavailable-no-data" };
   try {
-    const history = await loadHistory(admin, athleteId, now);
     const remaining = sessions.filter((s) => s.status !== "completed" && s.date >= today);
+    const history = remaining.length > 0 ? await loadHistory(admin, athleteId, now) : [];
     forecast = forecastPlan({ history, remaining, today, eventDate });
   } catch {
     sectionErrors.push("forecast");
@@ -237,18 +228,12 @@ export async function buildPlanView(
   });
   const results = computeWeekResults({ sessions, skippedDates, matches, today });
 
-  const sessionsByWeek = new Map<string, CountedSession[]>();
-  for (const s of sessions) {
-    const start = mondayOf(s.date);
-    const list = sessionsByWeek.get(start) ?? [];
-    list.push(s);
-    sessionsByWeek.set(start, list);
-  }
+  const sessionsByWeek = groupByWeek(sessions);
   const weekStarts = [...new Set([...sessionsByWeek.keys(), ...results.keys()])].sort();
   const thisMonday = mondayOf(today);
 
   const weeks: PlanViewWeek[] = weekStarts.map((start) => {
-    const weekResults = results.get(start) ?? EMPTY_RESULTS;
+    const weekResults = results.get(start) ?? emptyWeek();
     return {
       start,
       phase: phases.get(start) ?? null,

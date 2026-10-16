@@ -72,7 +72,7 @@ function compareSessions(a: CountedSession, b: CountedSession): number {
   return a.id < b.id ? -1 : 1;
 }
 
-function emptyWeek(): WeekResults {
+export function emptyWeek(): WeekResults {
   return { plannedSeconds: 0, executedSeconds: 0, dueSeconds: 0, compliance: null, skippedCount: 0, sessions: [] };
 }
 

@@ -10,6 +10,7 @@ import {
   formatSessionDay,
   plannedLoadText,
   sessionDurationText,
+  type WeekTiming,
   verdictChip,
   verdictsUnavailableNote,
   weekHeader,
@@ -108,7 +109,7 @@ function SessionRow({ session }: { session: PlanViewSession }) {
   );
 }
 
-function WeekBody({ week, timing }: { week: PlanViewWeek; timing: "past" | "current" | "future" }) {
+function WeekBody({ week, timing }: { week: PlanViewWeek; timing: WeekTiming }) {
   if (week.sessions.length === 0) {
     return (
       <p style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "8px 0 0" }}>

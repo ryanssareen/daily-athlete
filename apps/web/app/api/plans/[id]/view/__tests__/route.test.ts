@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlanRow } from "@da2/shared";
 
-import { fakeAdmin, type RecordedQuery } from "@/plan/__tests__/fake-admin";
+import type { RecordedQuery } from "@/plan/__tests__/fake-admin";
 
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://localhost:54321";

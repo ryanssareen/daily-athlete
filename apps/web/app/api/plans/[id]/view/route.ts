@@ -37,17 +37,15 @@ export async function GET(
 
   const admin = createAdminClient();
   try {
-    const plan = await getPlan(admin, user.id, parsedId.data);
+    const [plan, { data: profile }] = await Promise.all([
+      getPlan(admin, user.id, parsedId.data),
+      // service-role: explicit user filter required
+      admin.from("users").select("timezone").eq("id", user.id).maybeSingle(),
+    ]);
     if (!plan) {
       return NextResponse.json({ error: "not_found" }, { status: 404, headers: NO_STORE });
     }
 
-    // service-role: explicit user filter required
-    const { data: profile } = await admin
-      .from("users")
-      .select("timezone")
-      .eq("id", user.id)
-      .maybeSingle();
     const timezone = (profile?.timezone as string | null) ?? "UTC";
 
     const view = await buildPlanView(admin, user.id, plan, timezone, new Date());

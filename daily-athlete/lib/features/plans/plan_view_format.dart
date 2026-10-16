@@ -50,8 +50,10 @@ String formatSigned(double value) {
   return rounded > 0 ? '+$rounded' : '$rounded';
 }
 
+const noWorkoutsCopy = 'No workouts scheduled yet';
+
 String? weekEmptyMessage(PlanViewWeek week, {required bool hasVerdictError, DateTime? now}) {
-  if (week.sessions.isEmpty) return 'No workouts scheduled yet';
+  if (week.sessions.isEmpty) return noWorkoutsCopy;
   if (week.dueSeconds > 0) {
     final anyCompleted = week.sessions.any((s) => s.status == PlanSessionStatus.completed);
     if (!anyCompleted && !hasVerdictError) return 'Results appear as you complete sessions';

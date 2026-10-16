@@ -5,18 +5,20 @@
 
 import 'workout_report.dart' show Verdict;
 
+T _enumFromString<T extends Enum>(List<T> values, String value, String label) {
+  for (final candidate in values) {
+    if (candidate.name == value) return candidate;
+  }
+  throw FormatException('Unknown $label: $value');
+}
+
 enum PlanPhase {
   build,
   recovery,
   peak,
   taper;
 
-  static PlanPhase fromString(String value) {
-    for (final phase in PlanPhase.values) {
-      if (phase.name == value) return phase;
-    }
-    throw FormatException('Unknown PlanPhase: $value');
-  }
+  static PlanPhase fromString(String value) => _enumFromString(PlanPhase.values, value, 'PlanPhase');
 }
 
 enum PlanSessionStatus {
@@ -24,24 +26,16 @@ enum PlanSessionStatus {
   moved,
   completed;
 
-  static PlanSessionStatus fromString(String value) {
-    for (final status in PlanSessionStatus.values) {
-      if (status.name == value) return status;
-    }
-    throw FormatException('Unknown session status: $value');
-  }
+  static PlanSessionStatus fromString(String value) =>
+      _enumFromString(PlanSessionStatus.values, value, 'session status');
 }
 
 enum PlanSectionError {
   verdicts,
   forecast;
 
-  static PlanSectionError fromString(String value) {
-    for (final section in PlanSectionError.values) {
-      if (section.name == value) return section;
-    }
-    throw FormatException('Unknown section error: $value');
-  }
+  static PlanSectionError fromString(String value) =>
+      _enumFromString(PlanSectionError.values, value, 'section error');
 }
 
 DateTime _dateOnly(Object? value) {
