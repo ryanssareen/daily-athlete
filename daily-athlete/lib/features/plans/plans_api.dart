@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/env.dart';
 import '../../models/plan.dart';
+import '../../models/plan_view.dart';
 
 class PlansApiError implements Exception {
   PlansApiError(this.message);
@@ -53,4 +54,23 @@ Future<PlanRow> fetchPlan(String id) async {
   }
   final body = jsonDecode(response.body) as Map<String, dynamic>;
   return PlanRow.fromJson(body['plan'] as Map<String, dynamic>);
+}
+
+/// GET /api/plans/:id/view — the plan's story, week outline, results and
+/// forecast. Throws [PlansApiError] on any non-200 or unparseable payload.
+Future<PlanView> fetchPlanView(String planId) async {
+  final token = _requireAccessToken();
+  final uri = Uri.parse('${Env.apiBaseUrl}/api/plans/$planId/view');
+  final response = await http.get(uri, headers: _headers(token));
+  if (response.statusCode != 200) {
+    throw PlansApiError('Failed to load plan view (${response.statusCode})');
+  }
+  try {
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return PlanView.fromJson(body['view'] as Map<String, dynamic>);
+  } on FormatException catch (e) {
+    throw PlansApiError('Malformed plan view: ${e.message}');
+  } on TypeError {
+    throw PlansApiError('Malformed plan view');
+  }
 }

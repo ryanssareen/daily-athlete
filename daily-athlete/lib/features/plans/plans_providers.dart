@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/plan.dart';
+import '../../models/plan_view.dart';
 import '../../models/planned_workout.dart';
 import '../auth/auth_notifier.dart';
 import 'plans_api.dart';
@@ -21,6 +22,12 @@ final planHistoryProvider = FutureProvider.autoDispose<List<PlanRow>>((ref) asyn
 final planDetailProvider =
     FutureProvider.autoDispose.family<PlanRow, String>((ref, id) async {
   return fetchPlan(id);
+});
+
+/// GET /api/plans/:id/view — story, outline, results and forecast.
+final planViewProvider =
+    FutureProvider.autoDispose.family<PlanView, String>((ref, planId) async {
+  return fetchPlanView(planId);
 });
 
 /// Every live planned workout belonging to a plan, soonest first.

@@ -1,8 +1,9 @@
 // What a plan actually contains: span, weekly volume, sport mix, next session
-// and this week's sessions. Shared by the Plan tab (active plan) and the plan
+// and the story, forecast and week outline from the plan view. Shared by the Plan tab (active plan) and the plan
 // detail screen (any plan).
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -11,16 +12,21 @@ import '../../models/planned_workout.dart';
 import '../activities/activity_row.dart' show sportIcon;
 import '../reports/reports_view.dart' show formatDuration;
 import '../../models/planned_structure.dart';
+import '../../models/plan_view.dart';
+import 'plan_forecast_card.dart';
+import 'plan_outline.dart';
+import 'plan_story_card.dart';
 import 'plan_summary.dart';
+import 'plans_providers.dart';
 
-class PlanOverview extends StatelessWidget {
+class PlanOverview extends ConsumerWidget {
   const PlanOverview({super.key, required this.plan, required this.workouts});
 
   final PlanRow plan;
   final List<PlannedWorkoutRow> workouts;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     if (workouts.isEmpty) {
       return Text(
@@ -28,6 +34,8 @@ class PlanOverview extends StatelessWidget {
         style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
       );
     }
+    final viewAsync = ref.watch(planViewProvider(plan.id));
+    void retry() => ref.invalidate(planViewProvider(plan.id));
     final summary = summarizePlan(workouts, DateTime.now());
     final weekNumber = summary.currentWeekIndex == null ? null : summary.currentWeekIndex! + 1;
     final daysToEvent = plan.eventDate?.difference(DateTime.now()).inDays;
@@ -35,6 +43,14 @@ class PlanOverview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        viewAsync.when(
+          loading: () => const _SectionLoading(),
+          error: (_, _) => _SectionError(message: "Couldn't load the plan story", onRetry: retry),
+          data: (view) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: PlanStoryCard(story: view.story),
+          ),
+        ),
         _Headline(
           weekNumber: weekNumber,
           totalWeeks: summary.weeks.length,
@@ -49,18 +65,59 @@ class PlanOverview extends StatelessWidget {
           _WorkoutTile(workout: summary.next!, showDate: true),
         ],
         const SizedBox(height: 20),
-        _SectionLabel('Weekly volume'),
-        _WeeklyBars(summary: summary),
+        _SectionLabel('Forecast'),
+        viewAsync.when(
+          loading: () => const _SectionLoading(),
+          error: (_, _) => PlanForecastCard.failed(onRetry: retry),
+          data: (view) => view.sectionErrors.contains(PlanSectionError.forecast)
+              ? PlanForecastCard.failed(onRetry: retry)
+              : PlanForecastCard(forecast: view.forecast),
+        ),
+        const SizedBox(height: 20),
+        _SectionLabel('Week by week'),
+        viewAsync.when(
+          loading: () => const _SectionLoading(),
+          error: (_, _) => _SectionError(message: "Couldn't load the week-by-week outline", onRetry: retry),
+          data: (view) => PlanOutline(
+            weeks: view.weeks,
+            verdictsUnavailable: view.sectionErrors.contains(PlanSectionError.verdicts),
+          ),
+        ),
         const SizedBox(height: 20),
         _SectionLabel('Sport mix'),
         _SportMix(summary: summary),
-        if (summary.thisWeek.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _SectionLabel('This week'),
-          for (final w in summary.thisWeek) _WorkoutTile(workout: w, showDate: true),
-        ],
-        const SizedBox(height: 12),
-        _FullSchedule(summary: summary, workouts: workouts),
+      ],
+    );
+  }
+}
+
+class _SectionLoading extends StatelessWidget {
+  const _SectionLoading();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+}
+
+class _SectionError extends StatelessWidget {
+  const _SectionError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(child: Text(message, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error))),
+        TextButton(
+          style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+          onPressed: onRetry,
+          child: const Text('Retry'),
+        ),
       ],
     );
   }
@@ -134,59 +191,6 @@ class _ProgressCard extends StatelessWidget {
   }
 }
 
-class _WeeklyBars extends StatelessWidget {
-  const _WeeklyBars({required this.summary});
-
-  final PlanSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final maxS = summary.weeks.fold<double>(0, (m, w) => w.durationS > m ? w.durationS : m);
-    return Column(
-      children: [
-        for (var i = 0; i < summary.weeks.length; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 56,
-                  child: Text(
-                    DateFormat.MMMd().format(summary.weeks[i].start),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: i == summary.currentWeekIndex ? FontWeight.w700 : FontWeight.w400,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: maxS == 0 ? 0 : summary.weeks[i].durationS / maxS,
-                      minHeight: 10,
-                      color: i == summary.currentWeekIndex
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.primary.withValues(alpha: 0.45),
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 64,
-                  child: Text(
-                    summary.weeks[i].durationS > 0 ? formatDuration(summary.weeks[i].durationS) : '—',
-                    textAlign: TextAlign.end,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class _SportMix extends StatelessWidget {
   const _SportMix({required this.summary});
 
@@ -207,37 +211,6 @@ class _SportMix extends StatelessWidget {
             label: Text('${e.key.displayName} · ${formatDuration(e.value)}'),
             visualDensity: VisualDensity.compact,
           ),
-      ],
-    );
-  }
-}
-
-class _FullSchedule extends StatelessWidget {
-  const _FullSchedule({required this.summary, required this.workouts});
-
-  final PlanSummary summary;
-  final List<PlannedWorkoutRow> workouts;
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      shape: const Border(),
-      title: const Text('Full schedule'),
-      children: [
-        for (final week in summary.weeks) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 4),
-              child: Text('Week of ${DateFormat.MMMd().format(week.start)}',
-                  style: Theme.of(context).textTheme.labelLarge),
-            ),
-          ),
-          for (final w in workouts.where((w) =>
-              !w.scheduledDate.isBefore(week.start) && w.scheduledDate.isBefore(week.start.add(const Duration(days: 7)))))
-            _WorkoutTile(workout: w, showDate: true),
-        ],
       ],
     );
   }
