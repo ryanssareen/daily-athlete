@@ -1,26 +1,18 @@
 import Link from "next/link";
 import type { Route } from "next";
 
-import type { PlanRow } from "@da2/shared";
+import type { PlanRow, PlanView } from "@da2/shared";
 
 import { readStructureDurationSeconds } from "@/ai/planned-structure";
 import { sportColor, sportLabel } from "@/components/training-overview/sport-colors";
 
 import { formatEventDate } from "./format";
-import {
-  formatDurationShort,
-  mondayOf,
-  summarizePlan,
-  type PlanWorkoutInput,
-} from "./plan-summary";
-
-const card = {
-  background: "var(--color-paper)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 16,
-  padding: "20px 24px",
-  marginBottom: 16,
-} as const;
+import { cardStyle as card } from "./plan-card-style";
+import { PlanForecast } from "./PlanForecast";
+import { PlanOutline } from "./PlanOutline";
+import { PlanStory } from "./PlanStory";
+import { formatDurationShort, summarizePlan, type PlanWorkoutInput } from "./plan-summary";
+import { VIEW_ERROR_COPY } from "./plan-view-format";
 
 function daysUntil(dateOnly: string, today: string): number {
   const ms = Date.parse(`${dateOnly}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`);
@@ -30,14 +22,6 @@ function daysUntil(dateOnly: string, today: string): number {
 function formatDay(dateOnly: string): string {
   return new Date(`${dateOnly}T00:00:00Z`).toLocaleDateString(undefined, {
     weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function formatWeekStart(dateOnly: string): string {
-  return new Date(`${dateOnly}T00:00:00Z`).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
@@ -80,6 +64,17 @@ function WorkoutRow({ workout }: { workout: PlanWorkoutInput }) {
   );
 }
 
+function ViewErrorCard() {
+  return (
+    <div data-testid="plan-view-error" role="alert" style={card}>
+      <p style={{ fontSize: 14, color: "var(--color-ink-muted)", margin: "0 0 8px" }}>{VIEW_ERROR_COPY}</p>
+      <Link href="/plan" style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
+        Try again
+      </Link>
+    </div>
+  );
+}
+
 function Eyebrow({ children }: { children: string }) {
   return (
     <p className="eyebrow" style={{ marginBottom: 8 }}>
@@ -97,10 +92,12 @@ export function PlanOverview({
   plan,
   workouts,
   today,
+  view,
 }: {
   plan: PlanRow;
   workouts: PlanWorkoutInput[];
   today: string;
+  view: PlanView | null;
 }) {
   if (workouts.length === 0) {
     return (
@@ -115,10 +112,10 @@ export function PlanOverview({
   const summary = summarizePlan(workouts, today);
   const weekNumber = summary.currentWeekIndex === null ? null : summary.currentWeekIndex + 1;
   const daysToEvent = plan.event_date ? daysUntil(plan.event_date, today) : null;
-  const maxWeekS = Math.max(...summary.weeks.map((w) => w.durationS), 0);
 
   return (
     <div data-testid="plan-overview">
+      {view ? <PlanStory story={view.story} /> : <ViewErrorCard />}
       <div style={card}>
         <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--color-ink)", margin: "0 0 2px" }}>
           {weekNumber ? `Week ${weekNumber} of ${summary.weeks.length}` : `${summary.weeks.length}-week plan`}
@@ -159,39 +156,9 @@ export function PlanOverview({
         </div>
       )}
 
-      <div style={card}>
-        <Eyebrow>Weekly volume</Eyebrow>
-        {summary.weeks.map((week, i) => (
-          <div
-            key={week.start}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", fontSize: 12 }}
-          >
-            <span
-              style={{
-                width: 56,
-                color: "var(--color-ink-muted)",
-                fontWeight: i === summary.currentWeekIndex ? 700 : 400,
-              }}
-            >
-              {formatWeekStart(week.start)}
-            </span>
-            <span style={{ flex: 1, height: 10, borderRadius: 4, background: "var(--color-border)", overflow: "hidden" }}>
-              <span
-                style={{
-                  display: "block",
-                  height: "100%",
-                  width: maxWeekS === 0 ? "0%" : `${(week.durationS / maxWeekS) * 100}%`,
-                  background: "var(--color-ink)",
-                  opacity: i === summary.currentWeekIndex ? 1 : 0.45,
-                }}
-              />
-            </span>
-            <span style={{ width: 64, textAlign: "right", color: "var(--color-ink-muted)" }}>
-              {week.durationS > 0 ? formatDurationShort(week.durationS) : "—"}
-            </span>
-          </div>
-        ))}
-      </div>
+      {view && <PlanForecast forecast={view.forecast} sectionErrors={view.sectionErrors} />}
+
+      {view && <PlanOutline weeks={view.weeks} sectionErrors={view.sectionErrors} today={today} />}
 
       {summary.sportSeconds.length > 0 && (
         <div style={card}>
@@ -221,34 +188,6 @@ export function PlanOverview({
           </div>
         </div>
       )}
-
-      {summary.thisWeek.length > 0 && (
-        <div style={card}>
-          <Eyebrow>This week</Eyebrow>
-          {summary.thisWeek.map((w) => (
-            <WorkoutRow key={w.id} workout={w} />
-          ))}
-        </div>
-      )}
-
-      <details style={card}>
-        <summary style={{ fontSize: 14, fontWeight: 600, cursor: "pointer", color: "var(--color-ink)" }}>
-          Full schedule
-        </summary>
-        {summary.weeks.map((week) => (
-          <div key={week.start} style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink-muted)", margin: "0 0 2px" }}>
-              Week of {formatWeekStart(week.start)}
-            </p>
-            {workouts
-              .filter((w) => mondayOf(w.scheduled_date) === week.start)
-              .sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))
-              .map((w) => (
-                <WorkoutRow key={w.id} workout={w} />
-              ))}
-          </div>
-        ))}
-      </details>
     </div>
   );
 }

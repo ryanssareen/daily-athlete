@@ -8,13 +8,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import type { PlanRow } from "@da2/shared";
+import type { PlanRow, PlanView } from "@da2/shared";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import { createAdminClient } from "@/db/admin";
 import { PlanActions } from "@/plan/PlanActions";
 import { formatDate } from "@/plan/format";
 import { PlanOverview } from "@/plan/PlanOverview";
+import { buildPlanView } from "@/plan/plan-view";
 import { todayIn, type PlanWorkoutInput } from "@/plan/plan-summary";
 
 export default async function PlanDetailPage({
@@ -89,6 +91,13 @@ export default async function PlanDetailPage({
     .returns<PlanWorkoutInput[]>();
   const upcomingCount = (planWorkouts ?? []).filter((w) => w.status === "planned").length;
 
+  let view: PlanView | null = null;
+  try {
+    view = await buildPlanView(createAdminClient(), session.user.id, plan, session.timezone, new Date());
+  } catch {
+    view = null;
+  }
+
   return (
     <div style={{ width: "100%", padding: "8px 0 80px" }}>
       <Link
@@ -98,7 +107,12 @@ export default async function PlanDetailPage({
         ← Your plans
       </Link>
       <div style={{ margin: "12px 0 16px" }}>
-        <PlanOverview plan={plan} workouts={planWorkouts ?? []} today={todayIn(session.timezone)} />
+        <PlanOverview
+          plan={plan}
+          workouts={planWorkouts ?? []}
+          today={todayIn(session.timezone)}
+          view={view}
+        />
         <p style={{ fontSize: 12, color: "var(--color-ink-subtle)", margin: 0 }}>
           {plan.status === "active" ? "Active" : "Archived"}
           {` · Created ${formatDate(plan.created_at)}`}

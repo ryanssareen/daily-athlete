@@ -18,14 +18,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import type { PlanRow } from "@da2/shared";
+import type { PlanRow, PlanView } from "@da2/shared";
 
 import { getUserWithRoles } from "@/auth/roles";
 import { createClient } from "@/auth/server";
+import { createAdminClient } from "@/db/admin";
 import ProposalReview from "@/adaptive/ProposalReview";
 import GeneratePlanCard from "@/plan/GeneratePlanCard";
 import { PlanHistoryList } from "@/plan/PlanHistoryList";
 import { PlanOverview } from "@/plan/PlanOverview";
+import { buildPlanView } from "@/plan/plan-view";
 import { todayIn, type PlanWorkoutInput } from "@/plan/plan-summary";
 
 function PlanHistorySection({ plans, activePlanId }: { plans: PlanRow[]; activePlanId?: string }) {
@@ -154,12 +156,26 @@ export default async function AthleteReviewPage({
     .order("scheduled_date")
     .returns<PlanWorkoutInput[]>();
 
+  let view: PlanView | null = null;
+  try {
+    view = await buildPlanView(
+      createAdminClient(),
+      session.user.id,
+      activePlan!,
+      session.timezone,
+      new Date()
+    );
+  } catch {
+    view = null;
+  }
+
   return (
     <div style={{ width: "100%", padding: "8px 0 80px" }}>
       <PlanOverview
         plan={activePlan!}
         workouts={planWorkouts ?? []}
         today={todayIn(session.timezone)}
+        view={view}
       />
       <ProposalReview
         athleteId={session.user.id}
