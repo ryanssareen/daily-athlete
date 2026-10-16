@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: MCP Connector and the Web Plan Tab</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --ink: #221f1a;
+    --ink-muted: #5d564c;
+    --line: #e4ddd1;
+    --accent: #a3401f;
+    --accent-soft: #f8e6dd;
+    --accent-text: #7c2f14;
+    --ok-soft: #e3f0e6;
+    --ok-text: #25532f;
+    --warn-soft: #f7efd9;
+    --warn-text: #6b4c0f;
+    --code-bg: #f1ebe0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17140f;
+      --card: #211d17;
+      --ink: #f1ebe0;
+      --ink-muted: #b7ad9c;
+      --line: #3a3429;
+      --accent: #e08a65;
+      --accent-soft: #3a241a;
+      --accent-text: #f3b497;
+      --ok-soft: #1f3324;
+      --ok-text: #a9d8b4;
+      --warn-soft: #382f17;
+      --warn-text: #e7cf8f;
+      --code-bg: #2b251d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .page { max-width: 900px; margin-inline: auto; padding: 40px 20px 80px; }
+  header .eyebrow, .eyebrow {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent-text); font-weight: 600; margin: 0 0 6px;
+  }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 12px; }
+  h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 18px; margin: 0 0 4px; }
+  p, li { max-width: 72ch; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+  a { color: var(--accent-text); }
+  dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0 0; font-size: 13px; }
+  dl.meta dt { color: var(--ink-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .08em; padding-top: 2px; }
+  dl.meta dd { margin: 0; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 24px 0 0; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; min-width: 120px; }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { font-size: 12px; color: var(--ink-muted); }
+  .chip { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 12px; background: var(--card); color: var(--ink); }
+  .chip.accent { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+  .chip.ok { background: var(--ok-soft); color: var(--ok-text); border-color: transparent; }
+  .chip.warn { background: var(--warn-soft); color: var(--warn-text); border-color: transparent; }
+  .callout { background: var(--accent-soft); border-radius: 12px; padding: 14px 18px; margin: 16px 0; }
+  .callout .eyebrow { color: var(--accent-text); }
+  .callout p { margin: 0; color: var(--ink); }
+  ul.axes, ul.jump { padding-left: 20px; }
+  ul.jump li { margin: 2px 0; }
+  article.idea { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin: 20px 0; }
+  article.idea header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .idea-id { font-weight: 700; color: var(--accent-text); font-size: 18px; }
+  article.idea dl { margin: 14px 0 0; }
+  article.idea dt { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); font-weight: 600; margin-top: 14px; }
+  article.idea dd { margin: 3px 0 0; }
+  article.idea dd ul { margin: 4px 0 0; padding-left: 18px; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  figure { margin: 14px 0 4px; }
+  figcaption { font-size: 12.5px; color: var(--ink-muted); margin-top: 6px; max-width: 72ch; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { fill: var(--ink); font: 12px "Inter", system-ui, sans-serif; }
+  svg .box { fill: var(--card); stroke: var(--line); stroke-width: 1.2; }
+  svg .hi { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  svg .arrow { stroke: var(--ink-muted); stroke-width: 1.4; fill: none; }
+  svg .tip { fill: var(--ink-muted); }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+  .compare > div { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--bg); }
+  .compare .label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); font-weight: 600; margin-bottom: 6px; }
+  .row { font-size: 13.5px; }
+  .row small { display: block; color: var(--ink-muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); background: var(--bg); }
+  tr:last-child td { border-bottom: 0; }
+  footer.composition-signal { margin-top: 48px; font-size: 12px; color: var(--ink-muted); border-top: 1px solid var(--line); padding-top: 12px; }
+  details summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <p class="eyebrow">Ideation</p>
+  <h1>Ideation: the MCP connector and the web Plan tab</h1>
+  <dl class="meta">
+    <dt>Date</dt><dd><time datetime="2026-10-15">2026-10-15</time></dd>
+    <dt>Topic</dt><dd>mcp-connector-and-web-plan-tab</dd>
+    <dt>Focus</dt><dd>The MCP connection and in specific the web Plan tab too</dd>
+    <dt>Mode</dt><dd>repo-grounded</dd>
+  </dl>
+  <div class="stats">
+    <div class="stat"><b>7</b><span>ranked ideas</span></div>
+    <div class="stat"><b>45 → 16</b><span>raw → merged</span></div>
+    <div class="stat"><b>6</b><span>cut after verification</span></div>
+    <div class="stat"><b>5 / 5</b><span>axes with survivors</span></div>
+  </div>
+  <div class="callout">
+    <p class="eyebrow">Top pick</p>
+    <p>Idea 1, giving every session on the Plan tab its reason and its result, answers the recurring "the Plan tab shows nothing" complaint with data that already exists. Idea 2 is the bigger bet: it makes the MCP connector obey the guardrails the product's own AI already obeys.</p>
+  </div>
+</header>
+
+<section id="grounding-context">
+  <h2>Grounding Context</h2>
+  <h3>Codebase Context</h3>
+  <p>DA2 is an endurance and triathlon training app whose wedge is "AI periodization with coach review". <code>apps/web</code> hosts the UI, every API route, and the MCP endpoint; the Flutter app and the shared Zod package sit alongside. There is no <code>STRATEGY.md</code>.</p>
+  <ul>
+    <li><strong>MCP connector:</strong> one endpoint, <code>/api/mcp</code>, with a hand-rolled OAuth 2.1 server (open dynamic client registration, PKCE S256, 1h access and 30d refresh tokens). It exposes 16 tools: 8 reads and 8 writes over profile, completed and planned workouts, plans, and a CTL/ATL/TSB summary. Each call mints a 60-second Supabase JWT and an RLS-bound client. There is a single scope, <code>athlete</code>.</li>
+    <li><strong>Not exposed over MCP:</strong> plan generation, plan archive and delete, weekly-review proposals and accept/reject, workout reports, period reviews, matched completion, coach links. No prompts, resources, elicitation, or MCP Apps are used.</li>
+    <li><strong>Web Plan tab:</strong> rebuilt on 2026-10-14. <code>PlanOverview</code> derives week progress, volume bars, sport mix, next session and this week from planned workouts. The query selects only <code>id, scheduled_date, sport, status, structure</code>. Rationale, planned load and intensity appear only on the planned-workout detail page; match state and CTL/ATL/TSB appear only on the calendar and reports.</li>
+    <li><strong>Plan actions:</strong> generate (only when no plan is active), archive, delete, and accept/reject AI weekly-review proposals. Plans are create-only. Generation failures show raw <code>reason:</code> codes.</li>
+  </ul>
+  <h3>Institutional learnings that bind these ideas</h3>
+  <ul>
+    <li><code>docs/solutions/screens-show-content-not-row-metadata.md</code> — a screen shows what the entity contains; a tab must not just point at another tab.</li>
+    <li><code>docs/solutions/adaptive-plan-engine.md</code> — the deterministic guardrail layer is authoritative and re-validates at apply time; <code>version</code> is the staleness token.</li>
+    <li>Memory: <em>planned-structure-key-drift</em> (three duration spellings, free-text intensity, written by ad-hoc writers), <em>matching-uses-athlete-timezone</em> (UTC mis-filed about 10% of one athlete's workouts), <em>plan-generation-three-faults</em> (generation only succeeded from 2026-08-19).</li>
+  </ul>
+  <h3>External context</h3>
+  <p>Every fitness MCP found is community-built. The TrainingPeaks one has 84 tools, a read/write split, server-computed TSS, and in-place updates instead of delete-and-recreate. None ships prompts, resources or elicitation, and none exposes a "pending coach review" state. Competitor plan screens lean on planned-versus-actual compliance (Intervals.icu) and swappable workouts (TrainerRoad).</p>
+</section>
+
+<section id="topic-axes">
+  <h2>Topic Axes</h2>
+  <ul class="axes">
+    <li>Agent write safety and data integrity (MCP writes)</li>
+    <li>MCP surface beyond CRUD (unexposed capabilities, prompts, resources, MCP Apps)</li>
+    <li>MCP trust, auth and ops (scopes, per-call cost, timezone, connection management)</li>
+    <li>Plan tab content and insight (what the tab shows versus the data that exists)</li>
+    <li>Plan tab actions and lifecycle (generate or replace, review proposals, edit)</li>
+  </ul>
+</section>
+
+<section id="ranked-ideas">
+  <h2>Ranked Ideas</h2>
+  <ul class="jump">
+    <li><a href="#idea-1">1. Sessions that carry their why and their result</a></li>
+    <li><a href="#idea-2">2. Claude proposes, the Plan tab disposes</a></li>
+    <li><a href="#idea-3">3. A provenance spine: audit, show, undo</a></li>
+    <li><a href="#idea-4">4. One canonical write gate for planned workouts</a></li>
+    <li><a href="#idea-5">5. Hand Claude the app's own numbers, in the athlete's time</a></li>
+    <li><a href="#idea-6">6. A connected-assistants panel with read-only consent</a></li>
+    <li><a href="#idea-7">7. Plan generation you can preview and understand</a></li>
+  </ul>
+
+  <!-- ===== 1 ===== -->
+  <article class="idea" id="idea-1">
+    <header><span class="idea-id">1.</span><h3>Sessions that carry their why and their result</h3></header>
+    <div class="tags"><span class="chip accent">Axis 4 · Plan tab content and insight</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+    <figure>
+      <div class="compare">
+        <div>
+          <div class="label">Plan tab today</div>
+          <div class="row">Run · Tue Oct 14 · 45m<small>Planned</small></div>
+          <div class="row" style="margin-top:8px">Bike · Thu Oct 16 · 90m<small>Planned</small></div>
+        </div>
+        <div>
+          <div class="label">Directional: with why, result and outlook</div>
+          <div class="row">Run · Tue Oct 14 · 45m · Z2 · load 42<small>"Easy aerobic after Sunday's long run" · <span class="chip ok">executed as prescribed</span></small></div>
+          <div class="row" style="margin-top:8px">Week 3: 82% of planned load so far · form −8<small>Block ends with projected form +4 (taper starts Oct 27)</small></div>
+        </div>
+      </div>
+      <figcaption>Directional only: illustrates the intended shape. Numbers and copy are placeholders, not requirements.</figcaption>
+    </figure>
+    <dl>
+      <dt>Description</dt>
+      <dd>Turn the Plan tab from a schedule digest into the place an athlete finds out whether the plan is working. Each session row carries the rationale and intensity target the AI already wrote and, once matched, a deterministic verdict chip. Weekly bars become planned versus executed, with compliance bands and a denominator that counts only what is due to date, so skipped or moved sessions do not inflate it. A forecast line runs the existing training-load model forward over remaining planned load to project fitness, fatigue and form to the end of the plan block, and to <code>event_date</code> when the block reaches it.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>apps/web/app/(athlete)/plan/page.tsx:151</code> selects only <code>id, scheduled_date, sport, status, structure</code>; the scout found zero matches for <code>rationale|planned_load|intensity|workout_matches|tsb|ctl</code> in <code>PlanOverview.tsx</code> and <code>plan-summary.ts</code>.</li>
+        <li><code>direct:</code> <code>plan-summary.ts:74-78</code> counts a session done by status only (<code>if (w.status === "completed")</code>); <code>delta.ts:40,46,51</code> already defines duration, load and intensity tolerances (10, 15, 8 percent) and <code>computeExecutionDelta</code>.</li>
+        <li><code>direct:</code> <code>load-series.ts:28,30</code> sets <code>CTL_TAU_DAYS = 42</code> and <code>ATL_TAU_DAYS = 7</code>; <code>calc.ts:98-103</code> has <code>formVerdict(tsb)</code>; <code>invariants.ts</code> already holds the ramp cap, TSB floor and taper window.</li>
+        <li><code>external:</code> Intervals.icu compliance bands and its forum thread on weekly planned versus completed (<a href="https://forum.intervals.icu/t/weekly-planned-versus-completed/130611">forum.intervals.icu</a>), where adding completed work to the denominator was the complaint.</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>The tab was just rebuilt to show content, but a plan page that never mentions what the athlete actually did, or why a session is there, still reads as a calendar. Every ingredient is one query away and the math is already deterministic and tested, so this reuses logic rather than inventing it. It also removes the "plan load disagrees with the dashboard" failure users report across tools, because the tab calls the same functions as reports.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>The verifier found that generation uses <code>PLAN_HORIZON_WEEKS = 4</code> (<code>apps/web/src/ai/generation/prompts/generate-plan.ts:50</code>), so most plans never reach <code>event_date</code>. "Arrive fresh on race day" is only honest when the block covers the event; otherwise frame the forecast as end-of-block form.</li>
+        <li>Forecast quality depends on <code>planned_load</code> and <code>structure.load</code>, which are sparse and drifted in production; idea 4 is the fix.</li>
+        <li>Verdict chips need a batched or lighter path than the per-workout report context (about six queries each) to avoid N+1 on a plan page.</li>
+        <li>Mobile has its own copy of the summary logic (<code>plan_summary.dart</code>), so any new rows land twice unless the logic is shared.</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 2 ===== -->
+  <article class="idea" id="idea-2">
+    <header><span class="idea-id">2.</span><h3>Claude proposes, the Plan tab disposes</h3></header>
+    <div class="tags"><span class="chip accent">Axis 2 · MCP surface beyond CRUD (crosses axis 5)</span><span class="chip ok">Confidence 70%</span><span class="chip warn">Complexity High</span></div>
+    <figure>
+      <svg viewBox="0 0 750 130" role="img" aria-label="Flow: Claude proposes edit operations, guardrails validate them, a proposal is stored, the athlete accepts per operation on the Plan tab, and apply re-validates.">
+        <defs><marker id="ah2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" class="tip"/></marker></defs>
+        <rect class="box" x="6" y="30" width="128" height="70" rx="8"/>
+        <text x="70" y="62" text-anchor="middle">Claude proposes</text><text x="70" y="78" text-anchor="middle">edit operations</text>
+        <line class="arrow" x1="134" y1="65" x2="154" y2="65" marker-end="url(#ah2)"/>
+        <rect class="hi" x="154" y="30" width="128" height="70" rx="8"/>
+        <text x="218" y="62" text-anchor="middle">validateOps</text><text x="218" y="78" text-anchor="middle">guardrails</text>
+        <line class="arrow" x1="282" y1="65" x2="302" y2="65" marker-end="url(#ah2)"/>
+        <rect class="box" x="302" y="30" width="128" height="70" rx="8"/>
+        <text x="366" y="62" text-anchor="middle">weekly_reviews</text><text x="366" y="78" text-anchor="middle">proposal</text>
+        <line class="arrow" x1="430" y1="65" x2="450" y2="65" marker-end="url(#ah2)"/>
+        <rect class="hi" x="450" y="30" width="128" height="70" rx="8"/>
+        <text x="514" y="62" text-anchor="middle">Plan tab review</text><text x="514" y="78" text-anchor="middle">accept per op</text>
+        <line class="arrow" x1="578" y1="65" x2="598" y2="65" marker-end="url(#ah2)"/>
+        <rect class="box" x="598" y="30" width="128" height="70" rx="8"/>
+        <text x="662" y="62" text-anchor="middle">Apply re-validates</text><text x="662" y="78" text-anchor="middle">against current load</text>
+      </svg>
+      <figcaption>Directional overview. Small, safe edits can stay direct; plan-shaping changes take this path.</figcaption>
+    </figure>
+    <dl>
+      <dt>Description</dt>
+      <dd>Today the connector's write tools edit rows directly, which means an assistant can schedule a load spike inside the taper window that the app's own AI planner would have dropped. Route plan-shaping writes (multi-day moves, load increases, anything near the event, anything on a coach-edited row) through the existing proposal pipeline: the tool compiles to the engine's five operation kinds, runs the deterministic validator as a dry run, and files a proposal the athlete accepts or rejects per operation in the Plan tab's existing review screen. Add read and decide tools so the assistant can say "you have a pending review". The read side is separable and can ship first.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>apps/web/app/api/weekly-review/route.ts:11-15</code>: "Agent-native: … an agent can GET the list, then drive accept/reject on a specific [id]"; <code>accept/route.ts:13-18</code>: "re-validate invariants against CURRENT load … atomically apply via the apply_weekly_review RPC".</li>
+        <li><code>direct:</code> <code>packages/shared/src/edit-op.ts:67</code> defines move, modify, skip, insert and delete; <code>apps/web/src/training-load/invariants.ts:1-24</code> documents <code>validateOps</code> as a pure function, with drop reasons <code>volume_ramp, ctl_ramp, tsb_floor, taper_window, past_event, coach_protected</code>.</li>
+        <li><code>direct:</code> nothing under <code>apps/web/src/mcp/</code> references <code>validateOps</code> or the entitlement gate, and the surface scout found no MCP tool that maps to generate, archive, delete, accept, reject, report or review.</li>
+        <li><code>external:</code> no competitor exposes a "pending coach review" state to an assistant; Humango and Runna adapt silently. The pattern mirrors suggestion mode in document editors and pull requests in code review.</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>It is the only way an external assistant and the in-app AI coach can both edit one plan without overwriting each other or bypassing the safety layer the product sells. It also turns the Plan tab into the approval surface for what Claude wants to do, which gives the tab a reason to exist beyond display.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>The verifier found real conflicts: <code>propose_weekly_review</code> is service-role only while the connector is deliberately JWT-only; the <code>trigger_kind</code> check has no agent value, so a migration is needed; and the single-open-proposal precedence logic could let an agent proposal supersede, or be suppressed by, the weekly AI review.</li>
+        <li>Accept is gated on the <code>ai_plans</code> entitlement, so non-subscribers' MCP edits would newly be gated. Decide that deliberately.</li>
+        <li>Proposals only render on <code>/plan</code> when an active plan exists.</li>
+        <li>Slice it: pending-review reads plus accept and reject are small to medium; proposal authoring is the large part.</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 3 ===== -->
+  <article class="idea" id="idea-3">
+    <header><span class="idea-id">3.</span><h3>A provenance spine: audit every agent write, show it, undo it</h3></header>
+    <div class="tags"><span class="chip accent">Axis 1 · Agent write safety (crosses axis 5)</span><span class="chip ok">Confidence 75%</span><span class="chip">Complexity Medium</span></div>
+    <figure>
+      <svg viewBox="0 0 750 130" role="img" aria-label="Flow: an MCP write tool, a JWT carrying the actor and client, a database trigger, a workout_edits row with before and after values, and a Plan tab ledger with undo.">
+        <defs><marker id="ah3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" class="tip"/></marker></defs>
+        <rect class="box" x="6" y="30" width="128" height="70" rx="8"/>
+        <text x="70" y="62" text-anchor="middle">Any MCP write</text><text x="70" y="78" text-anchor="middle">tool</text>
+        <line class="arrow" x1="134" y1="65" x2="154" y2="65" marker-end="url(#ah3)"/>
+        <rect class="box" x="154" y="30" width="128" height="70" rx="8"/>
+        <text x="218" y="62" text-anchor="middle">JWT carries actor</text><text x="218" y="78" text-anchor="middle">and client id</text>
+        <line class="arrow" x1="282" y1="65" x2="302" y2="65" marker-end="url(#ah3)"/>
+        <rect class="hi" x="302" y="30" width="128" height="70" rx="8"/>
+        <text x="366" y="62" text-anchor="middle">DB trigger writes</text><text x="366" y="78" text-anchor="middle">same transaction</text>
+        <line class="arrow" x1="430" y1="65" x2="450" y2="65" marker-end="url(#ah3)"/>
+        <rect class="box" x="450" y="30" width="128" height="70" rx="8"/>
+        <text x="514" y="62" text-anchor="middle">workout_edits</text><text x="514" y="78" text-anchor="middle">before + after</text>
+        <line class="arrow" x1="578" y1="65" x2="598" y2="65" marker-end="url(#ah3)"/>
+        <rect class="hi" x="598" y="30" width="128" height="70" rx="8"/>
+        <text x="662" y="62" text-anchor="middle">Plan tab ledger</text><text x="662" y="78" text-anchor="middle">with Undo</text>
+      </svg>
+      <figcaption>Directional overview. Provenance becomes a database invariant instead of something each tool must remember.</figcaption>
+    </figure>
+    <dl>
+      <dt>Description</dt>
+      <dd>Put an actor claim and client id in the short-lived JWT the connector already mints, and let a database trigger write the audit row in the same transaction as the mutation, for planned workouts, completed workouts and profile alike. Store before and after values so an edit can be reversed. On the Plan tab, show "Changes since you last looked" with provenance (you, AI coach, coach, Claude) and an Undo that replays the inverse under the <code>version</code> guard.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>apps/web/src/mcp/tools.ts:5-7</code> promises "writes stamp <code>agent</code> attribution and append a workout_edits audit row", but <code>appendAgentEdit</code> is called only at lines 460, 512, 555 and 596 (planned writes). <code>profile_update</code> and the completed-workout log, edit and delete never call it.</li>
+        <li><code>direct:</code> <code>tools.ts:70-73</code>: "The mutation already landed; never silently drop a failed audit append", so today the audit is a best-effort insert after the write; the minted JWT payload at <code>crypto.ts:50-57</code> has no actor claim.</li>
+        <li><code>direct:</code> <code>supabase/migrations/0019_weekly_reviews_and_workout_edits.sql:119</code> makes <code>planned_workout_id</code> the only workout foreign key; <code>packages/shared/src/realtime-allowlist.ts:30</code> already lists <code>workout_edits</code>, so live updates are possible.</li>
+        <li><code>external:</code> aviation flight recorders and <code>git reflog</code> as the model for cheap, trustworthy reversal.</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>The code comment currently claims an audit trail that does not exist for completed workouts, so an assistant can delete or alter real training history with no record. Letting an agent write to a plan is only comfortable if the athlete can see and reverse what it did. A trigger makes that structurally impossible to forget when tool number 17 is added.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>The verifier checked and found MCP rows store <code>field_diff</code> as <code>{created:true}</code>, <code>{edited:[keys]}</code>, <code>{moved_to}</code> or <code>{deleted:true}</code>, with no old values. Undo is impossible until the audit stores before and after; that is a core part of this idea, not an extra.</li>
+        <li>Auditing completed workouts and profile needs a migration or a sibling table, with account-deletion cascade handling.</li>
+        <li>"Since you last looked" needs per-user state. A cheap first slice is a badge from <code>edited_by_kind = 'agent'</code> on the planned rows, which needs none of the above.</li>
+        <li><code>docs/operational/mcp-connector.md</code> also names the wrong audit column (<code>edited_by_kind</code> where the code uses <code>actor_role</code>).</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 4 ===== -->
+  <article class="idea" id="idea-4">
+    <header><span class="idea-id">4.</span><h3>One canonical write gate for planned workouts</h3></header>
+    <div class="tags"><span class="chip accent">Axis 1 · Agent write safety and data integrity</span><span class="chip ok">Confidence 85%</span><span class="chip">Complexity Medium</span></div>
+    <dl>
+      <dt>Description</dt>
+      <dd>Stop accepting an open <code>structure</code> blob on MCP planned-workout create and edit. The assistant supplies intent (sport, date, duration, an intensity target, or a compact step list); the server builds the canonical stored shape, computes <code>planned_load</code>, normalizes legacy keys on edit, and rejects anything else with a specific, model-readable error such as "use <code>duration_s</code>, not <code>est_duration_min</code>". Put this behind one write function shared by MCP, REST, coach routes and the AI generator.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>apps/web/src/mcp/tools.ts:424,478</code> are <code>structure: z.record(z.unknown()).optional()</code> and <code>:449</code> stores <code>args.structure ?? {}</code>.</li>
+        <li><code>direct:</code> <code>apps/web/src/ai/planned-structure.ts:39-41</code>: "a survey of live rows found THREE spellings in use, each from a different writer"; lines 53-54 say "the durable fix is for generation to settle on one key".</li>
+        <li><code>direct:</code> a strict canonical schema already exists at <code>packages/shared/src/plan-generation.ts:117-126</code> (<code>GeneratedWorkoutStructureSchema … .strict()</code>).</li>
+        <li><code>external:</code> the TrainingPeaks MCP computes TSS and intensity factor server-side from the interval structure (<a href="https://github.com/JamsusMaximus/trainingpeaks-mcp">JamsusMaximus/trainingpeaks-mcp</a>).</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>The connector is the newest ad-hoc writer, and the key-drift learning says drift comes from exactly such writers. A language model will happily invent a fourth duration spelling, and the Plan tab's weekly bars then show a silent zero for that row. This is also the foundation that ideas 1 and 7 quietly depend on.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>Existing rows still need a legacy read and normalize path; this closes the door but does not clean the room.</li>
+        <li><code>planned_load</code> is optional on MCP create today, so the server must start deriving it.</li>
+        <li>The strict generation schema requires a <code>phase</code> field the connector may not want to demand.</li>
+        <li>Prod JSONB should be measured before fixing the canonical shape, per the drift learning.</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 5 ===== -->
+  <article class="idea" id="idea-5">
+    <header><span class="idea-id">5.</span><h3>Hand Claude the app's own numbers, in the athlete's time</h3></header>
+    <div class="tags"><span class="chip accent">Axis 2 · MCP surface beyond CRUD (includes axis 3 timezone)</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+    <dl>
+      <dt>Description</dt>
+      <dd>Expose what the app already computes deterministically instead of raw rows: the per-workout execution verdict and deltas, period-review facts, the full CTL/ATL/TSB series with its form verdict, and a single "athlete brief" tool or resource. Ship a weekly check-in prompt that chains them. In the same change, resolve every date in <code>users.timezone</code>, return an <code>athlete_today</code> and <code>week_start</code> header, and accept <code>today</code>, <code>this_week</code> and <code>next_week</code> as date arguments.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> the workout report GET route states it will "NEVER call the LLM"; <code>reviews/route.ts:1-10</code> says the same; the headline is templated by our code, "never model-written" (verifier located the quote at <code>delta.ts:334</code> and the shared <code>workout-report.ts</code>).</li>
+        <li><code>direct:</code> <code>training_load_summary</code> returns only the last 14 points via <code>slice(-14)</code> and no form verdict; the surface scout found zero <code>registerPrompt</code> or <code>registerResource</code> calls.</li>
+        <li><code>direct:</code> <code>apps/web/src/mcp/tools.ts:116-117</code> filters with <code>`${args.to}T23:59:59Z`</code> and <code>:245-246</code> uses <code>Date.now() - days * 86_400_000</code>; <code>tools.ts</code> never mentions a timezone, against the AGENTS.md rule to apply athlete timezone at the read boundary.</li>
+        <li><code>external:</code> stale cached CTL, timezone bugs that mis-date a race day, and plan load that disagrees with the dashboard are recurring pains across fitness MCPs and coaching tools (Intervals.icu IntervalCoach forum thread).</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>An assistant that recomputes training load itself will eventually quote a number the app does not, which is the failure athletes notice first. The expensive, correct logic already exists and costs no model call. Fixing dates once at the boundary removes the bug class the project already paid for in matching, and the timezone slice is small enough to ship first.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>Whether claude.ai surfaces connector prompts is unverified, so treat prompts as an experiment and make the tools carry the value.</li>
+        <li>The report route gathers context per workout, so period-level facts need a batch variant.</li>
+        <li>The verifier noted many users may still hold <code>UTC</code> in <code>users.timezone</code>; check capture coverage first. It also flagged, unverified, that short <code>training_load_summary</code> windows may start CTL from zero.</li>
+        <li>Overlaps idea 1: both should call one shared plan-and-load read model rather than growing separate derivations.</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 6 ===== -->
+  <article class="idea" id="idea-6">
+    <header><span class="idea-id">6.</span><h3>A connected-assistants panel with read-only consent</h3></header>
+    <div class="tags"><span class="chip accent">Axis 3 · MCP trust, auth and ops</span><span class="chip ok">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+    <dl>
+      <dt>Description</dt>
+      <dd>Add Settings, Connected assistants: each client with its name, connected date, last used, and write count, with Revoke and Revoke all. Wire up <code>revokeAllForUser</code>, which nothing calls today. Split the single <code>athlete</code> scope into read and write, let the consent screen offer "Approve read-only", and mark dynamically registered client names as unverified. Per-token write budgets and rate limits on <code>/token</code>, <code>/authorize</code> and tool calls are the second slice.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>docs/operational/mcp-connector.md:51-55</code> tells users to revoke with raw SQL, <code>delete from oauth_access_tokens where user_id = auth.uid();</code>; <code>revokeAllForUser</code> (<code>apps/web/src/oauth/tokens.ts:172</code>) has no caller.</li>
+        <li><code>direct:</code> <code>scopes_supported: ["athlete"]</code> at <code>.well-known/oauth-authorization-server/route.ts:23</code>; the consent text at <code>authorize/route.ts:78-80</code> says the client "wants to read and write your training data", and <code>:154</code> shows a registrant-supplied <code>client_name</code>.</li>
+        <li><code>direct:</code> <code>supabase/migrations/0025_mcp_oauth.sql:129-134</code> gives athletes a self-SELECT policy only; the trust scout found no rate limit on token, authorize or tool calls (only registration, 5 per IP per hour), and 30-day refresh tokens.</li>
+        <li><code>external:</code> Open Banking consent dashboards that let a person list and revoke third-party access; Claude's own per-tool permissions (always allow, needs approval, blocked) make read and write grouping matter.</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>Open client registration plus a write-capable 30-day token and no way to see or kill it is the weakest trust point of the connector. A read-only tier is also the safest way for a cautious athlete to try it. This is the gate that lets ideas 2 and 5 expose riskier tools behind distinct scopes.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>The verifier called the full bundle oversized (UI, scope split, budgets, rate limits are four ideas). Ship the list plus revoke first.</li>
+        <li>Claude already offers client-side per-tool permissions, which lowers the value of the scope split for Claude, though not for other clients.</li>
+        <li>A "writes per client" count depends on idea 3 carrying a client id.</li>
+        <li>Revoke needs an admin-client route because only a self-SELECT policy exists.</li>
+      </ul></dd>
+    </dl>
+  </article>
+
+  <!-- ===== 7 ===== -->
+  <article class="idea" id="idea-7">
+    <header><span class="idea-id">7.</span><h3>Plan generation you can preview and understand</h3></header>
+    <div class="tags"><span class="chip accent">Axis 5 · Plan tab actions and lifecycle</span><span class="chip warn">Confidence 60%</span><span class="chip">Complexity Medium (High for the preview half)</span></div>
+    <dl>
+      <dt>Description</dt>
+      <dd>Two separable moves. First, make failures actionable: an infeasible request returns "this event by this date needs at least N hours a week" with a one-click adjusted retry, status arrives by realtime instead of a 4-second poll, and the raw <code>reason:</code> codes leave the athlete UI. Second, build the new plan as a candidate beside the live one, show a diff (weekly volume, peak CTL, form at the end of the block, changed days), and promote it in one transaction only on confirmation; discarding costs nothing.</dd>
+      <dt>Basis</dt>
+      <dd><ul>
+        <li><code>direct:</code> <code>supabase/migrations/0024_…sql:148-156</code> archives the active plan and soft-deletes its not-yet-done workouts inside <code>create_ai_plan</code>; lines 92-99 return <code>trial_exhausted</code> when the single free plan was already used.</li>
+        <li><code>direct:</code> <code>GeneratePlanCard.tsx:292</code> renders <code>reason: {code}</code> while <code>:236-239</code> already holds the right advice ("try more weekly hours or a later event date"); <code>POLL_INTERVAL_MS = 4_000</code>; <code>ai_generation_attempts</code> is not on the realtime allowlist.</li>
+        <li><code>direct:</code> <code>PlanActions.tsx:108-118</code> warns that upcoming workouts will be removed from the calendar.</li>
+        <li><code>reasoned:</code> generation only began succeeding on 2026-08-19 and each run costs about 7k of an 8k tokens-per-minute budget, so a result the athlete cannot compare or undo is a high-stakes action on an unproven output. Staged deploys with instant rollback are the standard answer.</li>
+      </ul></dd>
+      <dt>Rationale</dt>
+      <dd>Generation is expensive, fragile and previously failed silently. Today the failure path shows internal codes with no remedy, and a successful run replaces the current plan unseen. Making the first half clear is cheap and independent; the second half makes regenerating safe to try, and is the point where the free-trial rule becomes a deliberate product decision.</dd>
+      <dt>Downsides</dt>
+      <dd><ul>
+        <li>The verifier called this two ideas. Actionable failures and realtime status are small to medium and independent; candidate-and-promote is large.</li>
+        <li>The one-active-plan partial unique index and the rule that calendar and adaptive reads scope by athlete and <code>deleted_at</code> mean candidate workouts cannot simply be <code>planned_workouts</code> rows; they need a separate table or status.</li>
+        <li>"Discard is free" changes the trial semantics inside the RPC.</li>
+        <li>Lowest confidence of the set because the preview half has the least precedent in this codebase.</li>
+      </ul></dd>
+    </dl>
+  </article>
+</section>
+
+<section id="rejection-summary">
+  <h2>Rejection Summary</h2>
+  <table>
+    <thead><tr><th>#</th><th>Idea</th><th>Reason rejected</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Prompt-injection taint tracking on MCP reads</td><td>Basis weakened. The connector builds a new server and transport per request, so "sessions that have read foreign text" cannot be tracked, and the elicitation hand-off needs SSE, which is disabled. The cited generation-prompt precedent runs in the opposite direction. A usable slice (origin labels in tool output) is small enough to fold into idea 2.</td></tr>
+      <tr><td>2</td><td>Golden-athlete parity test harness</td><td>Sound but an enabler, not a direction. It should land first as a sequencing step before ideas 3, 4 and 5; only two MCP test files exist and no <code>tools.ts</code> test.</td></tr>
+      <tr><td>3</td><td>One plan read model for web, mobile and MCP</td><td>A refactor with no user-visible change; the "select string copied three times" point is a trivial dedupe. Folded into ideas 1 and 5 as an implementation note.</td></tr>
+      <tr><td>4</td><td>"Life happened" actions (travel, injury, race date moved)</td><td>Premise does not hold. The replan request carries only a trigger kind and optional workout id, and the route header says no endpoint for availability or event-date changes exists and should not be invented. Revisit once such an endpoint is built.</td></tr>
+      <tr><td>5</td><td>Plan tab rendered inside Claude as an MCP App</td><td>Unverified platform support: the closest prior art says its MCP Apps did not render in Claude clients as of July 2026, contradicting the host-support claim. Needs a render spike, and a data contract from ideas 1 and 5 first.</td></tr>
+      <tr><td>6</td><td>Bring-your-own-model plan generation (<code>plan_context</code> / <code>plan_submit</code>)</td><td>Sound, but a strategy change: it hands the core wedge to the user's assistant, labels the result <code>ai_generated</code>, and changes entitlement economics. Better handled as a brainstorm variant than a product improvement.</td></tr>
+      <tr><td>7</td><td>Merged away: separate undo ledger, separate planned-versus-actual card, separate forecast, separate timezone contract, separate three-way "agent edits as proposals" cards</td><td>Duplicates of stronger ideas. The undo ledger's original premise (old values exist) was refuted, so its requirement moved into idea 3; the others folded into ideas 1, 2 and 5.</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:12px;color:var(--ink-muted);font-size:13px">Axis coverage: every axis has at least one survivor. Axis 5 is carried mainly by idea 7, with ideas 2 and 3 crossing into it.</p>
+</section>
+
+<section id="sources">
+  <h2>Sources and References</h2>
+  <ul>
+    <li><a href="https://github.com/JamsusMaximus/trainingpeaks-mcp">TrainingPeaks MCP server</a> — read/write split, server-computed TSS, in-place updates.</li>
+    <li><a href="https://github.com/mvilanova/intervals-mcp-server">Intervals.icu MCP server</a> and <a href="https://github.com/r-huijts/strava-mcp">Strava MCP server</a> — tool surface comparisons.</li>
+    <li><a href="https://forum.intervals.icu/t/weekly-planned-versus-completed/130611">Intervals.icu forum: weekly planned versus completed</a> — the denominator problem.</li>
+    <li><a href="https://modelcontextprotocol.io/extensions/apps/overview">MCP Apps overview</a> and <a href="https://modelcontextprotocol.io/specification/2025-11-25/client/elicitation">MCP elicitation spec</a>.</li>
+    <li><a href="https://claude.com/docs/connectors/overview.md">Claude connectors overview</a> — per-tool permissions.</li>
+    <li>In-repo: <code>docs/plans/2026-06-27-001-feat-mcp-athlete-stats-connector-plan.md</code>, <code>docs/operational/mcp-connector.md</code>, <code>docs/solutions/screens-show-content-not-row-metadata.md</code>, <code>docs/solutions/adaptive-plan-engine.md</code>.</li>
+  </ul>
+</section>
+
+<footer class="composition-signal">Composed <time datetime="2026-10-15">2026-10-15</time> by ce-ideate from the focus "The MCP connection and in specific the web Plan tab too".</footer>
+
+</div>
+</body>
+</html>
