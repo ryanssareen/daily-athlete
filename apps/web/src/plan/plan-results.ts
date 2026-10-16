@@ -1,4 +1,8 @@
-import type { PlanViewSession, Verdict } from "@da2/shared";
+import {
+  PLAN_VIEW_RATIONALE_MAX_LENGTH,
+  type PlanViewSession,
+  type Verdict,
+} from "@da2/shared";
 
 import { computeExecutionDelta } from "@/ai/reports/delta";
 import {
@@ -10,8 +14,6 @@ import {
 
 import { mondayOf } from "./plan-summary";
 import type { CountedSession, MatchedCompleted } from "./plan-view-types";
-
-const RATIONALE_MAX_LENGTH = 600;
 
 export interface WeekResults {
   plannedSeconds: number;
@@ -48,7 +50,7 @@ export function verdictForSession(
 }
 
 function normalizeRationale(rationale: string | null): string | null {
-  const trimmed = rationale?.trim().slice(0, RATIONALE_MAX_LENGTH).trim() ?? "";
+  const trimmed = rationale?.trim().slice(0, PLAN_VIEW_RATIONALE_MAX_LENGTH).trim() ?? "";
   return trimmed.length > 0 ? trimmed : null;
 }
 

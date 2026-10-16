@@ -54,6 +54,7 @@ export async function GET(
     if (err instanceof PlanViewNotFoundError) {
       return NextResponse.json({ error: "not_found" }, { status: 404, headers: NO_STORE });
     }
+    console.error("plan view route failed", { planId: parsedId.data }, err);
     return NextResponse.json({ error: "internal" }, { status: 500, headers: NO_STORE });
   }
 }

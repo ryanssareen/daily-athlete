@@ -165,8 +165,8 @@ export default async function AthleteReviewPage({
       session.timezone,
       new Date()
     );
-  } catch {
-    view = null;
+  } catch (err) {
+    console.error("plan page view failed", { planId: activePlan!.id }, err);
   }
 
   return (

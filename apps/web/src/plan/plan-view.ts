@@ -202,7 +202,8 @@ export async function buildPlanView(
   if (completedIds.length > 0) {
     try {
       matches = await loadMatchedCompleted(admin, athleteId, completedIds);
-    } catch {
+    } catch (err) {
+      console.error("plan view verdicts failed", { planId: plan.id }, err);
       sectionErrors.push("verdicts");
     }
   }
@@ -214,7 +215,8 @@ export async function buildPlanView(
     const remaining = sessions.filter((s) => s.status !== "completed" && s.date >= today);
     const history = remaining.length > 0 ? await loadHistory(admin, athleteId, now) : [];
     forecast = forecastPlan({ history, remaining, today, eventDate });
-  } catch {
+  } catch (err) {
+    console.error("plan view forecast failed", { planId: plan.id }, err);
     sectionErrors.push("forecast");
   }
 

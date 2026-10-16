@@ -94,8 +94,8 @@ export default async function PlanDetailPage({
   let view: PlanView | null = null;
   try {
     view = await buildPlanView(createAdminClient(), session.user.id, plan, session.timezone, new Date());
-  } catch {
-    view = null;
+  } catch (err) {
+    console.error("plan detail page view failed", { planId: plan.id }, err);
   }
 
   return (
