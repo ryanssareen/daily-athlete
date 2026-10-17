@@ -31,6 +31,12 @@ The archive RPC in `0027_plans_archive_delete_rpc.sql` soft-deletes only rows wi
 - When writing a test for week compliance or load, include a `moved` row dated inside the week and assert it counts there (covered for the Plan tab in `apps/web/src/plan/__tests__/plan-results.test.ts`).
 - If `moved` is ever meant to be a pointer, it needs a replacement row and an explicit link; today there is neither.
 
+## Earlier context (session history)
+
+- The 2026-10-14 Plan tab rebuild had already treated `moved` as a visible session status next to Done and Skipped: the mobile detail screen listed each workout with its Done/Skipped/Moved label, and the web `summarizePlan` in `apps/web/src/plan/plan-summary.ts` counts every returned row as a session regardless of status. Nothing in that work contradicted the live-session reading; the wrong assumption first appeared in the 2026-10-16 plan, from the migration comment.
+- That same rebuild was prompted by the complaint that the Plan tab "shows nothing", which is documented in `docs/solutions/screens-show-content-not-row-metadata.md`. The story, outline and forecast work this learning came out of is the follow-up to it.
+- Searched the last 14 days of this repo's sessions for `moved`, `planned_workouts` and `PlanOverview`. The other matches (August planned-workout detail rendering, unrelated "moved" in the sense of relocated code) added nothing about the status.
+
 ## Related
 
 - Plan: `docs/plans/2026-10-16-001-feat-plan-tab-story-results-forecast-plan.md` (KTD4 states the corrected rule).
