@@ -35,7 +35,7 @@ enum Sport {
       case Sport.mobility:
         return const Color(0xFF6B4C22);
       case Sport.other:
-        return const Color(0xFF8A8478);
+        return const Color(0xFF8A9097);
     }
   }
 
