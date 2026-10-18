@@ -1,0 +1,112 @@
+name: Deploy iOS (TestFlight)
+
+# Builds a signed App Store IPA and uploads it to TestFlight.
+# Runs only on demand or when a tag like `ios-v1.0.0` is pushed -- never on
+# every push, because each upload burns a build number and triggers tester
+# notifications.
+#
+# Signing is Xcode cloud-managed (CODE_SIGN_STYLE = Automatic, team R7HV9V7LDY):
+# an App Store Connect API key lets xcodebuild create/fetch the distribution
+# certificate and profile on the fly, so no certificates live in this repo.
+#
+# Required repo secrets (Settings > Secrets and variables > Actions):
+#   ASC_KEY_ID        App Store Connect API key ID
+#   ASC_ISSUER_ID     Issuer ID (shown above the key list)
+#   ASC_KEY_P8_BASE64 base64 of the AuthKey_<ID>.p8 file
+#   SUPABASE_URL, SUPABASE_ANON_KEY, API_BASE_URL   same values as .env.production
+#   STRAVA_CLIENT_ID  optional
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["ios-v*"]
+
+concurrency:
+  group: deploy-ios
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build and upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: daily-athlete
+    env:
+      TEAM_ID: R7HV9V7LDY
+      # Offset so CI build numbers never collide with the manual 1.0.0 (1) upload.
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+      - run: flutter pub get
+
+      # Generates ios/Flutter/Generated.xcconfig (version, build number and
+      # dart-defines) without compiling; xcodebuild below does the real build.
+      - name: Configure Flutter release build
+        run: |
+          flutter build ios --release --config-only --no-codesign \
+            --build-number "$((BUILD_NUMBER + 100))" \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=API_BASE_URL="${{ secrets.API_BASE_URL }}" \
+            --dart-define=STRAVA_CLIENT_ID="${{ secrets.STRAVA_CLIENT_ID }}"
+
+      - name: Install pods
+        working-directory: daily-athlete/ios
+        run: pod install
+
+      - name: Archive
+        working-directory: daily-athlete/ios
+        run: |
+          xcodebuild archive \
+            -workspace Runner.xcworkspace -scheme Runner -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      # destination=upload makes -exportArchive sign AND send the build to
+      # App Store Connect in one step.
+      - name: Export and upload to TestFlight
+        working-directory: daily-athlete/ios
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}"
+
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect"
