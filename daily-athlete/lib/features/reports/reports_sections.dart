@@ -50,6 +50,58 @@ PeriodReviewSummary? previousOfKind(
   return null;
 }
 
+/// One column of the weekly load chart.
+class WeeklyLoadBar {
+  const WeeklyLoadBar({
+    required this.label,
+    required this.load,
+    required this.isCurrent,
+  });
+
+  final String label;
+  final double load;
+  final bool isCurrent;
+}
+
+/// The newest [count] weekly periods, oldest first, so the chart reads left
+/// to right. [periods] is newest first; its first weekly entry is the
+/// current week.
+List<WeeklyLoadBar> weeklyLoadBars(
+  List<PeriodReviewSummary> periods, {
+  int count = 8,
+}) {
+  final weeks = periods
+      .where((p) => p.kind == PeriodKind.weekly)
+      .take(count)
+      .toList();
+  return [
+    for (var i = weeks.length - 1; i >= 0; i--)
+      WeeklyLoadBar(
+        label: shortDate(weeks[i].bounds.start),
+        load: weeks[i].load,
+        isCurrent: i == 0,
+      ),
+  ];
+}
+
+/// Mean load of the weeks before the current one; null with no history.
+double? priorAverageLoad(List<WeeklyLoadBar> bars) {
+  final prior = bars.where((b) => !b.isCurrent).toList();
+  if (prior.isEmpty) return null;
+  return prior.fold<double>(0, (a, b) => a + b.load) / prior.length;
+}
+
+/// How a week-over-week change should read. A jump of more than 30% is the
+/// usual overreach warning; anything within 5% is steady.
+enum LoadChangeTone { spike, up, steady, down }
+
+LoadChangeTone loadChangeTone(int pct) {
+  if (pct > 30) return LoadChangeTone.spike;
+  if (pct > 5) return LoadChangeTone.up;
+  if (pct >= -5) return LoadChangeTone.steady;
+  return LoadChangeTone.down;
+}
+
 String shortDate(String ymd) {
   final d = DateTime.parse('${ymd}T00:00:00Z');
   return '${d.day} ${_months[d.month - 1]}';
@@ -220,6 +272,124 @@ class SectionCard extends StatelessWidget {
             const SizedBox(height: 12),
             child,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Training load for each of the last weeks, current week highlighted.
+class WeeklyLoadCard extends StatelessWidget {
+  const WeeklyLoadCard({super.key, required this.bars});
+
+  final List<WeeklyLoadBar> bars;
+
+  static const _barAreaHeight = 96.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bars.length < 2) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final small = context.da.metricSmall;
+    final maxLoad = bars.map((b) => b.load).reduce(math.max);
+    final avg = priorAverageLoad(bars);
+
+    return SectionCard(
+      title: 'Weekly load',
+      note: avg == null
+          ? 'This week is highlighted.'
+          : 'This week is highlighted. Average of the weeks before: ${avg.round()}.',
+      child: SizedBox(
+        // The two text labels grow with the user's text size; the bars don't.
+        height: _barAreaHeight +
+            44 * math.max(1.0, MediaQuery.textScalerOf(context).scale(1)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final bar in bars)
+              Expanded(
+                child: Semantics(
+                  label:
+                      'Week of ${bar.label}, load ${bar.load.round()}${bar.isCurrent ? ', this week' : ''}',
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${bar.load.round()}',
+                          style: small.copyWith(
+                            color: bar.isCurrent
+                                ? scheme.onSurface
+                                : scheme.onSurfaceVariant,
+                            fontWeight: bar.isCurrent
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        height: maxLoad == 0
+                            ? 2
+                            : math.max(2, _barAreaHeight * bar.load / maxLoad),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: bar.isCurrent
+                              ? scheme.primary
+                              : scheme.outline.withValues(alpha: 0.5),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          bar.label,
+                          style: small.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "↑ 88%" pill coloured by how big the week-over-week move is.
+class LoadChangeChip extends StatelessWidget {
+  const LoadChangeChip({super.key, required this.pct});
+
+  final int pct;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (bg, fg) = switch (loadChangeTone(pct)) {
+      LoadChangeTone.spike => (scheme.primaryContainer, scheme.onPrimaryContainer),
+      LoadChangeTone.up => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      _ => (scheme.surfaceContainer, scheme.onSurfaceVariant),
+    };
+    final arrow = pct > 0 ? '↑' : (pct < 0 ? '↓' : '→');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$arrow ${pct.abs()}%',
+        style: context.da.metricSmall.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -753,12 +923,10 @@ class ReviewCard extends StatelessWidget {
     super.key,
     required this.summary,
     required this.previous,
-    required this.maxLoad,
   });
 
   final PeriodReviewSummary summary;
   final PeriodReviewSummary? previous;
-  final double maxLoad;
 
   @override
   Widget build(BuildContext context) {
@@ -823,14 +991,21 @@ class ReviewCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              LoadBar(value: maxLoad == 0 ? 0 : summary.load / maxLoad),
               if (change != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  '${change >= 0 ? '↑' : '↓'} ${change.abs()}% load vs previous ${isMonth ? 'month' : 'week'}',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    LoadChangeChip(pct: change),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${loadChangeTone(change) == LoadChangeTone.spike ? 'big jump in load' : 'load'} vs previous ${isMonth ? 'month' : 'week'}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],

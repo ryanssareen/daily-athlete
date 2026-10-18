@@ -59,11 +59,9 @@ class ReportsListScreen extends ConsumerWidget {
                       ReviewCard(
                         summary: periods[i],
                         previous: previousOfKind(periods, i),
-                        maxLoad: periods
-                            .where((p) => p.kind == periods[i].kind)
-                            .fold<double>(0, (a, p) => p.load > a ? p.load : a),
                       ),
                   ];
+                  final weeklyBars = weeklyLoadBars(periods);
                   return RefreshIndicator(
                     onRefresh: refresh,
                     child: LayoutBuilder(
@@ -77,6 +75,10 @@ class ReportsListScreen extends ConsumerWidget {
                             24,
                           ),
                           children: [
+                            if (weeklyBars.length >= 2) ...[
+                              WeeklyLoadCard(bars: weeklyBars),
+                              const SizedBox(height: 16),
+                            ],
                             if (hasOverview) ...[
                               KpiGrid(overview: overview),
                               if (overview.race != null) ...[

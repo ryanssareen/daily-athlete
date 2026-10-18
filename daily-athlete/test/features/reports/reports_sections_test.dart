@@ -41,6 +41,31 @@ AthleteOverview overview() => AthleteOverview.fromJson({
     });
 
 void main() {
+  test('weeklyLoadBars keeps the newest weeks, oldest first, newest flagged', () {
+    final periods = [
+      period(PeriodKind.weekly, 'w4', 150),
+      period(PeriodKind.monthly, 'm1', 999),
+      period(PeriodKind.weekly, 'w3', 100),
+      period(PeriodKind.weekly, 'w2', 50),
+      period(PeriodKind.weekly, 'w1', 25),
+    ];
+    final bars = weeklyLoadBars(periods, count: 3);
+    expect(bars.map((b) => b.load), [50, 100, 150]);
+    expect(bars.map((b) => b.isCurrent), [false, false, true]);
+    expect(priorAverageLoad(bars), 75);
+    expect(priorAverageLoad([bars.last]), isNull);
+  });
+
+  test('loadChangeTone flags jumps over 30% and calls +-5% steady', () {
+    expect(loadChangeTone(88), LoadChangeTone.spike);
+    expect(loadChangeTone(31), LoadChangeTone.spike);
+    expect(loadChangeTone(30), LoadChangeTone.up);
+    expect(loadChangeTone(6), LoadChangeTone.up);
+    expect(loadChangeTone(5), LoadChangeTone.steady);
+    expect(loadChangeTone(-5), LoadChangeTone.steady);
+    expect(loadChangeTone(-32), LoadChangeTone.down);
+  });
+
   test('loadChangePct needs a positive baseline', () {
     expect(loadChangePct(498, 258), 93);
     expect(loadChangePct(258, 378), -32);
@@ -79,7 +104,12 @@ void main() {
                   ReviewCard(
                     summary: period(PeriodKind.weekly, 'a', 498),
                     previous: period(PeriodKind.weekly, 'b', 258, narrated: false),
-                    maxLoad: 498,
+                  ),
+                  WeeklyLoadCard(
+                    bars: weeklyLoadBars([
+                      for (var i = 0; i < 8; i++)
+                        period(PeriodKind.weekly, 'w$i', 100.0 + i * 20),
+                    ]),
                   ),
                 ],
               ),
