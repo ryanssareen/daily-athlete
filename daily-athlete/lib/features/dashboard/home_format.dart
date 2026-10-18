@@ -17,6 +17,17 @@ String fmtHm(int seconds) {
 String fmtDayDate(DateTime d) =>
     '${_weekdayShort[d.weekday - 1]} ${d.day} ${_monthShort[d.month - 1]}';
 
+/// "9 Oct" from a date-only ISO string. Parsed by hand: DateTime.parse would
+/// be fine here, but a date-only value must never go through a timezone.
+String fmtShortIsoDate(String iso) {
+  final parts = iso.split('-');
+  if (parts.length != 3) return iso;
+  final month = int.tryParse(parts[1]);
+  final day = int.tryParse(parts[2]);
+  if (month == null || day == null || month < 1 || month > 12) return iso;
+  return '$day ${_monthShort[month - 1]}';
+}
+
 /// "Today" for the current local day, else "Fri 9 Oct".
 String relativeDayLabel(DateTime started, DateTime now) {
   final s = started.toLocal();

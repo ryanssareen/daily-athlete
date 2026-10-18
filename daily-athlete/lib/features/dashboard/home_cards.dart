@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -338,24 +340,59 @@ class FormCard extends StatelessWidget {
               if (spots.length > 1) ...[
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 48,
+                  height: 72,
                   child: LineChart(
                     LineChartData(
+                      minY: math.min(0, overview.series.map((p) => p.tsb).reduce(math.min)) - 4,
+                      maxY: math.max(0, overview.series.map((p) => p.tsb).reduce(math.max)) + 4,
                       gridData: const FlGridData(show: false),
                       titlesData: const FlTitlesData(show: false),
                       borderData: FlBorderData(show: false),
                       lineTouchData: const LineTouchData(enabled: false),
+                      // Zero is the line between rested (above) and fatigued (below).
+                      extraLinesData: ExtraLinesData(
+                        horizontalLines: [
+                          HorizontalLine(
+                            y: 0,
+                            color: scheme.outline,
+                            strokeWidth: 1,
+                            dashArray: [4, 4],
+                          ),
+                        ],
+                      ),
                       lineBarsData: [
                         LineChartBarData(
                           spots: spots,
                           isCurved: true,
                           color: scheme.primary,
                           barWidth: 2,
-                          dotData: const FlDotData(show: false),
+                          dotData: FlDotData(
+                            checkToShowDot: (spot, _) => spot.x == spots.last.x,
+                            getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                              radius: 4,
+                              color: scheme.primary,
+                              strokeWidth: 2,
+                              strokeColor: scheme.surfaceContainerLow,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      fmtShortIsoDate(overview.series.first.date),
+                      style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                    Text(
+                      'Today',
+                      style: context.da.metricSmall.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 12),

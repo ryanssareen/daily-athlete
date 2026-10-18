@@ -20,6 +20,12 @@ void main() {
     expect(relativeDayLabel(DateTime(2026, 10, 9, 6), now), 'Fri 9 Oct');
   });
 
+  test('fmtShortIsoDate reads a date-only string without timezone shifts', () {
+    expect(fmtShortIsoDate('2026-10-09'), '9 Oct');
+    expect(fmtShortIsoDate('2026-01-01'), '1 Jan');
+    expect(fmtShortIsoDate('garbage'), 'garbage');
+  });
+
   test('signed1 uses a real minus sign', () {
     expect(signed1(-7.34), '−7.3');
     expect(signed1(2.0), '+2.0');

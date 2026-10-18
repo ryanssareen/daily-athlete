@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -284,10 +286,14 @@ class _FormChartCardState extends State<FormChartCard> {
       spots((p) => p.atl),
       spots((p) => p.tsb),
     ];
+    const names = ['Fitness', 'Fatigue', 'Form'];
+    final latest = series.isEmpty
+        ? const <double>[]
+        : [series.last.ctl, series.last.atl, series.last.tsb];
 
     return SectionCard(
       title: 'Fitness, fatigue & form',
-      note: 'Daily values. Form above 0 means rested.',
+      note: 'Press and drag for daily values. Form above the dashed 0 line means rested.',
       trailing: _RangeToggle(
         labels: const ['28d', '90d'],
         index: _range,
@@ -297,7 +303,7 @@ class _FormChartCardState extends State<FormChartCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 160,
+            height: 200,
             child: series.length < 2
                 ? const Center(child: Text('Not enough data yet.'))
                 : LineChart(
@@ -309,10 +315,42 @@ class _FormChartCardState extends State<FormChartCard> {
                           strokeWidth: 1,
                         ),
                       ),
+                      // Form crosses zero: above is rested, below is fatigued.
+                      extraLinesData: ExtraLinesData(
+                        horizontalLines: [
+                          HorizontalLine(
+                            y: 0,
+                            color: scheme.outline,
+                            strokeWidth: 1,
+                            dashArray: [4, 4],
+                          ),
+                        ],
+                      ),
                       titlesData: FlTitlesData(
                         topTitles: const AxisTitles(),
                         rightTitles: const AxisTitles(),
-                        bottomTitles: const AxisTitles(),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 24,
+                            interval: math.max(1, ((series.length - 1) / 3).roundToDouble()),
+                            getTitlesWidget: (v, meta) {
+                              final i = v.round();
+                              if (i < 0 || i >= series.length || v != i.toDouble()) {
+                                return const SizedBox.shrink();
+                              }
+                              return SideTitleWidget(
+                                meta: meta,
+                                child: Text(
+                                  fmtShortIsoDate(series[i].date),
+                                  style: context.da.metricSmall.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
@@ -327,7 +365,32 @@ class _FormChartCardState extends State<FormChartCard> {
                         ),
                       ),
                       borderData: FlBorderData(show: false),
-                      lineTouchData: const LineTouchData(enabled: false),
+                      // Press and drag to read the exact values for any day.
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (_) => scheme.inverseSurface,
+                          getTooltipItems: (touched) => [
+                            for (final t in touched)
+                              LineTooltipItem(
+                                t == touched.first
+                                    ? '${fmtShortIsoDate(series[t.spotIndex].date)}\n'
+                                    : '',
+                                context.da.metricSmall.copyWith(
+                                  color: scheme.onInverseSurface,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: '${names[t.barIndex]} ${signed1(t.y)}',
+                                    style: context.da.metricSmall.copyWith(
+                                      color: scheme.onInverseSurface,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
                       lineBarsData: [
                         for (var i = 0; i < 3; i++)
                           LineChartBarData(
@@ -335,7 +398,14 @@ class _FormChartCardState extends State<FormChartCard> {
                             isCurved: true,
                             color: colors[i],
                             barWidth: 2,
-                            dotData: const FlDotData(show: false),
+                            dotData: FlDotData(
+                              checkToShowDot: (spot, _) => spot.x == lines[i].last.x,
+                              getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                                radius: 3.5,
+                                color: colors[i],
+                                strokeWidth: 0,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -345,13 +415,16 @@ class _FormChartCardState extends State<FormChartCard> {
           Wrap(
             spacing: 14,
             children: [
-              for (final (i, name) in ['Fitness', 'Fatigue', 'Form'].indexed)
+              for (final (i, name) in names.indexed)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(width: 10, height: 3, color: colors[i]),
                     const SizedBox(width: 6),
-                    Text(name, style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      series.isEmpty ? name : '$name ${signed1(latest[i])}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
             ],
