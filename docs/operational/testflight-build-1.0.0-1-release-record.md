@@ -10,22 +10,22 @@ Distribution method used in Xcode Organizer: **TestFlight Internal Only**
 
 The first iOS build was archived, exported as an App Store IPA, and uploaded from Xcode Organizer. The upload reported success. Because the Internal Only method was chosen, this build can go to **internal testers only** (users on the Apple developer account, up to 100). It cannot be used for external groups, a public TestFlight link, or an App Store submission.
 
+## Source of this build
+
+This build was made from local commit `5610d45` on `main`, which was **31 commits behind `origin/main`** at upload time. It does not contain the v2 mobile redesign (new Home, Activities, Calendar, Plan and Reports tabs, iPad layouts) that landed on `origin/main` afterwards. Treat build 1.0.0 (1) as the old app. To test current code, pull `main`, set `version: 1.0.0+2`, rebuild and upload again.
+
 ## Changes made to the repo
 
-Tracked files (uncommitted at the time of writing, except this document):
+Committed to `main` on 2026-10-18:
 
 | File | Change | Why |
-|---|---|---|
+| --- | --- | --- |
 | `daily-athlete/ios/Runner/Info.plist` | Added `ITSAppUsesNonExemptEncryption = false` | Skips the export-compliance prompt on every upload |
-| `daily-athlete/ios/Runner/Info.plist` | Keys reordered; the three explanatory comments above `CFBundleURLTypes` were dropped | Side effect of editing with PlistBuddy. The `da2` URL scheme is unchanged. Restore the comments if wanted |
-| `daily-athlete/ios/Runner.xcodeproj/project.pbxproj` | `IPHONEOS_DEPLOYMENT_TARGET` 13.0 to 15.0 (three configs) | Flutter 3.47.7 raised the minimum iOS version automatically during the build |
-| `daily-athlete/ios/Podfile` | Commented `platform :ios` line 13.0 to 15.0 | Same |
-| `daily-athlete/ios/Podfile.lock`, `daily-athlete/pubspec.lock` | Lockfile updates | Result of `pod install` and `flutter pub get` |
-| `daily-athlete/analysis_options.yaml` | Added `analyzer.exclude` for `build/**`, `android/**`, `ios/**`, `web/**` | Added by the Flutter tooling during the build |
+| `daily-athlete/ios/Runner/Info.plist` | Keys reordered by PlistBuddy; the three comments above `CFBundleURLTypes` restored by hand | The `da2` URL scheme is unchanged |
 
-Local-only files (gitignored, not committed):
+Not committed: the build also rewrote the iOS deployment target (13.0 to 15.0), `Podfile`, both lockfiles and `analysis_options.yaml`. `origin/main` already contains the deployment-target change (`a0805d7`) and newer lockfiles, so those edits were stashed instead of pushed.
 
-- `daily-athlete/.env.production` with `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `API_BASE_URL`. The app throws at launch if these `--dart-define` values are missing from a release build.
+Local only, gitignored: `daily-athlete/.env.production` with `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `API_BASE_URL`. A release build throws at launch without these `--dart-define` values.
 
 ## Build and upload
 
@@ -55,6 +55,7 @@ Uploading never submits the app for App Store review. That only happens if you s
 
 ## Open items
 
+- **Build 1.0.0 (1) is stale.** It predates the v2 mobile redesign on `origin/main`. Rebuild as `1.0.0+2` from current `main` before real testing.
 - **Apple sign-in token expires around 2026-11-15** (per `ios-release-handoff.md`). Regenerate with `scripts/apple-jwt.mjs` and paste into Supabase, or "Continue with Apple" will fail.
 - **Redirect allowlists not verified.** Supabase must allow `da2://auth/callback` and the Strava app must list `da2://strava-oauth`.
 - **`API_BASE_URL` is assumed** to be `https://da2-one.vercel.app`, taken from the May handoff notes. Confirm it still points at the right backend.
