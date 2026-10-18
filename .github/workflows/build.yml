@@ -1,0 +1,75 @@
+name: Build
+
+# Produces real build artifacts for web and mobile on every push/PR to main.
+# CI (ci.yml) covers typecheck/lint/tests; this workflow proves the apps
+# actually compile and package. Signing and TestFlight upload are NOT done here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Build web (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @da2/web build
+        env:
+          # Public, non-secret placeholders so `next build` can compile.
+          # Real values live in Vercel; this job only proves the build works.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-anon-key
+          NEXT_PUBLIC_SITE_URL: https://example.com
+
+  android:
+    name: Build Android (APK)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: daily-athlete
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --debug --dart-define=SUPABASE_URL=https://example.supabase.co --dart-define=SUPABASE_ANON_KEY=ci-build --dart-define=API_BASE_URL=https://example.com
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: daily-athlete/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
+
+  ios:
+    name: Build iOS (unsigned)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: daily-athlete
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --dart-define=SUPABASE_URL=https://example.supabase.co --dart-define=SUPABASE_ANON_KEY=ci-build --dart-define=API_BASE_URL=https://example.com
