@@ -1,9 +1,9 @@
 name: Deploy iOS (TestFlight)
 
 # Builds a signed App Store IPA and uploads it to TestFlight.
-# Runs only on demand or when a tag like `ios-v1.0.0` is pushed -- never on
-# every push, because each upload burns a build number and triggers tester
-# notifications.
+# Runs on pushes to main that change daily-athlete/ (direct push or merged PR),
+# on demand, or when a tag like `ios-v1.0.0` is pushed. Each run burns a build
+# number and notifies TestFlight testers.
 #
 # Signing is Xcode cloud-managed (CODE_SIGN_STYLE = Automatic, team R7HV9V7LDY):
 # an App Store Connect API key lets xcodebuild create/fetch the distribution
@@ -19,6 +19,11 @@ name: Deploy iOS (TestFlight)
 on:
   workflow_dispatch:
   push:
+    # Direct pushes and merged PRs both land here. Only mobile changes ship a
+    # build; web-only and docs-only pushes never touch TestFlight.
+    branches: [main]
+    paths:
+      - "daily-athlete/**"
     tags: ["ios-v*"]
 
 concurrency:
@@ -54,6 +59,10 @@ jobs:
           chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
 
       - run: flutter pub get
+
+      # Don't ship a build that fails the same checks CI runs.
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
 
       # Generates ios/Flutter/Generated.xcconfig (version, build number and
       # dart-defines) without compiling; xcodebuild below does the real build.
