@@ -14,7 +14,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { SportSchema } from "@da2/shared";
-import { calendarDayInTimezone, dayRangeInTimezone } from "@/lib/format";
+import { calendarDayInTimezone, dayRangeInTimezone, isValidCalendarDay } from "@/lib/format";
 import { buildLoadSeries, localizeLoadInputs, type LoadWorkoutInput } from "@/training-load";
 
 import { rlsClientFromAuth } from "./identity";
@@ -116,8 +116,21 @@ export function registerAllTools(server: McpServer): void {
         .order("started_at", { ascending: false })
         .limit(args.limit ?? 50);
       if (args.from || args.to) {
+        for (const day of [args.from, args.to]) {
+          if (day !== undefined && !isValidCalendarDay(day)) {
+            return fail("invalid_date", "from/to must be real YYYY-MM-DD dates between 1900 and 2100");
+          }
+        }
+        if (args.from && args.to && args.from > args.to) {
+          return fail("invalid_date", "from must not be after to");
+        }
         // from/to are the athlete's local calendar days, not UTC days.
-        const { data: userRow } = await supabase.from("users").select("timezone").eq("id", userId).maybeSingle();
+        const { data: userRow, error: tzError } = await supabase
+          .from("users")
+          .select("timezone")
+          .eq("id", userId)
+          .maybeSingle();
+        if (tzError) return dbFail("read_failed", tzError);
         const { gte, lt } = dayRangeInTimezone(args.from, args.to, userRow?.timezone as string | null | undefined);
         if (gte) q = q.gte("started_at", gte);
         if (lt) q = q.lt("started_at", lt);
