@@ -71,8 +71,10 @@ export function StatsDetail({ stats }: Props) {
   if (trainer != null) context.push({ k: "Setting", v: trainer ? "Indoor trainer" : "Outdoor" });
   if (commute) context.push({ k: "Type", v: "Commute" });
   if (startLocal) {
+    // Strava's start_date_local is wall-clock time with a fake trailing "Z",
+    // so it must be read back as UTC -- formatting in the host zone shifts it.
     const localTime = new Date(startLocal).toLocaleTimeString("en-US", {
-      hour: "numeric", minute: "2-digit", hour12: true,
+      hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC",
     });
     context.push({ k: "Started (local)", v: localTime });
   }

@@ -13,18 +13,36 @@ import '../../models/user.dart';
 // Aggregation helpers — pure functions; tested directly in unit tests
 // ---------------------------------------------------------------------------
 
-/// Returns Monday of the ISO week containing [date] at midnight UTC.
+/// Returns the Monday of the athlete's LOCAL ISO week containing [date], as a
+/// calendar date labelled midnight UTC (use it for `scheduled_date` ranges).
+/// Taking the week from the UTC clock instead put 00:00–05:29 IST Monday into
+/// the previous week. For `started_at` ranges use [weekStartInstant].
 DateTime weekStart(DateTime date) {
-  final utc = date.toUtc();
-  final weekday = utc.weekday; // Mon=1 … Sun=7
-  return DateTime.utc(utc.year, utc.month, utc.day)
-      .subtract(Duration(days: weekday - 1));
+  final local = date.toLocal();
+  return DateTime.utc(local.year, local.month, local.day)
+      .subtract(Duration(days: local.weekday - 1));
 }
 
-/// Returns Sunday 23:59:59.999 of the ISO week containing [date], UTC.
+/// Returns the Sunday of the athlete's local ISO week containing [date],
+/// 23:59:59.999, as a calendar date labelled UTC (see [weekStart]).
 DateTime weekEnd(DateTime date) {
   return weekStart(date)
       .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+}
+
+/// The instant the athlete's local week starts: local Monday 00:00, in UTC.
+DateTime weekStartInstant(DateTime date) {
+  final monday = weekStart(date);
+  return DateTime(monday.year, monday.month, monday.day).toUtc();
+}
+
+/// The last instant of the athlete's local week: local Sunday 23:59:59.999,
+/// in UTC.
+DateTime weekEndInstant(DateTime date) {
+  final monday = weekStart(date);
+  return DateTime(monday.year, monday.month, monday.day + 7)
+      .subtract(const Duration(milliseconds: 1))
+      .toUtc();
 }
 
 /// Sums duration_s across a list of [CompletedWorkoutRow].
@@ -225,8 +243,8 @@ class AthleteDashboardNotifier
     final wStart = weekStart(now);
     final wEnd = weekEnd(now);
 
-    final wStartStr = wStart.toIso8601String();
-    final wEndStr = wEnd.toIso8601String();
+    final wStartStr = weekStartInstant(now).toIso8601String();
+    final wEndStr = weekEndInstant(now).toIso8601String();
     final todayStr = DateTime(now.year, now.month, now.day).toIso8601String().substring(0, 10);
 
     // Fetch active plan, this week's workouts, and upcoming planned workouts
@@ -448,8 +466,8 @@ class CoachRosterNotifier
 
     final wStartDate = wStart.toIso8601String().substring(0, 10);
     final wEndDate = wEnd.toIso8601String().substring(0, 10);
-    final wStartTs = wStart.toIso8601String();
-    final wEndTs = wEnd.toIso8601String();
+    final wStartTs = weekStartInstant(now).toIso8601String();
+    final wEndTs = weekEndInstant(now).toIso8601String();
 
     final results = await Future.wait([
       supabase

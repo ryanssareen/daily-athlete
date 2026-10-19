@@ -61,6 +61,11 @@ CompletedWorkoutRow _cw({
   });
 }
 
+/// ISO-8601 UTC string for the instant that is the given wall-clock time in the
+/// zone the test runs in -- keeps "a day" fixtures independent of the host TZ.
+String _local(int y, int m, int d, [int h = 0, int mi = 0, int s = 0]) =>
+    DateTime(y, m, d, h, mi, s).toUtc().toIso8601String();
+
 WorkoutMatchRow _match({
   required String plannedId,
   required String completedId,
@@ -83,6 +88,44 @@ WorkoutMatchRow _match({
 
 void main() {
   // -------------------------------------------------------------------------
+  // Local-day bucketing
+  //
+  // PostgREST returns started_at as a UTC instant, so a workout at 05:00 IST
+  // arrives as the previous UTC day. Keying on the UTC calendar day filed it
+  // under yesterday. These instants are built from LOCAL components, so they
+  // are "05:00 on the 19th" in whatever zone the test runs in -- run with
+  // TZ=Asia/Kolkata and TZ=America/Los_Angeles to exercise the real bug; in
+  // a UTC zone they pass trivially.
+  // -------------------------------------------------------------------------
+
+  group('local-day bucketing', () {
+    String utcIso(DateTime local) => local.toUtc().toIso8601String();
+
+    test('early-morning workout is keyed on the athlete\'s local day', () {
+      final early = _cw(
+        id: 'cw-early',
+        startedAt: utcIso(DateTime(2026, 10, 19, 0, 30)),
+        sport: Sport.run,
+        durationS: 1800,
+      );
+      final map = mergeForTest([], [early], []);
+      expect(map.keys, [DateTime.utc(2026, 10, 19)]);
+      expect(aggregateYearHeatmap([early]), {DateTime.utc(2026, 10, 19): 1800});
+    });
+
+    test('late-evening workout is keyed on the athlete\'s local day', () {
+      final late = _cw(
+        id: 'cw-late',
+        startedAt: utcIso(DateTime(2026, 10, 19, 23, 30)),
+        sport: Sport.run,
+        durationS: 1800,
+      );
+      final map = mergeForTest([], [late], []);
+      expect(map.keys, [DateTime.utc(2026, 10, 19)]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // aggregateYearHeatmap
   // -------------------------------------------------------------------------
 
@@ -92,17 +135,17 @@ void main() {
       expect(result, isEmpty);
     });
 
-    test('sums duration_s for workouts on the same UTC day', () {
+    test('sums duration_s for workouts on the same local day', () {
       final workouts = [
         _cw(
           id: 'cw-1',
-          startedAt: '2026-06-01T08:00:00Z',
+          startedAt: _local(2026, 6, 1, 8, 0, 0),
           sport: Sport.run,
           durationS: 3600,
         ),
         _cw(
           id: 'cw-2',
-          startedAt: '2026-06-01T18:00:00Z',
+          startedAt: _local(2026, 6, 1, 18, 0, 0),
           sport: Sport.strength,
           durationS: 2700,
         ),
@@ -116,12 +159,12 @@ void main() {
       final workouts = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 3600),
         _cw(
             id: 'cw-2',
-            startedAt: '2026-06-02T09:00:00Z',
+            startedAt: _local(2026, 6, 2, 9, 0, 0),
             sport: Sport.swim,
             durationS: 1800),
       ];
@@ -135,12 +178,12 @@ void main() {
       final workouts = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: null),
         _cw(
             id: 'cw-2',
-            startedAt: '2026-06-01T18:00:00Z',
+            startedAt: _local(2026, 6, 1, 18, 0, 0),
             sport: Sport.strength,
             durationS: 1200),
       ];
@@ -148,17 +191,17 @@ void main() {
       expect(result[DateTime.utc(2026, 6, 1)], 1200);
     });
 
-    test('timestamps at different times of the same UTC day share one bucket',
+    test('timestamps at different times of the same local day share one bucket',
         () {
       final workouts = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T00:00:00Z',
+            startedAt: _local(2026, 6, 1, 0, 0, 0),
             sport: Sport.run,
             durationS: 100),
         _cw(
             id: 'cw-2',
-            startedAt: '2026-06-01T23:59:59Z',
+            startedAt: _local(2026, 6, 1, 23, 59, 59),
             sport: Sport.swim,
             durationS: 200),
       ];
@@ -171,7 +214,7 @@ void main() {
       final workouts = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T06:00:00Z',
+            startedAt: _local(2026, 6, 1, 6, 0, 0),
             sport: Sport.bike,
             durationS: 28800),
       ];
@@ -205,7 +248,7 @@ void main() {
       final completed = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 3600),
       ];
@@ -224,7 +267,7 @@ void main() {
       final completed = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 3600),
       ];
@@ -240,7 +283,7 @@ void main() {
       final completed = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 3600),
       ];
@@ -260,7 +303,7 @@ void main() {
       final completed = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 3600),
       ];
@@ -304,7 +347,7 @@ void main() {
       final completed = [
         _cw(
             id: 'cw-1',
-            startedAt: '2026-06-01T08:00:00Z',
+            startedAt: _local(2026, 6, 1, 8, 0, 0),
             sport: Sport.run,
             durationS: 1800),
       ];

@@ -31,8 +31,15 @@ final calendarAthleteIdProvider = StateProvider<String?>((ref) => null);
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Normalise a [DateTime] to midnight UTC so it can be used as a map key.
-DateTime _dateOnly(DateTime dt) => DateTime.utc(dt.year, dt.month, dt.day);
+/// Normalise a [DateTime] to its LOCAL calendar day, labelled midnight UTC so
+/// it can be used as a map key. `started_at` arrives as a UTC instant, so the
+/// `toLocal()` is what keeps a 05:00 IST workout on its own day instead of the
+/// previous UTC day. Date-only values (planned `scheduled_date`) are already
+/// local-midnight and unaffected.
+DateTime _dateOnly(DateTime dt) {
+  final local = dt.toLocal();
+  return DateTime.utc(local.year, local.month, local.day);
+}
 
 /// Merge planned + completed workout lists into a date-keyed map.
 ///
