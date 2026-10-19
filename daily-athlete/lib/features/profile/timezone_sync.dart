@@ -65,6 +65,10 @@ Future<void> syncDeviceTimezone(String userId) {
   );
 }
 
+/// Seam so tests can observe the provider without touching Supabase.
+final timezoneSyncRunnerProvider =
+    Provider<Future<void> Function(String userId)>((ref) => syncDeviceTimezone);
+
 /// Fires once per signed-in user (keyed on user id, so token refreshes don't
 /// re-run it). Watched from DA2App.
 final timezoneSyncProvider = FutureProvider<void>((ref) async {
@@ -72,5 +76,5 @@ final timezoneSyncProvider = FutureProvider<void>((ref) async {
     authNotifierProvider.selectAsync((s) => s.isAuthenticated ? s.userId : null),
   );
   if (userId == null) return;
-  await syncDeviceTimezone(userId);
+  await ref.read(timezoneSyncRunnerProvider)(userId);
 });
