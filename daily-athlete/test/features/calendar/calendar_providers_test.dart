@@ -113,6 +113,22 @@ void main() {
       expect(aggregateYearHeatmap([early]), {DateTime.utc(2026, 10, 19): 1800});
     });
 
+    test('a UTC-labelled selected day is not shifted by the local zone', () {
+      // selectedDateProvider holds DateTime.utc(y, m, d); converting it with
+      // toLocal() moved it to the previous day west of UTC (review finding).
+      expect(calendarDayKey(DateTime.utc(2026, 10, 19)), DateTime.utc(2026, 10, 19));
+      expect(calendarDayKey(DateTime(2026, 10, 19)), DateTime.utc(2026, 10, 19));
+    });
+
+    test('week fetch window runs local midnight to local midnight', () {
+      final w = startedAtWindow(DateTime.utc(2026, 10, 19), DateTime.utc(2026, 10, 25));
+      expect(w.from, DateTime(2026, 10, 19).toUtc().toIso8601String());
+      expect(w.to, DateTime(2026, 10, 26).toUtc().toIso8601String());
+      // A Monday 02:00 local run sits inside its own week's window.
+      final run = DateTime(2026, 10, 19, 2).toUtc();
+      expect(!run.isBefore(DateTime.parse(w.from)) && run.isBefore(DateTime.parse(w.to)), isTrue);
+    });
+
     test('late-evening workout is keyed on the athlete\'s local day', () {
       final late = _cw(
         id: 'cw-late',
