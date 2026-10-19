@@ -128,7 +128,26 @@ export function localDayStartInstant(day: string, timezone: string | null | unde
   // Two passes: the offset at the first guess may differ across a DST edge.
   let instant = naive - zoneOffsetMs(naive, tz);
   instant = naive - zoneOffsetMs(instant, tz);
+  // Where local midnight does not exist (DST jumps 00:00 -> 01:00), the fix-up
+  // lands on the previous day; advance to the first instant that is on `day`.
+  for (let i = 0; i < 1440 && calendarDayInTimezone(new Date(instant).toISOString(), tz) !== day; i++) {
+    instant += 60_000;
+  }
   return new Date(instant).toISOString();
+}
+
+/**
+ * True for a real `YYYY-MM-DD` calendar day within 1900..2100 (round-trip
+ * checked, so 2026-02-31 and month 13 are rejected). The year bound keeps
+ * day-after arithmetic far from Date's limits.
+ */
+export function isValidCalendarDay(day: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 1900 || y > 2100) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
 
 /**
