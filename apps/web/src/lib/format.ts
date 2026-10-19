@@ -95,6 +95,63 @@ export function calendarDayInTimezone(startedAt: string, timezone: string | null
   }
 }
 
+/** Offset (ms) of `timezone` from UTC at the instant `at`; 0 for an invalid zone. */
+function zoneOffsetMs(at: number, timezone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(new Date(at));
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+    return asUtc - Math.floor(at / 1000) * 1000;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * The UTC instant (ISO string) at which calendar day `day` (`YYYY-MM-DD`)
+ * begins in `timezone`. Independent of the server process's own TZ. An
+ * invalid/missing zone falls back to UTC, matching `calendarDayInTimezone`.
+ */
+export function localDayStartInstant(day: string, timezone: string | null | undefined): string {
+  const [y, m, d] = day.split("-").map(Number);
+  const naive = Date.UTC(y, m - 1, d);
+  const tz = timezone || "UTC";
+  // Two passes: the offset at the first guess may differ across a DST edge.
+  let instant = naive - zoneOffsetMs(naive, tz);
+  instant = naive - zoneOffsetMs(instant, tz);
+  return new Date(instant).toISOString();
+}
+
+/**
+ * Half-open instant range `[gte, lt)` covering local days `from..to`
+ * inclusive in `timezone`. Either side may be omitted (open-ended). Use with
+ * `.gte("started_at", gte).lt("started_at", lt)` — a bare `YYYY-MM-DD` compared
+ * to a timestamptz is UTC midnight, which is wrong for any non-UTC athlete.
+ */
+export function dayRangeInTimezone(
+  from: string | undefined,
+  to: string | undefined,
+  timezone: string | null | undefined
+): { gte?: string; lt?: string } {
+  const range: { gte?: string; lt?: string } = {};
+  if (from) range.gte = localDayStartInstant(from, timezone);
+  if (to) {
+    const [y, m, d] = to.split("-").map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+    range.lt = localDayStartInstant(next, timezone);
+  }
+  return range;
+}
+
 /**
  * Formats a UTC ISO string into a human-readable date + time in the athlete's
  * local timezone. Example output: "May 12 · 7:14 AM"

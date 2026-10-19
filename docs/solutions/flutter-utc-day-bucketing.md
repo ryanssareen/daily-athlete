@@ -95,16 +95,21 @@ DateTime instantDayKey(DateTime instant) => calendarDayKey(instant.toLocal());
 
 ## Known gaps (not fixed by this PR)
 
-- The Flutter app never calls `/api/profile/timezone`, so mobile-only users keep
-  `users.timezone = 'UTC'`. On 2026-10-19, 10 of 12 production users had it.
-  Server-side reports, emails and MCP tools bucket those users by UTC. Needs the
-  device's IANA zone, which Dart does not expose without a plugin such as
-  `flutter_timezone`.
+- ~~The Flutter app never calls `/api/profile/timezone`~~ Fixed: on each
+  authenticated launch `lib/features/profile/timezone_sync.dart` reads the device
+  IANA zone (`flutter_timezone`, iOS + Android), compares it with
+  `users.timezone`, and PATCHes with the Bearer token only on mismatch;
+  failures are silent. Existing mobile-only users self-heal on their next
+  launch after this ships; until then (and for users who never update) their
+  rows stay `'UTC'`.
 - Flutter buckets by the device zone, while AGENTS.md says the athlete zone
   lives in `users.timezone`. A coach viewing an athlete, or a traveller, gets
   the viewer's zone.
-- MCP `workouts_completed_list` bounds `to` with `T23:59:59Z`
-  (`apps/web/src/mcp/tools.ts`).
+- ~~MCP `workouts_completed_list` bounds~~ Fixed: `from`/`to` are the athlete's
+  local days, converted with `dayRangeInTimezone` (`apps/web/src/lib/format.ts`)
+  to `[gte, lt)` instants. `workouts_completed_log` documents that `started_at`
+  must carry the athlete's offset. Surfacing the zone in `profile_get` is in
+  PR #102.
 - The `StatsDetail` time formatter is inline, so it has no test.
 
 ## Related Issues

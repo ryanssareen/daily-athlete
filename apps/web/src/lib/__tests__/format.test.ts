@@ -2,7 +2,13 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { calendarDayInTimezone, localDay, manualStartedAt } from "@/lib/format";
+import {
+  calendarDayInTimezone,
+  dayRangeInTimezone,
+  localDay,
+  localDayStartInstant,
+  manualStartedAt,
+} from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // calendarDayInTimezone — which day did the athlete actually train?
@@ -99,5 +105,61 @@ describe("manualStartedAt", () => {
     process.env.TZ = "Europe/London";
     const startedAt = manualStartedAt("2026-10-05", new Date("2026-10-12T09:00:00Z"));
     expect(calendarDayInTimezone(startedAt, "Asia/Calcutta")).toBe("2026-10-05");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// localDayStartInstant / dayRangeInTimezone — local-day bounds as UTC instants
+// ---------------------------------------------------------------------------
+
+describe("localDayStartInstant", () => {
+  const originalTz = process.env.TZ;
+  afterEach(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  // The result must follow the athlete's zone, never the server process's.
+  for (const processTz of ["UTC", "Asia/Calcutta", "America/Los_Angeles"]) {
+    it(`gives IST midnight as 18:30Z the day before (process TZ ${processTz})`, () => {
+      process.env.TZ = processTz;
+      expect(localDayStartInstant("2026-10-19", "Asia/Kolkata")).toBe("2026-10-18T18:30:00.000Z");
+    });
+    it(`gives LA midnight as 07:00Z in PDT (process TZ ${processTz})`, () => {
+      process.env.TZ = processTz;
+      expect(localDayStartInstant("2026-10-19", "America/Los_Angeles")).toBe("2026-10-19T07:00:00.000Z");
+    });
+  }
+
+  it("handles the DST-change day (LA falls back on 2026-11-01)", () => {
+    expect(localDayStartInstant("2026-11-01", "America/Los_Angeles")).toBe("2026-11-01T07:00:00.000Z");
+    expect(localDayStartInstant("2026-11-02", "America/Los_Angeles")).toBe("2026-11-02T08:00:00.000Z");
+  });
+
+  it("falls back to UTC for a null or invalid timezone", () => {
+    expect(localDayStartInstant("2026-10-19", null)).toBe("2026-10-19T00:00:00.000Z");
+    expect(localDayStartInstant("2026-10-19", "Not/AZone")).toBe("2026-10-19T00:00:00.000Z");
+  });
+});
+
+describe("dayRangeInTimezone", () => {
+  it("is [start of from-day, start of day after to-day) for an IST athlete", () => {
+    expect(dayRangeInTimezone("2026-10-19", "2026-10-19", "Asia/Kolkata")).toEqual({
+      gte: "2026-10-18T18:30:00.000Z",
+      lt: "2026-10-19T18:30:00.000Z",
+    });
+  });
+
+  it("includes a 05:00 IST session on `from` and excludes 05:00 IST the day after `to`", () => {
+    const { gte, lt } = dayRangeInTimezone("2026-10-19", "2026-10-19", "Asia/Kolkata") as { gte: string; lt: string };
+    const earlyFrom = "2026-10-18T23:30:00Z"; // 05:00 IST on the 19th
+    const earlyNext = "2026-10-19T23:30:00Z"; // 05:00 IST on the 20th
+    expect(earlyFrom >= gte && earlyFrom < lt).toBe(true);
+    expect(earlyNext < lt).toBe(false);
+  });
+
+  it("omits an open side", () => {
+    expect(dayRangeInTimezone(undefined, "2026-10-19", "UTC")).toEqual({ lt: "2026-10-20T00:00:00.000Z" });
+    expect(dayRangeInTimezone("2026-10-19", undefined, "UTC")).toEqual({ gte: "2026-10-19T00:00:00.000Z" });
   });
 });
