@@ -93,28 +93,37 @@ DateTime instantDayKey(DateTime instant) => calendarDayKey(instant.toLocal());
 - **Pick the key function by what the value is**: an instant gets
   `instantDayKey`, an already-a-day value gets `calendarDayKey`.
 
-## Known gaps (not fixed by this PR)
+## Known gaps
 
-- ~~The Flutter app never calls `/api/profile/timezone`~~ Fixed: on each
-  authenticated launch `lib/features/profile/timezone_sync.dart` reads the device
-  IANA zone (`flutter_timezone`, iOS + Android), compares it with
-  `users.timezone`, and PATCHes with the Bearer token only on mismatch;
-  failures are silent. Existing mobile-only users self-heal on their next
-  launch after this ships; until then (and for users who never update) their
-  rows stay `'UTC'`.
 - Flutter buckets by the device zone, while AGENTS.md says the athlete zone
   lives in `users.timezone`. A coach viewing an athlete, or a traveller, gets
   the viewer's zone.
-- ~~MCP `workouts_completed_list` bounds~~ Fixed: `from`/`to` are the athlete's
-  local days, converted with `dayRangeInTimezone` (`apps/web/src/lib/format.ts`)
-  to `[gte, lt)` instants. `workouts_completed_log` documents that `started_at`
-  must carry the athlete's offset. Surfacing the zone in `profile_get` is in
-  PR #102.
 - The `StatsDetail` time formatter is inline, so it has no test.
+
+## Resolved in follow-up (#121)
+
+- **Flutter never synced the device timezone.** On each authenticated launch
+  `lib/features/profile/timezone_sync.dart` reads the device IANA zone
+  (`flutter_timezone`, iOS + Android), compares it with `users.timezone`, and
+  PATCHes `/api/profile/timezone` with the Bearer token only on mismatch;
+  failures are silent. Users who already have the app only heal after updating
+  and relaunching; until then their rows stay `'UTC'`.
+- **MCP `workouts_completed_list` used UTC day bounds.** `from`/`to` are now the
+  athlete's local days, converted by `dayRangeInTimezone`
+  (`apps/web/src/lib/format.ts`) to `[gte, lt)` instants. Invalid, reversed or
+  out-of-range dates return `invalid_date`; a failed `users.timezone` read
+  returns `read_failed`. `workouts_completed_log` documents that `started_at`
+  must carry the athlete's offset. Local midnight that does not exist (e.g.
+  America/Santiago 2026-09-06) resolves to the first real instant of the day.
+- **Still open elsewhere:** surfacing the timezone in `profile_get` is PR #102.
+- **Known, not fixed:** the device reports `Asia/Kolkata` while web `Intl`
+  reports `Asia/Calcutta`, so the two surfaces can overwrite each other's
+  alias (equivalent zones, harmless for bucketing). `API_BASE_URL` has no
+  https enforcement (build-config risk).
 
 ## Related Issues
 
 - `docs/solutions/athlete-timezone-capture.md` — how `users.timezone` gets
-  captured on web; the mobile half is still open.
+  captured on web; the mobile half landed in #121.
 - `docs/solutions/date-only-input-stored-as-utc-midnight.md` — the write-side
   version of the same bug on web.
