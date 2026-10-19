@@ -14,7 +14,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { SportSchema } from "@da2/shared";
-import { calendarDayInTimezone } from "@/lib/format";
+import { calendarDayInTimezone, dayRangeInTimezone, isValidCalendarDay } from "@/lib/format";
 import { buildLoadSeries, localizeLoadInputs, type LoadWorkoutInput } from "@/training-load";
 
 import { rlsClientFromAuth } from "./identity";
@@ -102,20 +102,39 @@ export function registerAllTools(server: McpServer): void {
     "workouts_completed_list",
     {
       title: "List completed workouts",
-      description: "List your logged/imported workouts, most recent first.",
+      description:
+        "List your logged/imported workouts, most recent first. `from`/`to` are inclusive calendar days in your profile timezone (see profile_get).",
       inputSchema: { from: DATE.optional(), to: DATE.optional(), limit: LIMIT },
       annotations: { readOnlyHint: true },
     },
     async (args, extra) => {
-      const { supabase } = ctxFrom(extra);
+      const { supabase, userId } = ctxFrom(extra);
       let q = supabase
         .from("completed_workouts")
         .select(COMPLETED_SELECT)
         .is("deleted_at", null)
         .order("started_at", { ascending: false })
         .limit(args.limit ?? 50);
-      if (args.from) q = q.gte("started_at", args.from);
-      if (args.to) q = q.lte("started_at", `${args.to}T23:59:59Z`);
+      if (args.from || args.to) {
+        for (const day of [args.from, args.to]) {
+          if (day !== undefined && !isValidCalendarDay(day)) {
+            return fail("invalid_date", "from/to must be real YYYY-MM-DD dates between 1900 and 2100");
+          }
+        }
+        if (args.from && args.to && args.from > args.to) {
+          return fail("invalid_date", "from must not be after to");
+        }
+        // from/to are the athlete's local calendar days, not UTC days.
+        const { data: userRow, error: tzError } = await supabase
+          .from("users")
+          .select("timezone")
+          .eq("id", userId)
+          .maybeSingle();
+        if (tzError) return dbFail("read_failed", tzError);
+        const { gte, lt } = dayRangeInTimezone(args.from, args.to, userRow?.timezone as string | null | undefined);
+        if (gte) q = q.gte("started_at", gte);
+        if (lt) q = q.lt("started_at", lt);
+      }
       const { data, error } = await q;
       if (error) return dbFail("read_failed", error);
       return ok({ workouts: (data ?? []).map(projectCompleted) });
@@ -327,7 +346,7 @@ export function registerAllTools(server: McpServer): void {
     {
       title: "Log a completed workout",
       description:
-        "Log an ad-hoc completed workout. Note: this does not close out a planned plan day (matching is in-app only).",
+        "Log an ad-hoc completed workout. `started_at` must be an ISO datetime carrying the athlete's own UTC offset (e.g. +05:30), not Z, so the workout lands on the day they trained. Note: this does not close out a planned plan day (matching is in-app only).",
       inputSchema: {
         started_at: ISO,
         sport: SportSchema,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app_theme.dart';
+import 'features/profile/timezone_sync.dart';
 import 'features/settings/theme_notifier.dart';
 import 'router/router.dart';
 
@@ -12,6 +13,8 @@ class DA2App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Best-effort: keeps public.users.timezone in step with the device.
+    ref.watch(timezoneSyncProvider);
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeNotifierProvider).valueOrNull ?? ThemeMode.system;
 

@@ -2,7 +2,14 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { calendarDayInTimezone, localDay, manualStartedAt } from "@/lib/format";
+import {
+  calendarDayInTimezone,
+  dayRangeInTimezone,
+  isValidCalendarDay,
+  localDay,
+  localDayStartInstant,
+  manualStartedAt,
+} from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // calendarDayInTimezone — which day did the athlete actually train?
@@ -99,5 +106,104 @@ describe("manualStartedAt", () => {
     process.env.TZ = "Europe/London";
     const startedAt = manualStartedAt("2026-10-05", new Date("2026-10-12T09:00:00Z"));
     expect(calendarDayInTimezone(startedAt, "Asia/Calcutta")).toBe("2026-10-05");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// localDayStartInstant / dayRangeInTimezone — local-day bounds as UTC instants
+// ---------------------------------------------------------------------------
+
+describe("localDayStartInstant", () => {
+  const originalTz = process.env.TZ;
+  afterEach(() => {
+    if (originalTz === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTz;
+  });
+
+  // The result must follow the athlete's zone, never the server process's.
+  for (const processTz of ["UTC", "Asia/Calcutta", "America/Los_Angeles"]) {
+    it(`gives IST midnight as 18:30Z the day before (process TZ ${processTz})`, () => {
+      process.env.TZ = processTz;
+      expect(localDayStartInstant("2026-10-19", "Asia/Kolkata")).toBe("2026-10-18T18:30:00.000Z");
+    });
+    it(`gives LA midnight as 07:00Z in PDT (process TZ ${processTz})`, () => {
+      process.env.TZ = processTz;
+      expect(localDayStartInstant("2026-10-19", "America/Los_Angeles")).toBe("2026-10-19T07:00:00.000Z");
+    });
+  }
+
+  it("handles the DST-change day (LA falls back on 2026-11-01)", () => {
+    expect(localDayStartInstant("2026-11-01", "America/Los_Angeles")).toBe("2026-11-01T07:00:00.000Z");
+    expect(localDayStartInstant("2026-11-02", "America/Los_Angeles")).toBe("2026-11-02T08:00:00.000Z");
+  });
+
+  it("returns the first real instant of the day when local midnight does not exist", () => {
+    // Santiago springs forward at 00:00 -> 01:00 on 2026-09-06.
+    expect(localDayStartInstant("2026-09-06", "America/Santiago")).toBe("2026-09-06T04:00:00.000Z");
+    // Havana springs forward at 00:00 -> 01:00 on 2026-03-08.
+    expect(localDayStartInstant("2026-03-08", "America/Havana")).toBe("2026-03-08T05:00:00.000Z");
+  });
+
+  it("handles LA spring-forward day and the day after", () => {
+    expect(localDayStartInstant("2026-03-08", "America/Los_Angeles")).toBe("2026-03-08T08:00:00.000Z");
+    expect(localDayStartInstant("2026-03-09", "America/Los_Angeles")).toBe("2026-03-09T07:00:00.000Z");
+  });
+
+  it("handles a +05:45 zone", () => {
+    expect(localDayStartInstant("2026-10-19", "Asia/Kathmandu")).toBe("2026-10-18T18:15:00.000Z");
+  });
+
+  it("falls back to UTC for an empty-string timezone", () => {
+    expect(localDayStartInstant("2026-10-19", "")).toBe("2026-10-19T00:00:00.000Z");
+  });
+
+  it("falls back to UTC for a null or invalid timezone", () => {
+    expect(localDayStartInstant("2026-10-19", null)).toBe("2026-10-19T00:00:00.000Z");
+    expect(localDayStartInstant("2026-10-19", "Not/AZone")).toBe("2026-10-19T00:00:00.000Z");
+  });
+});
+
+describe("isValidCalendarDay", () => {
+  it("accepts real dates", () => {
+    expect(isValidCalendarDay("2026-02-28")).toBe(true);
+    expect(isValidCalendarDay("2028-02-29")).toBe(true);
+  });
+  it("rejects impossible, malformed and out-of-range dates", () => {
+    for (const d of ["2026-02-31", "2026-13-01", "2026-00-10", "2026-04-31", "2027-02-29", "2026-1-1", "9999-12-31", "0001-01-01"]) {
+      expect(isValidCalendarDay(d), d).toBe(false);
+    }
+  });
+});
+
+describe("dayRangeInTimezone", () => {
+  it("is [start of from-day, start of day after to-day) for an IST athlete", () => {
+    expect(dayRangeInTimezone("2026-10-19", "2026-10-19", "Asia/Kolkata")).toEqual({
+      gte: "2026-10-18T18:30:00.000Z",
+      lt: "2026-10-19T18:30:00.000Z",
+    });
+  });
+
+  it("includes a 05:00 IST session on `from` and excludes 05:00 IST the day after `to`", () => {
+    const { gte, lt } = dayRangeInTimezone("2026-10-19", "2026-10-19", "Asia/Kolkata") as { gte: string; lt: string };
+    const earlyFrom = "2026-10-18T23:30:00Z"; // 05:00 IST on the 19th
+    const earlyNext = "2026-10-19T23:30:00Z"; // 05:00 IST on the 20th
+    expect(earlyFrom >= gte && earlyFrom < lt).toBe(true);
+    expect(earlyNext < lt).toBe(false);
+  });
+
+  it("rolls over month and year boundaries", () => {
+    expect(dayRangeInTimezone("2026-12-31", "2026-12-31", "Asia/Kolkata")).toEqual({
+      gte: "2026-12-30T18:30:00.000Z",
+      lt: "2026-12-31T18:30:00.000Z",
+    });
+    expect(dayRangeInTimezone("2026-02-28", "2026-02-28", "UTC")).toEqual({
+      gte: "2026-02-28T00:00:00.000Z",
+      lt: "2026-03-01T00:00:00.000Z",
+    });
+  });
+
+  it("omits an open side", () => {
+    expect(dayRangeInTimezone(undefined, "2026-10-19", "UTC")).toEqual({ lt: "2026-10-20T00:00:00.000Z" });
+    expect(dayRangeInTimezone("2026-10-19", undefined, "UTC")).toEqual({ gte: "2026-10-19T00:00:00.000Z" });
   });
 });
