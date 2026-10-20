@@ -129,6 +129,29 @@ void main() {
     });
   });
 
+  group('secondaryDurationFor', () {
+    test('distance row shows duration under the distance', () {
+      final row = _makeRow(sport: Sport.run, distanceM: 10500, durationS: 3600);
+      expect(secondaryDurationFor(row), '1h 0m');
+    });
+
+    test('no-distance row is null so duration is not repeated', () {
+      final row = _makeRow(sport: Sport.strength, durationS: 1680);
+      expect(keyMetricFor(row), '28m');
+      expect(secondaryDurationFor(row), isNull);
+    });
+
+    test('zero distance is treated as no distance', () {
+      final row = _makeRow(sport: Sport.run, distanceM: 0, durationS: 1800);
+      expect(secondaryDurationFor(row), isNull);
+    });
+
+    test('distance without duration is null', () {
+      final row = _makeRow(sport: Sport.run, distanceM: 5000);
+      expect(secondaryDurationFor(row), isNull);
+    });
+  });
+
   group('formatDuration', () {
     test('3 600 s → "1h 0m"', () {
       expect(formatDuration(3600), '1h 0m');

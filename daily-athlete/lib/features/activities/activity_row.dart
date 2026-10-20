@@ -69,14 +69,14 @@ class ActivityRow extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (_keyMetric(workout, distanceUnit).isNotEmpty)
+          if (keyMetricFor(workout, distanceUnit: distanceUnit).isNotEmpty)
             Text(
-              _keyMetric(workout, distanceUnit),
+              keyMetricFor(workout, distanceUnit: distanceUnit),
               style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
-          if (workout.durationS != null)
+          if (secondaryDurationFor(workout) case final duration?)
             Text(
-              formatDuration(workout.durationS!),
+              duration,
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -95,17 +95,6 @@ class ActivityRow extends ConsumerWidget {
     final name = w.name;
     if (name != null && name.isNotEmpty) return name;
     return w.sport.displayName;
-  }
-
-  /// R6: distance for run/ride/swim; duration for strength/other.
-  static String _keyMetric(CompletedWorkoutRow w, String distanceUnit) {
-    if (w.distanceM != null && w.distanceM! > 0) {
-      return formatDistanceM(w.distanceM!, distanceUnit);
-    }
-    if (w.durationS != null) {
-      return formatDuration(w.durationS!);
-    }
-    return '';
   }
 
   static String _formattedDate(DateTime dt) {
@@ -134,6 +123,14 @@ String formatDuration(int seconds) {
   final m = (seconds % 3600) ~/ 60;
   if (h > 0) return '${h}h ${m}m';
   return '${m}m';
+}
+
+/// Duration shown under the key metric, or null when the key metric already
+/// is the duration (no distance), so the row doesn't print it twice.
+/// Exported for unit tests.
+String? secondaryDurationFor(CompletedWorkoutRow w) {
+  if (w.distanceM == null || w.distanceM! <= 0 || w.durationS == null) return null;
+  return formatDuration(w.durationS!);
 }
 
 /// Key metric string for a workout row.

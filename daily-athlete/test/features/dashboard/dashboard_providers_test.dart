@@ -54,33 +54,50 @@ PlannedWorkoutRow _makePlanned({
 void main() {
   group('weekStart', () {
     test('returns Monday for a Wednesday', () {
-      final wednesday = DateTime.utc(2026, 5, 13); // Wed
+      final wednesday = DateTime(2026, 5, 13); // Wed
       final result = weekStart(wednesday);
       expect(result.weekday, DateTime.monday);
-      expect(result, DateTime.utc(2026, 5, 11));
+      expect(result, DateTime(2026, 5, 11));
     });
 
     test('returns same day for a Monday', () {
-      final monday = DateTime.utc(2026, 5, 11);
+      final monday = DateTime(2026, 5, 11);
       final result = weekStart(monday);
-      expect(result, DateTime.utc(2026, 5, 11));
+      expect(result, DateTime(2026, 5, 11));
     });
 
     test('returns Monday for a Sunday', () {
-      final sunday = DateTime.utc(2026, 5, 17);
+      final sunday = DateTime(2026, 5, 17);
       final result = weekStart(sunday);
-      expect(result, DateTime.utc(2026, 5, 11));
+      expect(result, DateTime(2026, 5, 11));
+    });
+
+    test('Sunday late evening local stays in the same week', () {
+      final result = weekStart(DateTime(2026, 5, 17, 23, 30));
+      expect(result, DateTime(2026, 5, 11));
+    });
+
+    test('Monday just after local midnight starts the new week', () {
+      final result = weekStart(DateTime(2026, 5, 18, 0, 30));
+      expect(result, DateTime(2026, 5, 18));
+    });
+
+    test('crosses a month boundary', () {
+      // Tue 2026-10-20 -> Mon 2026-10-19; Wed 2026-11-04 -> Mon 2026-11-02.
+      expect(weekStart(DateTime(2026, 10, 20)), DateTime(2026, 10, 19));
+      expect(weekStart(DateTime(2026, 11, 1)), DateTime(2026, 10, 26));
     });
   });
 
   group('weekEnd', () {
     test('returns Sunday evening for any day in the same week', () {
-      final wednesday = DateTime.utc(2026, 5, 13);
+      final wednesday = DateTime(2026, 5, 13);
       final result = weekEnd(wednesday);
       expect(result.weekday, DateTime.sunday);
       expect(result.year, 2026);
       expect(result.month, 5);
       expect(result.day, 17);
+      expect(result, DateTime(2026, 5, 17, 23, 59, 59, 999));
     });
   });
 

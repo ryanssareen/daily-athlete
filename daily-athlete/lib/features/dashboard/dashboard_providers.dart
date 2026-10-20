@@ -13,18 +13,21 @@ import '../../models/user.dart';
 // Aggregation helpers — pure functions; tested directly in unit tests
 // ---------------------------------------------------------------------------
 
-/// Returns Monday of the ISO week containing [date] at midnight UTC.
+/// Returns Monday 00:00 (local time) of the ISO week containing [date].
+///
+/// Local, not UTC: the day strip and week label are local, so the totals must
+/// use the same week. Call `.toUtc()` before sending to Postgres.
 DateTime weekStart(DateTime date) {
-  final utc = date.toUtc();
-  final weekday = utc.weekday; // Mon=1 … Sun=7
-  return DateTime.utc(utc.year, utc.month, utc.day)
-      .subtract(Duration(days: weekday - 1));
+  final local = date.toLocal();
+  // Calendar arithmetic via the constructor keeps this correct across DST.
+  return DateTime(local.year, local.month, local.day - (local.weekday - 1));
 }
 
-/// Returns Sunday 23:59:59.999 of the ISO week containing [date], UTC.
+/// Returns Sunday 23:59:59.999 (local time) of the ISO week containing [date].
 DateTime weekEnd(DateTime date) {
-  return weekStart(date)
-      .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+  final start = weekStart(date);
+  return DateTime(start.year, start.month, start.day + 7)
+      .subtract(const Duration(milliseconds: 1));
 }
 
 /// Sums duration_s across a list of [CompletedWorkoutRow].
@@ -225,8 +228,8 @@ class AthleteDashboardNotifier
     final wStart = weekStart(now);
     final wEnd = weekEnd(now);
 
-    final wStartStr = wStart.toIso8601String();
-    final wEndStr = wEnd.toIso8601String();
+    final wStartStr = wStart.toUtc().toIso8601String();
+    final wEndStr = wEnd.toUtc().toIso8601String();
     final todayStr = DateTime(now.year, now.month, now.day).toIso8601String().substring(0, 10);
 
     // Fetch active plan, this week's workouts, and upcoming planned workouts
@@ -448,8 +451,8 @@ class CoachRosterNotifier
 
     final wStartDate = wStart.toIso8601String().substring(0, 10);
     final wEndDate = wEnd.toIso8601String().substring(0, 10);
-    final wStartTs = wStart.toIso8601String();
-    final wEndTs = wEnd.toIso8601String();
+    final wStartTs = wStart.toUtc().toIso8601String();
+    final wEndTs = wEnd.toUtc().toIso8601String();
 
     final results = await Future.wait([
       supabase
