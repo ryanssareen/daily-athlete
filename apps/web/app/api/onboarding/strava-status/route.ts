@@ -12,15 +12,16 @@
 
 import { NextResponse } from "next/server";
 
+import { resolveAuth } from "@/auth/bearer";
 import { createClient as createServerClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
 
-export async function GET(): Promise<NextResponse> {
+// Auth: SSR cookie (web onboarding) or Bearer token (Flutter app, which uses
+// this to decide between "Connect Strava" and "Connected" in Settings).
+export async function GET(request: Request): Promise<NextResponse> {
   const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await resolveAuth(supabase, request);
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

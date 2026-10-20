@@ -29,6 +29,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// [connect()] flow is suspended awaiting a deep-link callback.
 ProviderContainer _makeContainer({
   required ApiPoster poster,
+  ApiGetter? getter,
   BrowserLauncher? browserLauncher,
   String? accessToken,
 }) {
@@ -37,6 +38,9 @@ ProviderContainer _makeContainer({
       stravaOAuthServiceProvider.overrideWith(
         () => StravaOAuthService(
           apiPosterOverride: poster,
+          apiGetterOverride: getter ??
+              (path, {accessToken}) async =>
+                  (status: 200, body: {'connected': false}),
           browserLauncherOverride:
               browserLauncher ?? ((_) async => true), // default: "opened"
           accessTokenOverride: accessToken,
@@ -274,6 +278,85 @@ void main() {
           Uri.parse('da2://strava-oauth?code=stale&state=old'),
         ),
         returnsNormally,
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Initial connection status (regression: always showed "Connect Strava")
+  // -------------------------------------------------------------------------
+
+  group('initial status', () {
+    test('server says connected → connected on load', () async {
+      String? seenToken;
+      final container = _makeContainer(
+        accessToken: 'jwt',
+        poster: (path, {accessToken, body}) async => (status: 500, body: null),
+        getter: (path, {accessToken}) async {
+          seenToken = accessToken;
+          expect(path, '/api/onboarding/strava-status');
+          return (status: 200, body: {'connected': true});
+        },
+      );
+      addTearDown(container.dispose);
+
+      final state = await container.read(stravaOAuthServiceProvider.future);
+      expect(state.status, StravaConnectionStatus.connected);
+      expect(seenToken, 'jwt');
+    });
+
+    test('status lookup fails → falls back to notConnected', () async {
+      final container = _makeContainer(
+        accessToken: 'jwt',
+        poster: (path, {accessToken, body}) async => (status: 500, body: null),
+        getter: (path, {accessToken}) async => throw Exception('offline'),
+      );
+      addTearDown(container.dispose);
+
+      final state = await container.read(stravaOAuthServiceProvider.future);
+      expect(state.status, StravaConnectionStatus.notConnected);
+    });
+  });
+
+  group('disconnect', () {
+    test('204 → notConnected', () async {
+      String? calledPath;
+      final container = _makeContainer(
+        accessToken: 'jwt',
+        poster: (path, {accessToken, body}) async {
+          calledPath = path;
+          return (status: 204, body: null);
+        },
+        getter: (path, {accessToken}) async =>
+            (status: 200, body: {'connected': true}),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(stravaOAuthServiceProvider.future);
+      await container.read(stravaOAuthServiceProvider.notifier).disconnect();
+
+      expect(calledPath, '/api/integrations/strava/disconnect');
+      expect(
+        container.read(stravaOAuthServiceProvider).valueOrNull?.status,
+        StravaConnectionStatus.notConnected,
+      );
+    });
+
+    test('500 → error, not silently disconnected', () async {
+      final container = _makeContainer(
+        accessToken: 'jwt',
+        poster: (path, {accessToken, body}) async => (status: 500, body: null),
+        getter: (path, {accessToken}) async =>
+            (status: 200, body: {'connected': true}),
+      );
+      addTearDown(container.dispose);
+
+      await container.read(stravaOAuthServiceProvider.future);
+      await container.read(stravaOAuthServiceProvider.notifier).disconnect();
+
+      expect(
+        container.read(stravaOAuthServiceProvider).valueOrNull?.status,
+        StravaConnectionStatus.authError,
       );
     });
   });

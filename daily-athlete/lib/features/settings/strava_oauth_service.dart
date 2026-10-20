@@ -134,6 +134,12 @@ typedef ApiPoster = Future<ApiResponse> Function(
   Map<String, dynamic>? body,
 });
 
+/// Signature for the HTTP getter seam (connection-status lookup).
+typedef ApiGetter = Future<ApiResponse> Function(
+  String path, {
+  String? accessToken,
+});
+
 /// Browser launcher seam — allows tests to skip actual url_launcher calls.
 /// Returns true if the browser was successfully opened.
 typedef BrowserLauncher = Future<bool> Function(Uri url);
@@ -161,6 +167,26 @@ Future<ApiResponse> _defaultApiPost(
   return (status: response.statusCode, body: parsed);
 }
 
+Future<ApiResponse> _defaultApiGet(
+  String path, {
+  String? accessToken,
+}) async {
+  final uri = Uri.parse('${Env.apiBaseUrl}$path');
+  final response = await http.get(
+    uri,
+    headers: {
+      if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+    },
+  );
+  Object? parsed;
+  try {
+    parsed = jsonDecode(response.body);
+  } catch (_) {
+    parsed = null;
+  }
+  return (status: response.statusCode, body: parsed);
+}
+
 Future<bool> _defaultBrowserLauncher(Uri url) async {
   return launchUrl(url, mode: LaunchMode.externalApplication);
 }
@@ -175,6 +201,7 @@ Future<bool> _defaultBrowserLauncher(Uri url) async {
 /// in tests to avoid real HTTP calls, url_launcher, and Supabase auth.
 class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
   final ApiPoster? _apiPosterOverride;
+  final ApiGetter? _apiGetterOverride;
   final BrowserLauncher? _browserLauncherOverride;
 
   /// @visibleForTesting — provides a fixed access token without reading Supabase auth.
@@ -182,14 +209,25 @@ class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
 
   StravaOAuthService({
     ApiPoster? apiPosterOverride,
+    ApiGetter? apiGetterOverride,
     BrowserLauncher? browserLauncherOverride,
     this.accessTokenOverride,
   })  : _apiPosterOverride = apiPosterOverride,
+        _apiGetterOverride = apiGetterOverride,
         _browserLauncherOverride = browserLauncherOverride;
 
   @override
   Future<StravaOAuthState> build() async {
-    return const StravaOAuthState(status: StravaConnectionStatus.notConnected);
+    // The connection lives server-side (strava_tokens), so ask the API on
+    // every fresh load. Defaulting to notConnected here made already-linked
+    // athletes see "Connect Strava" each time Settings was opened.
+    final token = accessTokenOverride ?? await _awaitAccessToken();
+    final connected = token != null && await _fetchIsConnected(token);
+    return StravaOAuthState(
+      status: connected
+          ? StravaConnectionStatus.connected
+          : StravaConnectionStatus.notConnected,
+    );
   }
 
   Future<void> connect() async {
@@ -308,10 +346,43 @@ class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
     );
   }
 
+  /// Clears an error state back to the not-connected prompt (local only).
   void reset() {
     state = const AsyncData(
       StravaOAuthState(status: StravaConnectionStatus.notConnected),
     );
+  }
+
+  /// Removes the server-side Strava link, then shows the connect prompt.
+  /// On failure the state stays connected so the UI never disagrees with
+  /// the server.
+  Future<void> disconnect() async {
+    try {
+      final poster = _apiPosterOverride ?? _defaultApiPost;
+      final result = await poster(
+        '/api/integrations/strava/disconnect',
+        accessToken: _readAccessToken(),
+        body: {},
+      );
+      // 404 = already disconnected server-side.
+      if (result.status == 204 ||
+          result.status == 200 ||
+          result.status == 404) {
+        state = const AsyncData(
+          StravaOAuthState(status: StravaConnectionStatus.notConnected),
+        );
+        return;
+      }
+      state = const AsyncData(StravaOAuthState(
+        status: StravaConnectionStatus.authError,
+        errorMessage: 'Could not disconnect Strava. Please try again.',
+      ));
+    } catch (_) {
+      state = const AsyncData(StravaOAuthState(
+        status: StravaConnectionStatus.networkError,
+        errorMessage: 'Network error. Please check your connection.',
+      ));
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -325,6 +396,33 @@ class StravaOAuthService extends AutoDisposeAsyncNotifier<StravaOAuthState> {
       return ref.read(authNotifierProvider).valueOrNull?.accessToken;
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Waits for auth to resolve so the first status lookup carries a token
+  /// even when Settings opens before the session has loaded.
+  Future<String?> _awaitAccessToken() async {
+    try {
+      return (await ref.read(authNotifierProvider.future)).accessToken;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /api/onboarding/strava-status (Bearer). Any failure falls back to
+  /// "not connected" so the user can still start the connect flow.
+  Future<bool> _fetchIsConnected(String accessToken) async {
+    try {
+      final getter = _apiGetterOverride ?? _defaultApiGet;
+      final result = await getter(
+        '/api/onboarding/strava-status',
+        accessToken: accessToken,
+      );
+      if (result.status != 200) return false;
+      final body = result.body;
+      return body is Map && body['connected'] == true;
+    } catch (_) {
+      return false;
     }
   }
 
