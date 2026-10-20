@@ -87,7 +87,7 @@ class _StravaBody extends ConsumerWidget {
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () =>
-                  ref.read(stravaOAuthServiceProvider.notifier).reset(),
+                  ref.read(stravaOAuthServiceProvider.notifier).disconnect(),
               child: const Text('Disconnect Strava'),
             ),
           ],
