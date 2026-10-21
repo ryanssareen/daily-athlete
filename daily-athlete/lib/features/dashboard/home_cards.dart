@@ -124,22 +124,6 @@ class WeekHeroCard extends StatelessWidget {
             DayStrip(days: buildWeekStrip(completed, now)),
             if (sportTotal > 0) ...[
               const SizedBox(height: 24),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: SizedBox(
-                  height: 8,
-                  child: Row(
-                    children: [
-                      for (final e in bySport)
-                        Expanded(
-                          flex: e.value,
-                          child: Container(color: e.key.color),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
               Wrap(
                 spacing: 16,
                 runSpacing: 6,
