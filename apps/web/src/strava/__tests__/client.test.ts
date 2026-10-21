@@ -33,6 +33,7 @@ vi.hoisted(() => {
   process.env.STRAVA_CLIENT_SECRET = "test-client-secret";
 });
 
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
 import { decrypt, encrypt } from "@/security/token-crypto";
@@ -336,6 +337,66 @@ describe("StravaClient refresh-on-401", () => {
     // refresh-old. This is the forceReload guarantee.
     expect(mockState.refreshCalls).toHaveLength(2);
     expect(mockState.refreshCalls[1]!.refresh_token).toBe("refresh-mid");
+  });
+
+  it("parallel fetches on one client share a single refresh (hydrate fan-out)", async () => {
+    // hydrateStravaWorkout fires detail/laps/zones/athlete-zones at once.
+    // With an expired access token all four 401 together; before the
+    // single-flight fix each refreshed independently, the losers posted
+    // the already-rotated refresh_token, and detail threw
+    // StravaReauthRequired.
+    const userId = "parallel-refresh";
+    const row = buildSeedRow({ userId, accessPlain: "access-old", refreshPlain: "refresh-old" });
+    const fake = makeFakeAdmin(row);
+
+    const paths = ["/activities/1", "/activities/1/laps", "/activities/1/zones"];
+    for (const p of paths) {
+      mockState.apiResponses[p] = [
+        { kind: "auth-expired-401" },
+        { kind: "ok", body: { path: p } },
+      ];
+    }
+    mockState.refresh.push({
+      kind: "ok",
+      payload: {
+        access_token: "access-new",
+        refresh_token: "refresh-new",
+        expires_at: Math.floor(Date.UTC(2026, 4, 14, 18, 0, 0) / 1000),
+      },
+    });
+    // A second refresh would carry the dead token and be rejected.
+    mockState.refresh.push({ kind: "invalid-grant" });
+
+    const client = createStravaClient(userId, fake.asSupabase() as never);
+    const responses = await Promise.all(paths.map((p) => client.fetch(p)));
+
+    expect(responses.map((r) => r.status)).toEqual([200, 200, 200]);
+    expect(mockState.refreshCalls).toHaveLength(1);
+    expect(mockState.refreshCalls[0]!.refresh_token).toBe("refresh-old");
+  });
+
+  it("refresh rejected because another process already rotated the token -> uses the winner's tokens", async () => {
+    const userId = "cross-process-refresh";
+    const row = buildSeedRow({ userId, accessPlain: "access-old", refreshPlain: "refresh-old" });
+    const fake = makeFakeAdmin(row);
+    const winner = buildSeedRow({ userId, accessPlain: "access-winner", refreshPlain: "refresh-winner" });
+
+    mockState.apiResponses["/athlete"] = [
+      { kind: "auth-expired-401" },
+      { kind: "ok", body: { id: 1 } },
+    ];
+    // Simulate the other process persisting its refresh while our POST is
+    // in flight: rotate the row, then reject our stale refresh_token.
+    server.use(
+      http.post("https://www.strava.com/oauth/token", () => {
+        Object.assign(fake.rows.get(userId)!, winner);
+        return new HttpResponse(JSON.stringify({ message: "Bad Request" }), { status: 400 });
+      })
+    );
+
+    const client = createStravaClient(userId, fake.asSupabase() as never);
+    const res = await client.fetch("/athlete");
+    expect(res.status).toBe(200);
   });
 
   it("call 401 + refresh ok + retry 401 -> throws StravaReauthRequired (T-01)", async () => {

@@ -180,11 +180,15 @@ export function createStravaClient(
   // fetch within a single client instance's lifetime UNLESS a refresh
   // happens, in which case we re-read from DB to pick up any
   // concurrent-refresh winner's tokens.
-  const state: { rateLimits: RateLimitsSnapshot; tokenCache: TokenRow | null } =
-    {
-      rateLimits: { fifteenMin: null, daily: null },
-      tokenCache: null,
-    };
+  const state: {
+    rateLimits: RateLimitsSnapshot;
+    tokenCache: TokenRow | null;
+    refreshInFlight: Promise<TokenRow> | null;
+  } = {
+    rateLimits: { fifteenMin: null, daily: null },
+    tokenCache: null,
+    refreshInFlight: null,
+  };
 
   async function loadTokensFromDb(): Promise<TokenRow> {
     // service-role: explicit user filter required
@@ -259,7 +263,26 @@ export function createStravaClient(
    * refresh_token, gets 400 invalid_grant, and incorrectly throws
    * StravaReauthRequired.
    */
+  /**
+   * Single-flight wrapper. Callers often fan out several fetches on one
+   * client (hydrateStravaWorkout fires four at once); with an expired
+   * access token all of them 401 together. Strava rotates the refresh
+   * token on every refresh, so letting each one refresh independently
+   * meant the first won and the rest posted a now-dead refresh_token,
+   * got 400 invalid_grant, and threw StravaReauthRequired — which failed
+   * every detail-page hydration whose token had expired. Share one
+   * in-flight refresh across the client instead.
+   */
   async function refreshTokens(): Promise<TokenRow> {
+    if (!state.refreshInFlight) {
+      state.refreshInFlight = doRefreshTokens().finally(() => {
+        state.refreshInFlight = null;
+      });
+    }
+    return await state.refreshInFlight;
+  }
+
+  async function doRefreshTokens(): Promise<TokenRow> {
     // FIX-3 / REL-003 / ADV-002: force a DB re-read at the start of
     // refresh so a concurrent loser uses the winner's already-persisted
     // refresh_token rather than its own (now-invalidated) cached copy.
@@ -284,7 +307,12 @@ export function createStravaClient(
 
     if (status === 401 || status === 400) {
       // Strava signals an invalid refresh_token with 400 + body
-      // {"error": "invalid_grant"} OR 401. Both mean re-auth required.
+      // {"error": "invalid_grant"} OR 401. Usually that means re-auth is
+      // required — unless another process (a parallel render, the webhook
+      // ingester) rotated the token between our DB read and our POST. In
+      // that case the row now holds the winner's tokens; use them.
+      const latest = await ensureTokens(true);
+      if (latest.refreshToken !== current.refreshToken) return latest;
       throw new StravaReauthRequired();
     }
 
