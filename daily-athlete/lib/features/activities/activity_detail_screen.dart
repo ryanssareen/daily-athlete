@@ -8,7 +8,10 @@ import '../activities/activity_row.dart';
 import '../activities/workout_detail_provider.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
+import 'hr_zones_card.dart';
 import 'report_section.dart';
+import 'route_map_card.dart';
+import 'workout_hydration_provider.dart';
 
 const _extraStats = <({String key, String label, String unit})>[
   (key: 'calories', label: 'Calories', unit: ' kcal'),
@@ -36,6 +39,9 @@ class ActivityDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final workoutAsync = ref.watch(workoutDetailProvider(workoutId));
+    // Fire-and-forget: pulls HR zones/laps from Strava the first time a
+    // workout is opened, then reloads it. Its result is deliberately ignored.
+    ref.watch(workoutHydrationProvider(workoutId));
 
     ref.listen(workoutDetailProvider(workoutId), (_, next) {
       final hasError = next is AsyncError;
@@ -129,6 +135,7 @@ class _DetailScaffold extends StatelessWidget {
           _buildHeader(context),
           const SizedBox(height: 20),
           _PrimaryStatsCard(workout: workout),
+          ..._buildRouteMap(),
           ..._buildSportSections(context),
           const SizedBox(height: 16),
           ReportSection(workoutId: workout.id),
@@ -186,6 +193,19 @@ class _DetailScaffold extends StatelessWidget {
     );
   }
 
+  List<Widget> _buildRouteMap() {
+    if (!workout.isStrava) return const [];
+    if (workout.sport == Sport.strength || workout.sport == Sport.mobility) {
+      return const [];
+    }
+    final polyline = workout.summaryStats['polyline'];
+    if (polyline is! String || polyline.isEmpty) return const [];
+    return [
+      const SizedBox(height: 16),
+      RouteMapCard(polyline: polyline),
+    ];
+  }
+
   List<Widget> _buildSportSections(BuildContext context) {
     final stats = workout.summaryStats;
     final isStrava = workout.isStrava;
@@ -198,6 +218,7 @@ class _DetailScaffold extends StatelessWidget {
     final avgHR = stats['average_heartrate'] as num?;
     final maxHR = stats['max_heartrate'] as num?;
     if (avgHR != null) {
+      final hrZones = parseHrZones(stats);
       widgets.add(const SizedBox(height: 16));
       widgets.add(
         _SectionCard(
@@ -206,6 +227,7 @@ class _DetailScaffold extends StatelessWidget {
             _StatRow(label: 'Avg HR', value: '${avgHR.round()} bpm'),
             if (maxHR != null)
               _StatRow(label: 'Max HR', value: '${maxHR.round()} bpm'),
+            if (hrZones.isNotEmpty) HrZonesBreakdown(buckets: hrZones),
           ],
         ),
       );
