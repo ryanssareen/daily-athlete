@@ -473,7 +473,7 @@ export function OnboardingFlow({ initial }: { initial: InitialState }) {
               <button
                 type="button"
                 className="ghost-btn"
-                onClick={() => { window.location.href = "/athlete"; }}
+                onClick={onOpenDashboard}
               >
                 Exit
               </button>
