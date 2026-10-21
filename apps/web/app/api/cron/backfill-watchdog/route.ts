@@ -9,14 +9,14 @@
 
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/auth/cron-auth";
 import { createAdminClient } from "@/db/admin";
 import { updateBackfillStatus } from "@/db/backfill-status";
 
 const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

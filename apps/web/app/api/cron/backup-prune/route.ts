@@ -5,11 +5,11 @@
 
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/auth/cron-auth";
 import { pruneBackups } from "@/admin/backup-retention";
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

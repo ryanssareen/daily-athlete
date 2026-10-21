@@ -431,3 +431,43 @@ describe("POST /api/integrations/strava/webhook", () => {
     });
   });
 });
+
+describe("POST /api/integrations/strava/webhook callback token", () => {
+  async function freshPost(body: unknown, query: string) {
+    vi.resetModules();
+    process.env.STRAVA_WEBHOOK_CALLBACK_TOKEN = "cb-secret";
+    try {
+      const { POST: FreshPOST } = await import("../route");
+      return await FreshPOST(
+        new Request(`http://localhost/api/integrations/strava/webhook${query}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      );
+    } finally {
+      delete process.env.STRAVA_WEBHOOK_CALLBACK_TOKEN;
+      vi.resetModules();
+    }
+  }
+
+  it("rejects a forged deauth event without the token and deletes nothing", async () => {
+    state.tokensDeleted = false;
+    const res = await freshPost(
+      makeEvent({ object_type: "athlete", aspect_type: "update" }),
+      ""
+    );
+    expect(res.status).toBe(403);
+    expect(state.tokensDeleted).toBe(false);
+  });
+
+  it("rejects a wrong token", async () => {
+    const res = await freshPost(makeEvent(), "?token=nope");
+    expect(res.status).toBe(403);
+  });
+
+  it("accepts the correct token", async () => {
+    const res = await freshPost(makeEvent({ aspect_type: "update" }), "?token=cb-secret");
+    expect(res.status).toBe(200);
+  });
+});

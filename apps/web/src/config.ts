@@ -39,6 +39,7 @@ interface RawEnv {
   STRAVA_TOKEN_KEYS?: string;
   STRAVA_WEBHOOK_VERIFY_TOKEN?: string;
   STRAVA_WEBHOOK_SUBSCRIPTION_ID?: string;
+  STRAVA_WEBHOOK_CALLBACK_TOKEN?: string;
   STRAVA_OAUTH_STATE_SIGNING_KEY?: string;
   INNGEST_EVENT_KEY?: string;
   INNGEST_SIGNING_KEY?: string;
@@ -75,6 +76,7 @@ export interface AppConfig {
     tokenKeysRaw: string | undefined;
     webhookVerifyToken: string | undefined;
     webhookSubscriptionId: number | undefined;
+    webhookCallbackToken: string | undefined;
     stateSigningKey: string | undefined;
   };
   inngest: {
@@ -623,6 +625,7 @@ function buildFromRaw(raw: RawEnv): AppConfig {
       webhookSubscriptionId: raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID
         ? Number(raw.STRAVA_WEBHOOK_SUBSCRIPTION_ID)
         : undefined,
+      webhookCallbackToken: raw.STRAVA_WEBHOOK_CALLBACK_TOKEN,
       stateSigningKey: raw.STRAVA_OAUTH_STATE_SIGNING_KEY,
     },
     inngest: {
