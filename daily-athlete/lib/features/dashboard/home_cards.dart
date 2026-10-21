@@ -76,13 +76,13 @@ class WeekHeroCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Expanded(child: Eyebrow('This week · ${weekRangeLabel(now)}')),
+                const Expanded(child: Eyebrow('This week')),
                 if (streakDays > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -97,7 +97,12 @@ class WeekHeroCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            Text(
+              weekRangeLabel(now),
+              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 24),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -115,15 +120,10 @@ class WeekHeroCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 28),
             DayStrip(days: buildWeekStrip(completed, now)),
             if (sportTotal > 0) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Time by sport',
-                style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 24),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: SizedBox(
@@ -139,10 +139,10 @@ class WeekHeroCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Wrap(
-                spacing: 14,
-                runSpacing: 4,
+                spacing: 16,
+                runSpacing: 6,
                 children: [
                   for (final e in bySport)
                     Row(
@@ -163,7 +163,7 @@ class WeekHeroCard extends StatelessWidget {
                 ],
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -208,7 +208,7 @@ class PlanCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -225,6 +225,7 @@ class PlanCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -238,13 +239,15 @@ class PlanCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.titleMedium,
                       ),
-                      if (subtitle.isNotEmpty)
+                      if (subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 4),
                         Text(
                           subtitle,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -263,7 +266,7 @@ class PlanCard extends StatelessWidget {
                 ],
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             if (nextWorkout != null)
               Row(
                 children: [
@@ -282,13 +285,13 @@ class PlanCard extends StatelessWidget {
             else
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Nothing planned for the rest of this week. Your next planned session shows here.',
+                  'Nothing planned for the rest of this week.',
                   style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
@@ -317,12 +320,12 @@ class FormCard extends StatelessWidget {
       child: InkWell(
         onTap: () => context.go(Routes.reports),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Eyebrow('Form'),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -395,7 +398,7 @@ class FormCard extends StatelessWidget {
                   ],
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   _StatCell(value: overview.ctl.toStringAsFixed(1), label: 'Fitness'),
@@ -441,6 +444,7 @@ class RecentSection extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 4),
         if (workouts.isEmpty)
           Text(
             'No activities yet.',
@@ -456,7 +460,7 @@ class RecentSection extends StatelessWidget {
                   InkWell(
                     onTap: () => context.go('/activities/${workouts[i].id}'),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                       child: Row(
                         children: [
                           SportTile(sport: workouts[i].sport),

@@ -83,7 +83,7 @@ class AthleteDashboard extends ConsumerWidget {
                     Expanded(
                       flex: 7,
                       child: Column(
-                        children: [hero, const SizedBox(height: 16), plan],
+                        children: [hero, const SizedBox(height: 24), plan],
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -93,7 +93,7 @@ class AthleteDashboard extends ConsumerWidget {
                         children: [
                           if (form != null) ...[
                             form,
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
                           ],
                           recent,
                         ],
@@ -109,13 +109,13 @@ class AthleteDashboard extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: refresh,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
               hero,
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               plan,
-              if (form != null) ...[const SizedBox(height: 16), form],
-              const SizedBox(height: 16),
+              if (form != null) ...[const SizedBox(height: 24), form],
+              const SizedBox(height: 24),
               recent,
             ],
           ),
@@ -172,7 +172,7 @@ class _ErrorView extends StatelessWidget {
             size: 56,
             color: theme.colorScheme.error,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Text(
             'Failed to load dashboard',
             style: theme.textTheme.titleMedium,
