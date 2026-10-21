@@ -11,6 +11,10 @@
 //   activity hydration to prevent on-demand token lookups from forged events.
 // - All after() work is wrapped in classifyError(); err.message is never logged.
 //
+// - POST also requires ?token=STRAVA_WEBHOOK_CALLBACK_TOKEN (set in the
+//   registered callback_url) when configured; register with
+//   callback_url=https://<domain>/api/integrations/strava/webhook?token=<secret>
+//
 // Rate limiting via Vercel DDoS protection (documented conscious decision).
 // Subscription IDs are sequential but the synchronous path is near-zero-cost.
 //
@@ -25,6 +29,7 @@ import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { config } from "@/config";
+import { constantTimeEqual } from "@/auth/admin-session";
 import { createAdminClient } from "@/db/admin";
 import { insertOrUpdateStravaCompletedWorkout } from "@/db/completed-workouts";
 import { matchStravaToPlanned } from "@/strava/auto-match";
@@ -73,6 +78,21 @@ export async function GET(request: Request): Promise<NextResponse> {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request): Promise<NextResponse> {
+  // Strava doesn't sign POST bodies and subscription_id is a small public
+  // integer, so the only real authenticity check is a secret embedded in the
+  // callback URL we registered (`...?token=<STRAVA_WEBHOOK_CALLBACK_TOKEN>`).
+  // Without it anyone who knows a Strava athlete id could forge a deauth
+  // (deleting tokens) or delete event. Unset = legacy open mode, warned.
+  const expectedToken = config.strava.webhookCallbackToken;
+  if (expectedToken) {
+    const given = new URL(request.url).searchParams.get("token") ?? "";
+    if (!constantTimeEqual(given, expectedToken)) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+  } else {
+    console.warn("[strava.webhook] STRAVA_WEBHOOK_CALLBACK_TOKEN unset; accepting unauthenticated events");
+  }
+
   // Parse body — silent 200 on any parse failure (don't reveal errors to callers)
   let rawBody: unknown;
   try {
