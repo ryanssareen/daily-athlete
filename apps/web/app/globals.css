@@ -715,6 +715,30 @@ a {
   line-height: 1.5;
 }
 
+/* Per-minute HR chart */
+.wd-hr-chart { width: 100%; height: auto; display: block; }
+.wd-hr-chart-grid { stroke: var(--color-border); stroke-width: 1; }
+.wd-hr-chart-label {
+  fill: var(--color-ink-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.wd-hr-chart-line {
+  fill: none;
+  stroke: #d97e3a;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.wd-hr-chart-area { fill: #d97e3a; fill-opacity: 0.14; stroke: none; }
+.wd-hr-chart-hit { fill: transparent; }
+.wd-hr-chart-hit:hover { fill: #d97e3a; }
+.wd-hr-chart-skeleton {
+  height: 200px;
+  border-radius: 8px;
+  background: var(--color-canvas-soft);
+}
+
 /* ---------- Report section (Unit U7) ------------------------------ */
 .wd-report {
   background: var(--color-paper);

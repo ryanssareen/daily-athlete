@@ -14,6 +14,7 @@ import "server-only";
 import { StravaError } from "./errors";
 import {
   StravaAthleteZonesResponseSchema,
+  StravaHrStreamResponseSchema,
   StravaLapsResponseSchema,
   StravaZonesResponseSchema,
   type StravaAthleteZones,
@@ -66,6 +67,31 @@ export async function fetchActivityZones(
   }
   const raw = await res.json();
   return StravaZonesResponseSchema.parse(raw);
+}
+
+/**
+ * Fetch the time + heart-rate streams for an activity. Returns `null` when
+ * Strava 404s or the activity has no HR stream (no sensor). The caller must
+ * reduce this to aggregates immediately and never persist it.
+ */
+export async function fetchActivityHrStream(
+  client: StravaClient,
+  activityId: number
+): Promise<{ time: number[]; heartrate: number[] } | null> {
+  const res = await client.fetch(
+    `/activities/${activityId}/streams?keys=time,heartrate&key_by_type=true`
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new StravaError(
+      "unexpected",
+      `Strava /activities/${activityId}/streams returned ${res.status}`,
+      res.status
+    );
+  }
+  const parsed = StravaHrStreamResponseSchema.parse(await res.json());
+  if (!parsed.time || !parsed.heartrate) return null;
+  return { time: parsed.time.data, heartrate: parsed.heartrate.data };
 }
 
 /**

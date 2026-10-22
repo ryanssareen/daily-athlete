@@ -8,6 +8,7 @@ import '../activities/activity_row.dart';
 import '../activities/workout_detail_provider.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
+import 'hr_series_card.dart';
 import 'hr_zones_card.dart';
 import 'report_section.dart';
 import 'route_map_card.dart';
@@ -231,6 +232,9 @@ class _DetailScaffold extends StatelessWidget {
           ],
         ),
       );
+      if (stats['has_heartrate'] != false) {
+        widgets.add(HrSeriesCard(workoutId: workout.id));
+      }
     }
 
     // Power (bike only)
