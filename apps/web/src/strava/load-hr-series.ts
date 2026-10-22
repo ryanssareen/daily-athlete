@@ -28,12 +28,19 @@ export async function loadHrSeries(args: {
   admin: SupabaseClient;
   userId: string;
   stravaActivityId: number;
+  /** Runs also get cadence and pace overlaid on the HR series. */
+  isRun?: boolean;
 }): Promise<HrSeriesResult> {
   try {
     const client = createStravaClient(args.userId, args.admin);
-    const stream = await fetchActivityHrStream(client, args.stravaActivityId);
+    const stream = await fetchActivityHrStream(client, args.stravaActivityId, {
+      runMetrics: args.isRun,
+    });
     if (!stream) return { status: "unavailable" };
-    const points = toPerMinute(stream.time, stream.heartrate);
+    const points = toPerMinute(stream.time, stream.heartrate, {
+      cadence: stream.cadence,
+      velocity: stream.velocity,
+    });
     return points.length > 0 ? { status: "ok", points } : { status: "unavailable" };
   } catch (err) {
     if (err instanceof StravaRateLimited) return { status: "rate_limited" };
