@@ -125,3 +125,15 @@ export const StravaAthleteZonesResponseSchema = z.object({
     .optional(),
 });
 export type StravaAthleteZones = z.infer<typeof StravaAthleteZonesResponseSchema>;
+
+// ─── /activities/{id}/streams (heart rate only) ───────────────────────────────
+
+// Fetched live to draw the per-minute HR chart and reduced to per-minute
+// averages in memory (see hr-series.ts). NEVER persisted: raw 1Hz samples are
+// forbidden by migration 0008 / Strava ToS, so this schema describes a
+// transient wire shape only.
+export const StravaHrStreamResponseSchema = z.object({
+  time: z.object({ data: z.array(z.number()) }).optional(),
+  heartrate: z.object({ data: z.array(z.number()) }).optional(),
+});
+export type StravaHrStreamResponse = z.infer<typeof StravaHrStreamResponseSchema>;

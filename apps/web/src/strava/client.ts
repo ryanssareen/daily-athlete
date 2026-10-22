@@ -144,6 +144,27 @@ function readsAsRateLimit(body: unknown): boolean {
   );
 }
 
+/**
+ * One-line, token-free summary of a Strava error body for diagnostics:
+ * the `errors[].resource/field/code` triples Strava documents, nothing else.
+ * Lets a "reauth required" log say WHY Strava said 401 (missing scope, bad
+ * token, quota) instead of leaving us to guess.
+ */
+function summarizeStravaError(body: unknown): string {
+  if (!body || typeof body !== "object") return "no-body";
+  const errors = (body as Strava401Body).errors;
+  if (!Array.isArray(errors) || errors.length === 0) return "no-errors";
+  return errors
+    .slice(0, 3)
+    .map((e) => [e?.resource, e?.field, e?.code].map((v) => (typeof v === "string" ? v.slice(0, 40) : "?")).join("/"))
+    .join(",");
+}
+
+/** `/activities/123/zones?keys=a` -> `/activities/:id/zones` (no ids, no query). */
+function pathShape(path: string): string {
+  return path.split("?")[0]!.replace(/\d+/g, ":id");
+}
+
 interface StravaTokenRefreshResponse {
   access_token: string;
   refresh_token: string;
@@ -313,7 +334,9 @@ export function createStravaClient(
       // that case the row now holds the winner's tokens; use them.
       const latest = await ensureTokens(true);
       if (latest.refreshToken !== current.refreshToken) return latest;
-      throw new StravaReauthRequired();
+      throw new StravaReauthRequired(
+        `Strava /oauth/token rejected the refresh token (status ${status}: ${summarizeStravaError(parsedBody)})`
+      );
     }
 
     const parsed = parsedBody as StravaTokenRefreshResponse | null;
@@ -425,8 +448,14 @@ export function createStravaClient(
     // class-switch on the error type without status-code introspection.
     const retried = await fetchOnce(path, init, refreshed);
     if (retried.status === 401) {
+      let retriedBody: unknown = undefined;
+      try {
+        retriedBody = await retried.clone().json();
+      } catch {
+        // body not JSON; summarize as "no-body"
+      }
       throw new StravaReauthRequired(
-        "Strava returned 401 after a successful token refresh; user may have revoked"
+        `Strava returned 401 for ${pathShape(path)} after a successful token refresh (${summarizeStravaError(retriedBody)}); user may have revoked`
       );
     }
     return retried;

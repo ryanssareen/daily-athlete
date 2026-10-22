@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import type { WorkoutReportResponse } from "@da2/shared";
@@ -11,7 +12,7 @@ import { createAdminClient } from "@/db/admin";
 import { getWorkoutById } from "@/db/workouts";
 import { hasStravaToken } from "@/db/strava-tokens";
 import { hydrateStravaWorkout } from "@/strava/hydrate-workout";
-import { StravaRateLimited, StravaReauthRequired } from "@/strava/errors";
+import { StravaError, StravaRateLimited, StravaReauthRequired } from "@/strava/errors";
 import { CompletedWorkoutNotFoundError, gatherReportContext } from "@/ai/reports/context";
 import { computeExecutionDelta } from "@/ai/reports/delta";
 import { computeFingerprint } from "@/ai/reports/fingerprint";
@@ -20,6 +21,7 @@ import { toDeltaInput } from "@/ai/reports/to-delta-input";
 import { Hero } from "./Hero";
 import { MapCard, MapEmpty } from "./MapCard";
 import { HeartRateCard, isHrZoneEntry } from "./HeartRateCard";
+import { HrTimelineSection, HrTimelineSkeleton } from "./HrTimeline";
 import { ZoneDistribution } from "./ZoneDistribution";
 import { LapSplits } from "./LapSplits";
 import { StatsDetail } from "./StatsDetail";
@@ -122,7 +124,10 @@ async function hydrateWithTimeout(args: {
       err instanceof StravaReauthRequired ? "reauth_required" :
       err instanceof Error ? err.name :
       "unknown";
-    console.warn(`[workout-detail] auto-hydration failed: ${errClass}`);
+    // StravaError messages are our own templated strings (endpoint shape +
+    // Strava's documented error codes), so they are safe to log and say WHY.
+    const detail = err instanceof StravaError ? ` (${err.message})` : "";
+    console.warn(`[workout-detail] auto-hydration failed: ${errClass}${detail}`);
     // Negative-cache: stamp the failure so we don't retry for 10 min.
     await stampHydrateError(args.admin, args.userId, args.workoutId).catch((stampErr) => {
       console.warn("[workout-detail] failed to stamp hydrate_error_at", stampErr instanceof Error ? stampErr.message : stampErr);
@@ -344,6 +349,16 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
         hasHeartrate={hasHeartrate}
         isStrava={isStrava}
       />
+
+      {isStrava && workout.strava_activity_id != null && hasHeartrate !== false && avgHr != null && (
+        <Suspense fallback={<HrTimelineSkeleton />}>
+          <HrTimelineSection
+            admin={createAdminClient()}
+            userId={session.user.id}
+            stravaActivityId={workout.strava_activity_id}
+          />
+        </Suspense>
+      )}
 
       {zones && <ZoneDistribution zones={zones} />}
       {laps && <LapSplits laps={laps} sport={sport} />}
