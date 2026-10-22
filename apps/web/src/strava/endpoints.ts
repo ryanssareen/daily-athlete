@@ -76,11 +76,11 @@ export async function fetchActivityZones(
  */
 export async function fetchActivityHrStream(
   client: StravaClient,
-  activityId: number
-): Promise<{ time: number[]; heartrate: number[] } | null> {
-  const res = await client.fetch(
-    `/activities/${activityId}/streams?keys=time,heartrate&key_by_type=true`
-  );
+  activityId: number,
+  opts: { runMetrics?: boolean } = {}
+): Promise<{ time: number[]; heartrate: number[]; cadence?: number[]; velocity?: number[] } | null> {
+  const keys = opts.runMetrics ? "time,heartrate,cadence,velocity_smooth" : "time,heartrate";
+  const res = await client.fetch(`/activities/${activityId}/streams?keys=${keys}&key_by_type=true`);
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new StravaError(
@@ -91,7 +91,12 @@ export async function fetchActivityHrStream(
   }
   const parsed = StravaHrStreamResponseSchema.parse(await res.json());
   if (!parsed.time || !parsed.heartrate) return null;
-  return { time: parsed.time.data, heartrate: parsed.heartrate.data };
+  return {
+    time: parsed.time.data,
+    heartrate: parsed.heartrate.data,
+    cadence: parsed.cadence?.data,
+    velocity: parsed.velocity_smooth?.data,
+  };
 }
 
 /**

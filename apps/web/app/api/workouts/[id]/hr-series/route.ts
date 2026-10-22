@@ -46,6 +46,7 @@ export async function GET(
     admin,
     userId: user.id,
     stravaActivityId: workout.strava_activity_id,
+    isRun: workout.sport.toLowerCase() === "run",
   });
 
   switch (result.status) {
