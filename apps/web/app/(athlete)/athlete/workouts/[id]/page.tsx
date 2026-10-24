@@ -11,6 +11,7 @@ import { createClient } from "@/auth/server";
 import { createAdminClient } from "@/db/admin";
 import { getWorkoutById } from "@/db/workouts";
 import { hasStravaToken } from "@/db/strava-tokens";
+import { ENRICHMENT_VERSION } from "@/strava/build-summary-stats";
 import { hydrateStravaWorkout } from "@/strava/hydrate-workout";
 import { StravaError, StravaRateLimited, StravaReauthRequired } from "@/strava/errors";
 import { CompletedWorkoutNotFoundError, gatherReportContext } from "@/ai/reports/context";
@@ -25,6 +26,7 @@ import { HrTimelineSection, HrTimelineSkeleton } from "./HrTimeline";
 import { ZoneDistribution } from "./ZoneDistribution";
 import { LapSplits } from "./LapSplits";
 import { StatsDetail } from "./StatsDetail";
+import { RunSplits } from "./RunSplits";
 import { ReportSection } from "./ReportSection";
 
 type Props = {
@@ -72,7 +74,14 @@ function shouldHydrate(workout: Awaited<ReturnType<typeof getWorkoutById>>) {
   if (!workout.strava_activity_id) return false;
   const sport = workout.sport.toLowerCase();
   if (!["bike", "run", "swim", "ride"].includes(sport)) return false;
-  if (workout.summary_stats.hydrated_at != null) return false;
+  const version = workout.summary_stats.enrichment_v;
+  if (
+    workout.summary_stats.hydrated_at != null &&
+    typeof version === "number" &&
+    version >= ENRICHMENT_VERSION
+  ) {
+    return false;
+  }
   // Negative cache: skip hydration for 10 minutes after the last failure
   // to avoid a retry storm against a rate-limited Strava upstream.
   const errAt = workout.summary_stats.hydrate_error_at;
@@ -362,6 +371,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
 
       {zones && <ZoneDistribution zones={zones} />}
       {laps && <LapSplits laps={laps} sport={sport} />}
+      <RunSplits splits={stats.splits_metric} bestEfforts={stats.best_efforts} />
 
       {showStravaConnect && (
         <div className="wd-manual-nudge">

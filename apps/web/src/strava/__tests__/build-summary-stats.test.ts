@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSummaryStats, mergeEnrichment } from "@/strava/build-summary-stats";
+import { buildSummaryStats, ENRICHMENT_VERSION, mergeEnrichment } from "@/strava/build-summary-stats";
 import type { StravaActivity } from "@/strava/schemas";
 
 function activity(overrides: Partial<StravaActivity> = {}): StravaActivity {
@@ -133,5 +133,45 @@ describe("mergeEnrichment", () => {
 
   it("defaults to stamping hydrated_at when the flag is omitted", () => {
     expect(typeof mergeEnrichment({}, null, null).hydrated_at).toBe("string");
+  });
+});
+
+describe("buildSummaryStats detail-only fields", () => {
+  it("captures gear, device, place, social counters, splits and best efforts", () => {
+    const stats = buildSummaryStats({
+      id: 1,
+      name: "Morning run",
+      sport_type: "Run",
+      start_date: "2026-10-01T06:00:00Z",
+      device_name: "Garmin Forerunner 265",
+      location_city: "Pune",
+      kudos_count: 4,
+      gear: { id: "g1", name: "Vaporfly", distance: 123456 },
+      splits_metric: [{ split: 1, distance: 1000, elapsed_time: 300 }],
+      best_efforts: [{ name: "1k", distance: 1000, elapsed_time: 290, pr_rank: 1 }],
+    } as StravaActivity);
+    expect(stats.device_name).toBe("Garmin Forerunner 265");
+    expect(stats.location_city).toBe("Pune");
+    expect(stats.kudos_count).toBe(4);
+    expect(stats.gear).toEqual({ name: "Vaporfly", distance: 123456 });
+    expect(stats.splits_metric).toHaveLength(1);
+    expect(stats.best_efforts).toHaveLength(1);
+  });
+
+  it("omits the new keys when Strava did not send them", () => {
+    const stats = buildSummaryStats({
+      id: 1,
+      name: "x",
+      sport_type: "Ride",
+      start_date: "2026-10-01T06:00:00Z",
+    } as StravaActivity);
+    for (const k of ["gear", "device_name", "splits_metric", "best_efforts", "kudos_count"]) {
+      expect(k in stats).toBe(false);
+    }
+  });
+
+  it("stamps the enrichment version with hydrated_at", () => {
+    expect(mergeEnrichment({}, null, null).enrichment_v).toBe(ENRICHMENT_VERSION);
+    expect(mergeEnrichment({}, null, null, true).enrichment_v).toBeUndefined();
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { buildSummaryStats, mergeEnrichment } from "@/strava/build-summary-stats";
+import { buildSummaryStats, ENRICHMENT_VERSION, mergeEnrichment } from "@/strava/build-summary-stats";
 import { createStravaClient } from "@/strava/client";
 import {
   deriveFtpFromZones,
@@ -132,7 +132,7 @@ export async function hydrateStravaWorkout(args: HydrateArgs): Promise<HydrateRe
     .update({ summary_stats: merged })
     .eq("id", workoutId)
     .eq("athlete_id", userId)
-    .is("summary_stats->>hydrated_at", null)
+    .or("summary_stats->>enrichment_v.is.null,summary_stats->>enrichment_v.lt." + ENRICHMENT_VERSION)
     .select("summary_stats");
 
   if (error) {

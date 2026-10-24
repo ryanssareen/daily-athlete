@@ -47,6 +47,29 @@ export const StravaActivitySchema = z.object({
   achievement_count: z.number().int().nonnegative().optional(),
   // Description / annotation
   description: z.string().nullable().optional(),
+  // Context: device, workout flavour, place, social counters. Aggregates only.
+  device_name: z.string().nullable().optional(),
+  workout_type: z.number().int().nullable().optional(),
+  timezone: z.string().nullable().optional(),
+  location_city: z.string().nullable().optional(),
+  location_state: z.string().nullable().optional(),
+  location_country: z.string().nullable().optional(),
+  kudos_count: z.number().int().nonnegative().optional(),
+  comment_count: z.number().int().nonnegative().optional(),
+  athlete_count: z.number().int().nonnegative().optional(),
+  total_photo_count: z.number().int().nonnegative().optional(),
+  // Present on the detail response only (inline with /activities/{id}).
+  gear: z
+    .object({
+      id: z.string().optional(),
+      name: z.string().optional(),
+      distance: z.number().nonnegative().optional(),
+    })
+    .nullable()
+    .optional(),
+  // Per-km / per-mile aggregates computed by Strava. Detail response only.
+  splits_metric: z.array(z.lazy(() => StravaSplitSchema)).optional(),
+  best_efforts: z.array(z.lazy(() => StravaBestEffortSchema)).optional(),
   // summary_polyline is a compressed route string (not stream samples).
   // It is safe to store and display per Strava ToS §2.
   map: z
@@ -54,6 +77,27 @@ export const StravaActivitySchema = z.object({
     .optional()
     .nullable(),
 });
+
+// Strava-computed aggregates; no stream indices stored (see StravaLapSchema).
+export const StravaSplitSchema = z.object({
+  split: z.number().int().nonnegative(),
+  distance: z.number().nonnegative(),
+  elapsed_time: z.number().int().nonnegative(),
+  moving_time: z.number().int().nonnegative().optional(),
+  average_speed: z.number().nonnegative().optional(),
+  average_heartrate: z.number().nonnegative().optional(),
+  elevation_difference: z.number().optional(),
+});
+export type StravaSplit = z.infer<typeof StravaSplitSchema>;
+
+export const StravaBestEffortSchema = z.object({
+  name: z.string(),
+  distance: z.number().nonnegative(),
+  elapsed_time: z.number().int().nonnegative(),
+  moving_time: z.number().int().nonnegative().optional(),
+  pr_rank: z.number().int().nullable().optional(),
+});
+export type StravaBestEffort = z.infer<typeof StravaBestEffortSchema>;
 
 export type StravaActivity = z.infer<typeof StravaActivitySchema>;
 

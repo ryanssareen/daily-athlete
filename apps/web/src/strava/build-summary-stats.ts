@@ -11,6 +11,12 @@ import type { StravaActivity, StravaLap, StravaZone } from "@/strava/schemas";
 // "only persist when present" rule so we never store `null` or `undefined`
 // keys — absence is meaningful (the renderer keys on presence).
 
+/**
+ * Bump when hydration starts capturing new fields. Rows hydrated at an older
+ * version are re-hydrated once on their next detail-page view.
+ */
+export const ENRICHMENT_VERSION = 2;
+
 export function buildSummaryStats(activity: StravaActivity): Record<string, unknown> {
   const stats: Record<string, unknown> = {};
 
@@ -63,6 +69,32 @@ export function buildSummaryStats(activity: StravaActivity): Record<string, unkn
   if (activity.pr_count != null) stats.pr_count = activity.pr_count;
   if (activity.achievement_count != null) stats.achievement_count = activity.achievement_count;
 
+  // Device / equipment / place / social
+  if (activity.device_name) stats.device_name = activity.device_name;
+  if (activity.workout_type != null) stats.workout_type = activity.workout_type;
+  if (activity.timezone) stats.timezone = activity.timezone;
+  if (activity.location_city) stats.location_city = activity.location_city;
+  if (activity.location_state) stats.location_state = activity.location_state;
+  if (activity.location_country) stats.location_country = activity.location_country;
+  if (activity.kudos_count != null) stats.kudos_count = activity.kudos_count;
+  if (activity.comment_count != null) stats.comment_count = activity.comment_count;
+  if (activity.athlete_count != null) stats.athlete_count = activity.athlete_count;
+  if (activity.total_photo_count != null) stats.total_photo_count = activity.total_photo_count;
+  if (activity.gear?.name) {
+    stats.gear = {
+      name: activity.gear.name,
+      ...(activity.gear.distance != null ? { distance: activity.gear.distance } : {}),
+    };
+  }
+
+  // Strava-computed aggregates (detail response only)
+  if (activity.splits_metric && activity.splits_metric.length > 0) {
+    stats.splits_metric = activity.splits_metric;
+  }
+  if (activity.best_efforts && activity.best_efforts.length > 0) {
+    stats.best_efforts = activity.best_efforts;
+  }
+
   // Map
   const poly = activity.map?.summary_polyline;
   if (poly && poly.length > 0) stats.polyline = poly;
@@ -100,6 +132,7 @@ export function mergeEnrichment(
   if (zones != null) merged.zones = zones;
   if (!enrichmentFailed) {
     merged.hydrated_at = new Date().toISOString();
+    merged.enrichment_v = ENRICHMENT_VERSION;
   }
   return merged;
 }
