@@ -31,8 +31,25 @@ final calendarAthleteIdProvider = StateProvider<String?>((ref) => null);
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Normalise a [DateTime] to midnight UTC so it can be used as a map key.
-DateTime _dateOnly(DateTime dt) => DateTime.utc(dt.year, dt.month, dt.day);
+/// Map key for a calendar date that is already a day, not an instant: planned
+/// `scheduled_date` (local midnight), the selected day (UTC-labelled) and the
+/// range ends. Reads the fields as they are -- never converts zones, or a
+/// UTC-labelled date shifts a day west of UTC.
+DateTime calendarDayKey(DateTime date) =>
+    DateTime.utc(date.year, date.month, date.day);
+
+/// Map key for the athlete's LOCAL day of an instant. `started_at` arrives as
+/// a UTC instant, so the `toLocal()` keeps a 05:00 IST workout on its own day
+/// instead of the previous UTC day.
+DateTime instantDayKey(DateTime instant) => calendarDayKey(instant.toLocal());
+
+/// The `started_at` window covering the local days [start]..[end] (UTC-labelled
+/// calendar dates): local midnight of [start] up to, not including, local
+/// midnight after [end]. Use `gte(from)` and `lt(to)`.
+({String from, String to}) startedAtWindow(DateTime start, DateTime end) => (
+      from: DateTime(start.year, start.month, start.day).toUtc().toIso8601String(),
+      to: DateTime(end.year, end.month, end.day + 1).toUtc().toIso8601String(),
+    );
 
 /// Merge planned + completed workout lists into a date-keyed map.
 ///
@@ -65,7 +82,7 @@ Map<DateTime, List<ActivitySummary>> _mergeIntoWeekMap(
 
   for (final pw in planned) {
     final matchedCompleted = completedById[completedIdByPlannedId[pw.id]];
-    final key = _dateOnly(pw.scheduledDate);
+    final key = calendarDayKey(pw.scheduledDate);
     result.putIfAbsent(key, () => []).add(
           ActivitySummary(
             date: pw.scheduledDate,
@@ -78,7 +95,7 @@ Map<DateTime, List<ActivitySummary>> _mergeIntoWeekMap(
 
   for (final cw in completed) {
     if (matchedCompletedIds.contains(cw.id)) continue; // rendered via its matched planned entry instead
-    final key = _dateOnly(cw.startedAt);
+    final key = instantDayKey(cw.startedAt);
     result.putIfAbsent(key, () => []).add(
           ActivitySummary(
               date: cw.startedAt, sport: cw.sport, completed: cw),
@@ -100,9 +117,8 @@ final calendarWeekRangeProvider =
   // Default: current ISO week (Mon–Sun).
   final now = DateTime.now();
   final weekday = now.weekday; // 1=Mon … 7=Sun
-  final monday = now.subtract(Duration(days: weekday - 1));
-  final start = _dateOnly(monday);
-  final end = _dateOnly(monday.add(const Duration(days: 6)));
+  final start = DateTime.utc(now.year, now.month, now.day - (weekday - 1));
+  final end = DateTime.utc(now.year, now.month, now.day - (weekday - 1) + 6);
   return (start: start, end: end);
 });
 
@@ -186,6 +202,7 @@ class CalendarWeekNotifier
     final startStr =
         range.start.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
     final endStr = range.end.toIso8601String().substring(0, 10);
+    final window = startedAtWindow(range.start, range.end);
 
     final plannedRaw = await supabase
         .from('planned_workouts')
@@ -199,8 +216,8 @@ class CalendarWeekNotifier
         .from('completed_workouts')
         .select()
         .eq('athlete_id', athleteId)
-        .gte('started_at', '${startStr}T00:00:00Z')
-        .lte('started_at', '${endStr}T23:59:59Z')
+        .gte('started_at', window.from)
+        .lt('started_at', window.to)
         .isFilter('deleted_at', null);
 
     final planned = (plannedRaw as List<dynamic>)
@@ -245,7 +262,7 @@ Map<DateTime, int> aggregateYearHeatmap(
     List<CompletedWorkoutRow> workouts) {
   final result = <DateTime, int>{};
   for (final cw in workouts) {
-    final key = _dateOnly(cw.startedAt);
+    final key = instantDayKey(cw.startedAt);
     result[key] = (result[key] ?? 0) + (cw.durationS ?? 0);
   }
   return result;
@@ -262,7 +279,9 @@ final yearHeatmapProvider =
 
   final supabase = Supabase.instance.client;
   final oneYearAgo = DateTime.now().subtract(const Duration(days: 365));
-  final cutoff = '${oneYearAgo.toIso8601String().substring(0, 10)}T00:00:00Z';
+  final cutoff = DateTime(oneYearAgo.year, oneYearAgo.month, oneYearAgo.day)
+      .toUtc()
+      .toIso8601String();
 
   final raw = await supabase
       .from('completed_workouts')
@@ -287,7 +306,7 @@ final yearHeatmapProvider =
 
 final selectedDateProvider = StateProvider<DateTime>((ref) {
   final now = DateTime.now();
-  return _dateOnly(now);
+  return calendarDayKey(now);
 });
 
 // ---------------------------------------------------------------------------
@@ -301,7 +320,7 @@ final dayWorkoutsProvider =
     Provider.autoDispose<AsyncValue<List<ActivitySummary>>>((ref) {
   final weekAsync = ref.watch(calendarWeekDataProvider);
   final selectedDate = ref.watch(selectedDateProvider);
-  final key = _dateOnly(selectedDate);
+  final key = calendarDayKey(selectedDate);
 
   return weekAsync.whenData(
     (map) => map[key] ?? [],

@@ -54,28 +54,53 @@ PlannedWorkoutRow _makePlanned({
 void main() {
   group('weekStart', () {
     test('returns Monday for a Wednesday', () {
-      final wednesday = DateTime.utc(2026, 5, 13); // Wed
+      final wednesday = DateTime(2026, 5, 13); // Wed
       final result = weekStart(wednesday);
       expect(result.weekday, DateTime.monday);
       expect(result, DateTime.utc(2026, 5, 11));
     });
 
     test('returns same day for a Monday', () {
-      final monday = DateTime.utc(2026, 5, 11);
+      final monday = DateTime(2026, 5, 11);
       final result = weekStart(monday);
       expect(result, DateTime.utc(2026, 5, 11));
     });
 
     test('returns Monday for a Sunday', () {
-      final sunday = DateTime.utc(2026, 5, 17);
+      final sunday = DateTime(2026, 5, 17);
       final result = weekStart(sunday);
       expect(result, DateTime.utc(2026, 5, 11));
     });
   });
 
+  // Local-component instants: "02:00 Monday" / "23:30 Sunday" in whatever zone
+  // the test runs in. Run with TZ=Asia/Kolkata and TZ=America/Los_Angeles;
+  // under UTC these pass trivially.
+  group('weekStart / weekEnd use the athlete\'s local week', () {
+    test('Monday 02:00 local belongs to that Monday\'s week', () {
+      final mondayEarly = DateTime(2026, 10, 19, 2, 0);
+      expect(weekStart(mondayEarly), DateTime.utc(2026, 10, 19));
+    });
+
+    test('Sunday 23:30 local belongs to the week ending that Sunday', () {
+      final sundayLate = DateTime(2026, 10, 25, 23, 30);
+      expect(weekStart(sundayLate), DateTime.utc(2026, 10, 19));
+      expect(weekEnd(sundayLate).day, 25);
+    });
+
+    test('week instants are local midnight Monday to local end of Sunday', () {
+      final now = DateTime(2026, 10, 21, 12, 0);
+      expect(weekStartInstant(now), DateTime(2026, 10, 19).toUtc());
+      expect(
+        weekEndInstant(now),
+        DateTime(2026, 10, 26).subtract(const Duration(milliseconds: 1)).toUtc(),
+      );
+    });
+  });
+
   group('weekEnd', () {
     test('returns Sunday evening for any day in the same week', () {
-      final wednesday = DateTime.utc(2026, 5, 13);
+      final wednesday = DateTime(2026, 5, 13);
       final result = weekEnd(wednesday);
       expect(result.weekday, DateTime.sunday);
       expect(result.year, 2026);
