@@ -116,11 +116,38 @@ export function StatsDetail({ stats }: Props) {
     }
   }
 
+  // Equipment — device and gear Strava attached to the activity
+  const deviceName = str(stats, "device_name");
+  const gear = stats.gear && typeof stats.gear === "object"
+    ? (stats.gear as Record<string, unknown>)
+    : null;
+  const gearName = gear ? str(gear, "name") : null;
+  const gearKm = gear ? num(gear, "distance") : null;
+  const equipment: StatLine[] = [];
+  if (gearName) equipment.push({ k: "Gear", v: gearName });
+  if (gearKm != null) equipment.push({ k: "Gear lifetime", v: `${Math.round(gearKm / 1000)} km` });
+  if (deviceName) equipment.push({ k: "Recorded on", v: deviceName });
+
+  // Place and company
+  const place = [str(stats, "location_city"), str(stats, "location_state"), str(stats, "location_country")]
+    .filter((p): p is string => p != null)
+    .join(", ");
+  const withCount = num(stats, "athlete_count");
+  const kudos = num(stats, "kudos_count");
+  const comments = num(stats, "comment_count");
+  const social: StatLine[] = [];
+  if (place) social.push({ k: "Location", v: place });
+  if (withCount != null && withCount > 1) social.push({ k: "Athletes", v: String(withCount) });
+  if (kudos != null && kudos > 0) social.push({ k: "Kudos", v: String(kudos) });
+  if (comments != null && comments > 0) social.push({ k: "Comments", v: String(comments) });
+
   const anyCards =
     description != null ||
     context.length > 0 ||
     topography.length > 0 ||
     achievements.length > 0 ||
+    equipment.length > 0 ||
+    social.length > 0 ||
     training.length > 0;
 
   if (!anyCards) return null;
@@ -140,6 +167,8 @@ export function StatsDetail({ stats }: Props) {
         </Card>
         <Card title="Topography" lines={topography} />
         <Card title="Achievements" lines={achievements} />
+        <Card title="Equipment" lines={equipment} />
+        <Card title="Place & company" lines={social} />
         <Card title="Training context" lines={training} />
       </div>
     </section>

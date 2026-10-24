@@ -106,7 +106,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
-  const { object_type, object_id, aspect_type, owner_id, subscription_id } = parsed.data;
+  const { object_type, object_id, aspect_type, owner_id, subscription_id, updates } = parsed.data;
 
   // Subscription ID gate. Any event whose subscription_id doesn't match our
   // registered subscription is dropped. Both drop paths log a warning: a
@@ -149,17 +149,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   // users linked to that Strava account, not just the one who revoked
   // access. There's no way to distinguish the two from this event alone.
   if (object_type === "athlete") {
+    // Only a revoked grant deletes tokens. Strava sends
+    // `updates.authorized = "false"` for deauthorization; any other athlete
+    // event must not disconnect the user.
+    const authorized = updates.authorized;
+    if (authorized !== "false" && authorized !== false) {
+      return NextResponse.json({ ok: true });
+    }
     const admin = createAdminClient();
     // service-role: explicit user filter required
     await admin
       .from("strava_tokens")
       .delete()
       .eq("athlete_strava_id", owner_id);
-    return NextResponse.json({ ok: true });
-  }
-
-  // Metadata-only changes — no completion data to process
-  if (aspect_type === "update") {
     return NextResponse.json({ ok: true });
   }
 
@@ -211,6 +213,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       try {
         if (aspect_type === "create") {
           await handleCreate(admin, userId, object_id);
+        } else if (aspect_type === "update") {
+          await handleUpdate(admin, userId, object_id);
         } else if (aspect_type === "delete") {
           await handleDelete(admin, userId, object_id);
         }
@@ -290,6 +294,47 @@ async function handleCreate(
       JSON.stringify({ athlete_id: userId, strava_activity_id: activityId })
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// handleUpdate: refresh title / description / sport on an already-synced row
+// ---------------------------------------------------------------------------
+
+async function handleUpdate(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  activityId: number
+): Promise<void> {
+  // Only touch rows we already have. Never create from an update event: the
+  // activity may have just become visible and `create` handles that.
+  // service-role: explicit user filter required
+  const { data: existing } = await admin
+    .from("completed_workouts")
+    .select("id, summary_stats")
+    .eq("athlete_id", userId)
+    .eq("strava_activity_id", activityId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!existing) return;
+
+  const res = await createStravaClient(userId, admin).fetch(`/activities/${activityId}`);
+  if (!res.ok) {
+    throw new Error(`Strava /activities/${activityId} returned ${res.status}`);
+  }
+  const activity = StravaActivitySchema.parse(await res.json());
+
+  // Fresh fields win; enrichment (laps, zones, TSS, hydrated_at) is kept.
+  const merged = {
+    ...((existing.summary_stats as Record<string, unknown> | null) ?? {}),
+    ...buildSummaryStats(activity),
+  };
+
+  // service-role: explicit user filter required
+  await admin
+    .from("completed_workouts")
+    .update({ sport: normalizeSport(activity.sport_type), summary_stats: merged })
+    .eq("id", (existing as { id: string }).id)
+    .eq("athlete_id", userId);
 }
 
 // ---------------------------------------------------------------------------

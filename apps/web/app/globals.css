@@ -1016,6 +1016,16 @@ a {
   transition: background 120ms;
 }
 .wd-laps-row:hover { background: var(--color-canvas-soft); }
+.wd-laps-row.is-splits {
+  grid-template-columns: 28px 1fr 100px 90px 80px;
+  cursor: default;
+}
+.wd-split-bar {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-pine);
+}
 .wd-laps-row.is-work {
   background: color-mix(in oklab, var(--color-pine) 4%, transparent);
 }
@@ -1108,6 +1118,7 @@ a {
     font-size: 12px;
   }
   .wd-laps-row > :nth-last-child(1) { display: none; }
+  .wd-laps-row.is-splits { grid-template-columns: 20px 1fr 80px 70px; }
   .wd-lap-expand-grid { grid-template-columns: repeat(2, 1fr); }
 }
 

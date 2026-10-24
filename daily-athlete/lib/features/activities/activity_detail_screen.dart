@@ -11,6 +11,7 @@ import '../settings/units_notifier.dart';
 import 'hr_series_card.dart';
 import 'hr_zones_card.dart';
 import 'report_section.dart';
+import 'strava_extras.dart';
 import 'route_map_card.dart';
 import 'workout_hydration_provider.dart';
 
@@ -288,6 +289,57 @@ class _DetailScaffold extends StatelessWidget {
       }
     }
 
+    // Kilometre splits (runs; Strava sends them on the detail response)
+    final splits = parseKmSplits(stats);
+    if (splits.length >= 2) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_SplitsCard(splits: splits));
+    }
+
+    // Best efforts
+    final efforts = parseBestEfforts(stats);
+    if (efforts.isNotEmpty) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(
+        _SectionCard(
+          title: 'Best Efforts',
+          children: [
+            for (final e in efforts)
+              _StatRow(
+                label: e.isPr ? '${e.name} · PR' : e.name,
+                value: formatClock(e.seconds),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // Equipment and place
+    final equipment = equipmentRows(stats);
+    if (equipment.isNotEmpty) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(
+        _SectionCard(
+          title: 'Equipment',
+          children: [
+            for (final r in equipment) _StatRow(label: r.label, value: r.value),
+          ],
+        ),
+      );
+    }
+    final place = placeRows(stats);
+    if (place.isNotEmpty) {
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(
+        _SectionCard(
+          title: 'Place & Company',
+          children: [
+            for (final r in place) _StatRow(label: r.label, value: r.value),
+          ],
+        ),
+      );
+    }
+
     // Relative effort
     final sufferScore = stats['suffer_score'] as num?;
     if (sufferScore != null) {
@@ -483,6 +535,74 @@ class _SectionCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kilometre splits card
+// ---------------------------------------------------------------------------
+
+class _SplitsCard extends StatelessWidget {
+  const _SplitsCard({required this.splits});
+  final List<KmSplit> splits;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return _SectionCard(
+      title: 'Kilometre Splits',
+      children: [
+        for (final s in splits)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    '${s.index}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: paceBarFraction(s, splits),
+                      child: Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 78,
+                  child: Text(
+                    '${formatClock(s.secondsPerKm)} /km',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    s.heartRate != null ? '${s.heartRate}' : '—',
+                    textAlign: TextAlign.right,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

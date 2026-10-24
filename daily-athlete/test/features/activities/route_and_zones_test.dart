@@ -85,9 +85,17 @@ void main() {
       expect(shouldHydrateWorkout(_workout(), now: now), isTrue);
     });
 
-    test('false once hydrated', () {
-      final w = _workout(stats: {'hydrated_at': '2026-10-21T10:00:00Z'});
+    test('false once hydrated at the current enrichment version', () {
+      final w = _workout(stats: {
+        'hydrated_at': '2026-10-21T10:00:00Z',
+        'enrichment_v': kEnrichmentVersion,
+      });
       expect(shouldHydrateWorkout(w, now: now), isFalse);
+    });
+
+    test('true again for a row hydrated before the current version', () {
+      final w = _workout(stats: {'hydrated_at': '2026-10-21T10:00:00Z'});
+      expect(shouldHydrateWorkout(w, now: now), isTrue);
     });
 
     test('false for manual, no activity id, strength and mobility', () {

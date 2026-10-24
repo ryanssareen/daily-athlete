@@ -287,16 +287,30 @@ describe("POST /api/integrations/strava/webhook", () => {
   });
 
   it("hard-deletes strava_tokens row and returns 200 for deauth event", async () => {
-    const res = await POST(makePOST(makeEvent({ object_type: "athlete" })));
+    const res = await POST(
+      makePOST(
+        makeEvent({ object_type: "athlete", aspect_type: "update", updates: { authorized: "false" } })
+      )
+    );
     expect(res.status).toBe(200);
     expect(state.tokensDeleted).toBe(true);
     expect(afterCallback).toBeNull();
   });
 
-  it("returns 200 for aspect_type=update without deferring work", async () => {
+  it("keeps tokens when an athlete event is not a deauthorization", async () => {
+    state.tokensDeleted = false;
+    const res = await POST(
+      makePOST(makeEvent({ object_type: "athlete", aspect_type: "update", updates: {} }))
+    );
+    expect(res.status).toBe(200);
+    expect(state.tokensDeleted).toBe(false);
+    expect(afterCallback).toBeNull();
+  });
+
+  it("defers activity update work via after()", async () => {
     const res = await POST(makePOST(makeEvent({ aspect_type: "update" })));
     expect(res.status).toBe(200);
-    expect(afterCallback).toBeNull();
+    expect(afterCallback).not.toBeNull();
   });
 
   it("returns 200 immediately and defers create work via after()", async () => {
