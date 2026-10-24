@@ -10,6 +10,11 @@ import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import 'workout_detail_provider.dart';
 
+/// Mirrors ENRICHMENT_VERSION in apps/web/src/strava/build-summary-stats.ts.
+/// Rows hydrated at an older version are re-hydrated once to pick up new
+/// fields (splits, best efforts, gear, place).
+const kEnrichmentVersion = 2;
+
 /// True when a Strava workout is worth asking the server to enrich with HR
 /// zones and laps: it hasn't been hydrated, and it's a sport Strava has zones
 /// for. Mirrors the web detail page's `shouldHydrate` gates, including the
@@ -21,7 +26,12 @@ bool shouldHydrateWorkout(CompletedWorkoutRow workout, {DateTime? now}) {
     return false;
   }
   final stats = workout.summaryStats;
-  if (stats['hydrated_at'] != null) return false;
+  final version = stats['enrichment_v'];
+  if (stats['hydrated_at'] != null &&
+      version is num &&
+      version >= kEnrichmentVersion) {
+    return false;
+  }
   final errAt = stats['hydrate_error_at'];
   if (errAt is String) {
     final parsed = DateTime.tryParse(errAt);
