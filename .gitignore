@@ -66,3 +66,7 @@ coverage/
 .coverage
 htmlcov/
 /.context/
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/
