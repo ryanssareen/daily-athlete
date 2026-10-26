@@ -1,0 +1,38 @@
+name: E2E smoke
+
+# Runs the Playwright suite against a deployed URL (prod by default).
+# Needs repo secrets: E2E_ATHLETE_EMAIL, E2E_ATHLETE_PASSWORD, E2E_COACH_EMAIL, E2E_COACH_PASSWORD.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployed URL to test (prod or a Vercel preview)
+        default: https://thedailyathlete.in
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @da2/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @da2/web e2e
+        env:
+          E2E_BASE_URL: ${{ inputs.base_url || 'https://thedailyathlete.in' }}
+          E2E_ATHLETE_EMAIL: ${{ secrets.E2E_ATHLETE_EMAIL }}
+          E2E_ATHLETE_PASSWORD: ${{ secrets.E2E_ATHLETE_PASSWORD }}
+          E2E_COACH_EMAIL: ${{ secrets.E2E_COACH_EMAIL }}
+          E2E_COACH_PASSWORD: ${{ secrets.E2E_COACH_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
