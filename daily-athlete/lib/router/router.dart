@@ -6,6 +6,10 @@ import '../core/layout.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/sign_up_screen.dart';
+import '../features/onboarding/onboarding_api.dart';
+import '../features/onboarding/onboarding_screen.dart';
+import '../features/shell/role_notifier.dart';
+import '../models/user.dart' show RoleFlag;
 import '../features/shell/app_shell.dart';
 import '../features/dashboard/dashboard_tab.dart';
 import '../features/activities/activities_tab.dart';
@@ -46,9 +50,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           final isLoading = state.matchedLocation == Routes.loading;
           final isAuthRoute = isSignIn || isSignUp;
 
+          final isOnboarding = state.matchedLocation == Routes.onboarding;
+
           if (auth.isLoading) return Routes.loading;
           if (!auth.isAuthenticated) return isAuthRoute ? null : Routes.signIn;
-          if (isAuthRoute || isLoading) return Routes.dashboard;
+
+          // First-run gate: athletes who haven't finished setup go to
+          // onboarding. Coaches skip it; a failed role lookup also skips so
+          // nobody is trapped. `null` means the answer isn't known yet.
+          final needsOnboarding = _needsOnboarding(ref);
+          if (needsOnboarding == null) return isLoading ? null : Routes.loading;
+          if (needsOnboarding) return isOnboarding ? null : Routes.onboarding;
+          if (isAuthRoute || isLoading || isOnboarding) return Routes.dashboard;
           return null;
         },
       );
@@ -58,6 +71,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Routes.loading, builder: (_, __) => const _LoadingScreen()),
       GoRoute(path: Routes.signIn, builder: (_, __) => const SignInScreen()),
       GoRoute(path: Routes.signUp, builder: (_, __) => const SignUpScreen()),
+      GoRoute(
+        path: Routes.onboarding,
+        builder: (_, __) => const OnboardingScreen(),
+      ),
       GoRoute(path: Routes.settings, builder: (_, __) => const SettingsTab()),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
@@ -162,12 +179,26 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// Whether the signed-in user must complete onboarding first, or `null` while
+/// the role / onboarding lookups are still resolving for the first time.
+bool? _needsOnboarding(Ref ref) {
+  final role = ref.read(roleNotifierProvider);
+  if (!role.hasValue && !role.hasError) return null;
+  if (role.valueOrNull == RoleFlag.coach) return false;
+
+  final done = ref.read(onboardingCompleteProvider);
+  if (!done.hasValue && !done.hasError) return null;
+  return done.valueOrNull == false;
+}
+
 /// Bridges Riverpod auth state to GoRouter's refreshListenable.
 /// Extends ChangeNotifier and calls notifyListeners() whenever the
 /// watched auth state changes, which triggers GoRouter to re-run redirect.
 class RouterNotifier extends ChangeNotifier {
   RouterNotifier(this._ref) {
     _ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+    _ref.listen(roleNotifierProvider, (_, __) => notifyListeners());
+    _ref.listen(onboardingCompleteProvider, (_, __) => notifyListeners());
   }
 
   final Ref _ref;

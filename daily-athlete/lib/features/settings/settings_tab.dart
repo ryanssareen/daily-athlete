@@ -17,6 +17,7 @@ import 'package:http/http.dart' as http;
 import '../../core/env.dart';
 import '../../features/auth/auth_notifier.dart';
 import '../../features/shell/role_notifier.dart';
+import '../../router/routes.dart';
 import '../../models/user.dart';
 import 'settings_providers.dart';
 import 'strava_connect_section.dart';
@@ -29,68 +30,87 @@ class SettingsTab extends ConsumerWidget {
     final authAsync = ref.watch(authNotifierProvider);
     final roleAsync = ref.watch(roleNotifierProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: authAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator.adaptive()),
-        error: (_, _) =>
-            const Center(child: Text('Unable to load settings')),
-        data: (auth) {
-          if (!auth.isAuthenticated) {
-            return const Center(child: Text('Please sign in'));
-          }
-          return ListView(
-            children: [
-              const SizedBox(height: 8),
-              // --- R17: Theme ---
-              _ThemeSection(),
-              const Divider(height: 1),
-              // --- R18: Units ---
-              _UnitsSection(),
-              const Divider(height: 1),
-              // --- R19: Strava ---
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: StravaConnectSection(),
-              ),
-              const Divider(height: 1),
-              // --- Role-conditional sections ---
-              roleAsync.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                      child: CircularProgressIndicator.adaptive()),
+    // Normally opened with context.push, so the AppBar shows a back arrow. When
+    // the Strava OAuth deep link lands here the router *replaces* the stack
+    // (nothing underneath), so we supply the way home ourselves.
+    final canPop = context.canPop();
+    void goHome() => context.go(Routes.dashboard);
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) goHome();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+          leading: canPop
+              ? null
+              : IconButton(
+                  icon: const BackButtonIcon(),
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: goHome,
                 ),
-                error: (_, _) => const SizedBox.shrink(),
-                data: (role) {
-                  if (role == RoleFlag.coach) {
-                    return _CoachRosterSection();
-                  } else {
-                    return Column(
-                      children: [
-                        _AthleteCoachSection(),
-                        const Divider(height: 1),
-                        _PlanHistorySection(),
-                      ],
-                    );
-                  }
-                },
-              ),
-              // --- Sign out ---
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: OutlinedButton(
-                  onPressed: () =>
-                      ref.read(authNotifierProvider.notifier).signOut(),
-                  child: const Text('Sign out'),
+        ),
+        body: authAsync.when(
+          loading: () =>
+              const Center(child: CircularProgressIndicator.adaptive()),
+          error: (_, _) => const Center(child: Text('Unable to load settings')),
+          data: (auth) {
+            if (!auth.isAuthenticated) {
+              return const Center(child: Text('Please sign in'));
+            }
+            return ListView(
+              children: [
+                const SizedBox(height: 8),
+                // --- R17: Theme ---
+                _ThemeSection(),
+                const Divider(height: 1),
+                // --- R18: Units ---
+                _UnitsSection(),
+                const Divider(height: 1),
+                // --- R19: Strava ---
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: StravaConnectSection(),
                 ),
-              ),
-              const SizedBox(height: 32),
-            ],
-          );
-        },
+                const Divider(height: 1),
+                // --- Role-conditional sections ---
+                roleAsync.when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator.adaptive()),
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
+                  data: (role) {
+                    if (role == RoleFlag.coach) {
+                      return _CoachRosterSection();
+                    } else {
+                      return Column(
+                        children: [
+                          _AthleteCoachSection(),
+                          const Divider(height: 1),
+                          _PlanHistorySection(),
+                        ],
+                      );
+                    }
+                  },
+                ),
+                // --- Sign out ---
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        ref.read(authNotifierProvider.notifier).signOut(),
+                    child: const Text('Sign out'),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -206,8 +226,7 @@ class _UnitRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child:
-                Text(label, style: Theme.of(context).textTheme.bodyMedium),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ),
           SegmentedButton<String>(
             segments: options
@@ -307,9 +326,7 @@ class _CoachRosterSection extends ConsumerWidget {
                 );
               }
               return Column(
-                children: athletes
-                    .map((a) => _AthleteRow(athlete: a))
-                    .toList(),
+                children: athletes.map((a) => _AthleteRow(athlete: a)).toList(),
               );
             },
           ),
@@ -365,7 +382,9 @@ class _AthleteRow extends ConsumerWidget {
 
   Future<void> _archiveLink(String linkId, String? token) async {
     try {
-      final uri = Uri.parse('${Env.apiBaseUrl}/api/coach/links/$linkId/archive');
+      final uri = Uri.parse(
+        '${Env.apiBaseUrl}/api/coach/links/$linkId/archive',
+      );
       final client = http.Client();
       try {
         await client.patch(

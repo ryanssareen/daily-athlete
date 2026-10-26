@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'auth_errors.dart';
 import 'auth_notifier.dart';
+import 'deep_link_handler.dart';
 
 /// Continue with Google + Apple OAuth buttons, side by side with a divider above.
 /// Both flow through Supabase OAuth → da2://auth/callback.
@@ -18,7 +20,26 @@ class _OAuthButtonsState extends ConsumerState<OAuthButtons> {
   bool _busy = false;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    // OAuth failures come back through the deep link, not the launch call.
+    DeepLinkHandler.callbackError.addListener(_onCallbackError);
+  }
+
+  @override
+  void dispose() {
+    DeepLinkHandler.callbackError.removeListener(_onCallbackError);
+    super.dispose();
+  }
+
+  void _onCallbackError() {
+    final message = DeepLinkHandler.callbackError.value;
+    if (message != null && mounted) setState(() => _error = message);
+  }
+
   Future<void> _run(Future<void> Function() action) async {
+    DeepLinkHandler.callbackError.value = null;
     setState(() {
       _busy = true;
       _error = null;
@@ -26,7 +47,9 @@ class _OAuthButtonsState extends ConsumerState<OAuthButtons> {
     try {
       await action();
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted && !isAuthCancellation(e)) {
+        setState(() => _error = friendlyAuthMessage(e));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -58,7 +81,9 @@ class _OAuthButtonsState extends ConsumerState<OAuthButtons> {
         OutlinedButton.icon(
           onPressed: disabled
               ? null
-              : () => _run(ref.read(authNotifierProvider.notifier).signInWithGoogle),
+              : () => _run(
+                  ref.read(authNotifierProvider.notifier).signInWithGoogle,
+                ),
           icon: const Icon(Icons.g_mobiledata, size: 28),
           label: const Text('Continue with Google'),
         ),
@@ -66,7 +91,9 @@ class _OAuthButtonsState extends ConsumerState<OAuthButtons> {
         OutlinedButton.icon(
           onPressed: disabled
               ? null
-              : () => _run(ref.read(authNotifierProvider.notifier).signInWithApple),
+              : () => _run(
+                  ref.read(authNotifierProvider.notifier).signInWithApple,
+                ),
           icon: const Icon(Icons.apple, size: 22),
           label: const Text('Continue with Apple'),
         ),

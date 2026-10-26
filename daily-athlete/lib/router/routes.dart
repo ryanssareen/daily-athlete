@@ -3,6 +3,7 @@ abstract final class Routes {
   static const loading = '/loading';
   static const signIn = '/sign-in';
   static const signUp = '/sign-up';
+  static const onboarding = '/onboarding';
   static const dashboard = '/dashboard';
   static const athleteDetail = '/dashboard/athlete/:id';
   static const activities = '/activities';

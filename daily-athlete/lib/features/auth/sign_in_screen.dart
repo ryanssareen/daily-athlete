@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../router/routes.dart';
+import 'auth_errors.dart';
 import 'auth_notifier.dart';
 import 'oauth_buttons.dart';
 
@@ -33,14 +34,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       setState(() => _error = 'Enter email and password.');
       return;
     }
+    if (!looksLikeEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      await ref.read(authNotifierProvider.notifier).signInWithPassword(email, password);
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signInWithPassword(email, password);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyAuthMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -59,7 +66,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               const Spacer(),
               Text(
                 'DA2',
-                style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -95,7 +104,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontSize: 13,
+                  ),
                 ),
               ],
               const SizedBox(height: 16),

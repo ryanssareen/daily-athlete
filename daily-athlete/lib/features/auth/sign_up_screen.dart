@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../router/routes.dart';
+import 'auth_errors.dart';
 import 'auth_notifier.dart';
 import 'oauth_buttons.dart';
 
@@ -18,6 +19,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   String? _error;
+  String? _notice;
 
   @override
   void dispose() {
@@ -33,6 +35,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       setState(() => _error = 'Enter email and password.');
       return;
     }
+    if (!looksLikeEmail(email)) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
     if (password.length < 6) {
       setState(() => _error = 'Password must be at least 6 characters.');
       return;
@@ -40,11 +46,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _notice = null;
     });
     try {
-      await ref.read(authNotifierProvider.notifier).signUpWithPassword(email, password);
+      final outcome = await ref
+          .read(authNotifierProvider.notifier)
+          .signUpWithPassword(email, password);
+      if (!mounted) return;
+      switch (outcome) {
+        case SignUpOutcome.signedIn:
+          break; // Router redirect moves us on.
+        case SignUpOutcome.confirmEmail:
+          setState(
+            () => _notice =
+                'Check $email for a confirmation link, then come back and sign in.',
+          );
+        case SignUpOutcome.alreadyRegistered:
+          setState(
+            () => _error =
+                'An account with this email already exists. Sign in instead.',
+          );
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = friendlyAuthMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -63,7 +87,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               const Spacer(),
               Text(
                 'DA2',
-                style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -99,7 +125,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+              if (_notice != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _notice!,
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: 13,
+                  ),
                 ),
               ],
               const SizedBox(height: 16),

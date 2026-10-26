@@ -18,6 +18,19 @@ class AuthState {
   String? get userId => session?.user.id;
 }
 
+/// What happened after a sign-up call that did not throw.
+enum SignUpOutcome {
+  /// Session issued immediately; the router takes over.
+  signedIn,
+
+  /// Account created but the project requires email confirmation first.
+  confirmEmail,
+
+  /// Email already belongs to an account (Supabase hides this by returning a
+  /// user with no identities instead of an error).
+  alreadyRegistered,
+}
+
 class AuthNotifier extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
@@ -30,15 +43,21 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     ref.onDispose(
       supabase.auth.onAuthStateChange.listen((data) {
         final newSession = data.session;
-        state = AsyncData(AuthState(
-          status: newSession != null ? AuthStatus.authenticated : AuthStatus.unauthenticated,
-          session: newSession,
-        ));
+        state = AsyncData(
+          AuthState(
+            status: newSession != null
+                ? AuthStatus.authenticated
+                : AuthStatus.unauthenticated,
+            session: newSession,
+          ),
+        );
       }).cancel,
     );
 
     return AuthState(
-      status: session != null ? AuthStatus.authenticated : AuthStatus.unauthenticated,
+      status: session != null
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated,
       session: session,
     );
   }
@@ -48,9 +67,21 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     await supabase.auth.signInWithPassword(email: email, password: password);
   }
 
-  Future<void> signUpWithPassword(String email, String password) async {
+  Future<SignUpOutcome> signUpWithPassword(
+    String email,
+    String password,
+  ) async {
     final supabase = Supabase.instance.client;
-    await supabase.auth.signUp(email: email, password: password);
+    final response = await supabase.auth.signUp(
+      email: email,
+      password: password,
+    );
+    if (response.session != null) return SignUpOutcome.signedIn;
+    final identities = response.user?.identities;
+    if (identities != null && identities.isEmpty) {
+      return SignUpOutcome.alreadyRegistered;
+    }
+    return SignUpOutcome.confirmEmail;
   }
 
   Future<void> signInWithGoogle() async {
