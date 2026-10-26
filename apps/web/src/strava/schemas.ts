@@ -179,5 +179,7 @@ export type StravaAthleteZones = z.infer<typeof StravaAthleteZonesResponseSchema
 export const StravaHrStreamResponseSchema = z.object({
   time: z.object({ data: z.array(z.number()) }).optional(),
   heartrate: z.object({ data: z.array(z.number()) }).optional(),
+  cadence: z.object({ data: z.array(z.number()) }).optional(),
+  velocity_smooth: z.object({ data: z.array(z.number()) }).optional(),
 });
 export type StravaHrStreamResponse = z.infer<typeof StravaHrStreamResponseSchema>;

@@ -9,11 +9,23 @@ import '../../core/env.dart';
 
 /// One minute of a workout: mean and peak heart rate over that minute.
 class HrMinutePoint {
-  const HrMinutePoint({required this.minute, required this.avg, required this.max});
+  const HrMinutePoint({
+    required this.minute,
+    required this.avg,
+    required this.max,
+    this.cadence,
+    this.speed,
+  });
 
   final int minute;
   final int avg;
   final int max;
+
+  /// Steps per minute; null when not recorded (or not a run).
+  final int? cadence;
+
+  /// Metres per second; null when not recorded (or not a run).
+  final double? speed;
 }
 
 enum HrSeriesStatus { ok, unavailable, rateLimited, reauthRequired, error }
@@ -53,6 +65,8 @@ HrSeriesResult parseHrSeriesResponse(int statusCode, String body) {
             minute: (p['minute'] as num).toInt(),
             avg: (p['avg'] as num).round(),
             max: ((p['max'] as num?) ?? (p['avg'] as num)).round(),
+            cadence: (p['cadence'] as num?)?.round(),
+            speed: (p['speed'] as num?)?.toDouble(),
           ),
     ];
     if (points.isEmpty) return const HrSeriesResult(HrSeriesStatus.unavailable);

@@ -31,4 +31,19 @@ describe("toPerMinute", () => {
   it("drops absurd durations past 24 hours", () => {
     expect(toPerMinute([24 * 3600 + 5], [140])).toEqual([]);
   });
+
+  it("adds run cadence (doubled to spm) and speed, skipping stopped samples", () => {
+    const out = toPerMinute([0, 30, 60], [140, 142, 150], {
+      cadence: [85, 0, 88],
+      velocity: [3, 0, 3.5],
+    });
+    expect(out).toEqual([
+      { minute: 0, avg: 141, max: 142, cadence: 170, speed: 3 },
+      { minute: 1, avg: 150, max: 150, cadence: 176, speed: 3.5 },
+    ]);
+  });
+
+  it("omits cadence and speed when the streams are absent", () => {
+    expect(toPerMinute([0], [140])).toEqual([{ minute: 0, avg: 140, max: 140 }]);
+  });
 });

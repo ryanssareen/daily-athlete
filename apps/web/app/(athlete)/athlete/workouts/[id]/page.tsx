@@ -365,6 +365,7 @@ export default async function AthleteWorkoutDetailPage({ params, searchParams }:
             admin={createAdminClient()}
             userId={session.user.id}
             stravaActivityId={workout.strava_activity_id}
+            isRun={sport === "run"}
           />
         </Suspense>
       )}

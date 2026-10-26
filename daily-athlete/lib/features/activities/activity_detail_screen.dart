@@ -234,7 +234,7 @@ class _DetailScaffold extends StatelessWidget {
         ),
       );
       if (stats['has_heartrate'] != false) {
-        widgets.add(HrSeriesCard(workoutId: workout.id));
+        widgets.add(HrSeriesCard(workoutId: workout.id, isRun: sport == Sport.run));
       }
     }
 

@@ -54,4 +54,43 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(LineChart), findsOneWidget);
   });
+
+  test('parses cadence and speed when present', () {
+    final body = jsonEncode({
+      'status': 'ok',
+      'points': [
+        {'minute': 0, 'avg': 140, 'max': 150, 'cadence': 172, 'speed': 3.1},
+        {'minute': 1, 'avg': 142, 'max': 151},
+      ],
+    });
+    final r = parseHrSeriesResponse(200, body);
+    expect(r.points.first.cadence, 172);
+    expect(r.points.first.speed, 3.1);
+    expect(r.points.last.cadence, isNull);
+    expect(r.points.last.speed, isNull);
+  });
+
+  test('formatPace renders min:sec per km and per mile', () {
+    expect(HrMinuteChart.formatPace(3.0, false), '5:33');
+    expect(HrMinuteChart.formatPace(3.0, true), '8:56');
+  });
+
+  testWidgets('HrMinuteChart overlays cadence and pace for runs', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: HrMinuteChart(points: [
+          HrMinutePoint(minute: 0, avg: 120, max: 125, cadence: 160, speed: 2.8),
+          HrMinutePoint(minute: 1, avg: 140, max: 150, cadence: 172, speed: 3.1),
+          HrMinutePoint(minute: 2, avg: 150, max: 158, cadence: 176, speed: 3.3),
+        ]),
+      ),
+    ));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(LineChart), findsOneWidget);
+    expect(find.textContaining('Cadence 160–176 spm'), findsOneWidget);
+    expect(find.textContaining('Pace'), findsOneWidget);
+    final chart = tester.widget<LineChart>(find.byType(LineChart));
+    expect(chart.data.lineBarsData, hasLength(3));
+  });
 }
