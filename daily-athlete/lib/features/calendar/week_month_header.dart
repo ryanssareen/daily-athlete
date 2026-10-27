@@ -32,7 +32,13 @@ class _WeekMonthHeaderState extends ConsumerState<WeekMonthHeader> {
 
   void _setFormat(CalendarFormat f) {
     if (f == _format) return;
-    setState(() => _format = f);
+    setState(() {
+      // Open the month grid on the month of the week being viewed.
+      if (f == CalendarFormat.month) {
+        _focusedDay = _utcDay(ref.read(selectedDateProvider));
+      }
+      _format = f;
+    });
   }
 
   void _setWeekFor(DateTime day) {
