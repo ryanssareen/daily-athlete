@@ -111,6 +111,7 @@ class _ManualLogSheetState extends ConsumerState<ManualLogSheet> {
       if (response.statusCode == 201) {
         // Invalidate the feed so it reloads with the new activity.
         ref.invalidate(activityFeedProvider);
+        HapticFeedback.mediumImpact();
         Navigator.of(context).pop();
       } else {
         setState(() {

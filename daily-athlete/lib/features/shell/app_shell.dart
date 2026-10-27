@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -64,7 +65,10 @@ class AppShell extends ConsumerWidget {
       return _SideNavShell(
         extended: layout == LayoutSize.expanded,
         selectedIndex: selectedIndex,
-        onSelect: (i) => context.go(_tabs[i].path),
+        onSelect: (i) {
+          if (i != selectedIndex) HapticFeedback.selectionClick();
+          context.go(_tabs[i].path);
+        },
         child: child,
       );
     }
@@ -77,7 +81,10 @@ class AppShell extends ConsumerWidget {
           backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
           indicatorColor: Theme.of(context).colorScheme.primaryContainer,
           selectedIndex: selectedIndex,
-          onDestinationSelected: (i) => context.go(_tabs[i].path),
+          onDestinationSelected: (i) {
+            if (i != selectedIndex) HapticFeedback.selectionClick();
+            context.go(_tabs[i].path);
+          },
           destinations: _tabs
               .map(
                 (t) => NavigationDestination(

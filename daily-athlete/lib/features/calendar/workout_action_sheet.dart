@@ -7,6 +7,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -58,6 +59,7 @@ class _WorkoutActionSheetState extends State<WorkoutActionSheet> {
       );
 
       if (response.statusCode == 200) {
+        if (status == 'completed') HapticFeedback.mediumImpact();
         if (mounted) Navigator.of(context).pop();
       } else {
         final msg = _parseErrorMessage(response.body);

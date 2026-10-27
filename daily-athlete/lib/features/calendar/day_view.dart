@@ -13,6 +13,7 @@ import '../../models/planned_structure.dart';
 import '../../models/planned_workout.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
+import '../shared/skeleton.dart';
 import 'calendar_providers.dart';
 import 'workout_action_sheet.dart';
 import 'workout_chip.dart';
@@ -37,7 +38,7 @@ class DayView extends ConsumerWidget {
     final workoutsAsync = ref.watch(dayWorkoutsProvider);
 
     return workoutsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const CalendarAgendaSkeleton(),
       error: (err, stack) {
         debugPrint(
           'DayView: failed to load calendarWeekDataProvider — $err\n$stack',

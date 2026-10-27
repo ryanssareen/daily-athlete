@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../models/activity_summary.dart';
+import '../shared/skeleton.dart';
 import 'calendar_providers.dart';
 import 'workout_chip.dart';
 
@@ -60,7 +61,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
     final weekDataAsync = ref.watch(calendarWeekDataProvider);
 
     return weekDataAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const CalendarMonthSkeleton(),
       error: (err, _) => Center(child: Text('Error: $err')),
       data: (weekMap) => _buildCalendar(context, weekMap),
     );

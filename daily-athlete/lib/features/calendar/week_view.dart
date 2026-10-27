@@ -24,6 +24,7 @@ import '../settings/units_notifier.dart';
 import '../shared/dashed_border.dart';
 import '../shared/day_strip.dart';
 import '../shared/eyebrow.dart';
+import '../shared/skeleton.dart';
 import '../shared/sport_tile.dart';
 import '../shell/role_notifier.dart';
 import 'assign_workout_sheet.dart';
@@ -47,7 +48,7 @@ class WeekView extends ConsumerWidget {
     final days = List.generate(7, (i) => range.start.add(Duration(days: i)));
 
     return weekDataAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const CalendarAgendaSkeleton(),
       error: (err, _) => Center(child: Text('Error: $err')),
       data: (weekMap) => _WeekAgenda(
         range: range,
