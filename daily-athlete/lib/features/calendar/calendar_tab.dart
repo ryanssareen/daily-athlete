@@ -1,7 +1,7 @@
 // lib/features/calendar/calendar_tab.dart
 //
 // Calendar tab root widget.
-// - Segmented control: Day | Week (default) | Month | Year
+// - Segmented control: Week (default) | Day | Month | Year
 // - Coach: athlete selector at top (reads/writes calendarAthleteIdProvider)
 // - Delegates to DayView, WeekView, MonthView, YearHeatmapView
 
@@ -22,7 +22,7 @@ import 'year_heatmap_view.dart';
 // View index enum
 // ---------------------------------------------------------------------------
 
-enum _CalendarView { day, week, month, year }
+enum _CalendarView { week, day, month, year }
 
 // ---------------------------------------------------------------------------
 // Internal athlete list for calendar selector
@@ -170,7 +170,7 @@ class _CalendarAthleteSelector extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// _ViewSwitcher — segmented control for Day | Week | Month | Year
+// _ViewSwitcher — segmented control for Week | Day | Month | Year
 // ---------------------------------------------------------------------------
 
 class _ViewSwitcher extends StatelessWidget {
@@ -179,11 +179,12 @@ class _ViewSwitcher extends StatelessWidget {
   final _CalendarView current;
   final void Function(_CalendarView) onChanged;
 
-  static const _labels = ['Day', 'Week', 'Month'];
+  static const _labels = ['Week', 'Day', 'Month', 'Year'];
   static const _views = [
-    _CalendarView.day,
     _CalendarView.week,
+    _CalendarView.day,
     _CalendarView.month,
+    _CalendarView.year,
   ];
 
   @override
