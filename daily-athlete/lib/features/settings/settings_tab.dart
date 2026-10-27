@@ -40,7 +40,15 @@ class SettingsTab extends ConsumerWidget {
           if (!auth.isAuthenticated) {
             return const Center(child: Text('Please sign in'));
           }
-          return ListView(
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(stravaOAuthServiceProvider);
+              ref.invalidate(athleteCoachLinkProvider);
+              ref.invalidate(coachAthletesProvider);
+              await ref.read(stravaOAuthServiceProvider.future);
+            },
+            child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
               const SizedBox(height: 8),
               // --- R17: Theme ---
@@ -89,6 +97,7 @@ class SettingsTab extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
             ],
+            ),
           );
         },
       ),

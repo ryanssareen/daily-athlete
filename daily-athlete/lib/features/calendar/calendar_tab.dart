@@ -101,11 +101,22 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
                 onChanged: (v) => setState(() => _currentView = v),
               ),
             ),
-            Expanded(child: _buildBody()),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: _buildBody(),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(yearHeatmapProvider);
+    ref.invalidate(calendarWeekDataProvider);
+    await ref.read(calendarWeekDataProvider.future);
   }
 
   Widget _buildBody() {

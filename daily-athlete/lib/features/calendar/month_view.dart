@@ -69,7 +69,9 @@ class _MonthViewState extends ConsumerState<MonthView> {
 
   Widget _buildCalendar(
       BuildContext context, Map<DateTime, List<ActivitySummary>> weekMap) {
-    return TableCalendar<ActivitySummary>(
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: TableCalendar<ActivitySummary>(
       firstDay: DateTime.utc(2020, 1, 1),
       lastDay: DateTime.utc(2030, 12, 31),
       focusedDay: _focusedDay,
@@ -133,6 +135,7 @@ class _MonthViewState extends ConsumerState<MonthView> {
         ),
         markersMaxCount: 3,
         markersAlignment: Alignment.bottomCenter,
+      ),
       ),
     );
   }
