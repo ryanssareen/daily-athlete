@@ -142,6 +142,7 @@ class _DayContent extends StatelessWidget {
         DateFormat.yMMMMEEEEd().format(date); // e.g. "Monday, 19 May 2026"
 
     return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
           child: Padding(

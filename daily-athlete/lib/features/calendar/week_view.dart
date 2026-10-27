@@ -161,6 +161,7 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
     String totalLine,
   ) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       children: [
         _WeekNavCard(
