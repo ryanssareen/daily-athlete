@@ -1,12 +1,12 @@
 // lib/features/calendar/week_view.dart
 //
-// Week view: a navigation card (chevrons, day strip, week total) above a
+// Week view: a navigation card (chevrons, week/month header, week total) above a
 // vertical agenda grouped by day. Consecutive empty past days collapse into a
 // dashed "Rest · N days" row. Completed workouts are solid cards; planned ones
 // have a dashed sport-colored border and no fill.
 //
 // Tap a workout -> its detail. Long-press a planned workout -> WorkoutActionSheet.
-// Coach: tap an empty day -> AssignWorkoutSheet. Tap a day in the strip ->
+// Coach: tap an empty day -> AssignWorkoutSheet. Tap a day in the header ->
 // scroll to that day.
 
 import 'package:flutter/material.dart';
@@ -22,7 +22,6 @@ import '../dashboard/home_format.dart';
 import '../settings/distance_format.dart';
 import '../settings/units_notifier.dart';
 import '../shared/dashed_border.dart';
-import '../shared/day_strip.dart';
 import '../shared/eyebrow.dart';
 import '../shared/skeleton.dart';
 import '../shared/sport_tile.dart';
@@ -30,6 +29,7 @@ import '../shell/role_notifier.dart';
 import 'assign_workout_sheet.dart';
 import 'calendar_providers.dart';
 import 'week_agenda.dart';
+import 'week_month_header.dart';
 import 'workout_action_sheet.dart';
 
 class WeekView extends ConsumerWidget {
@@ -109,29 +109,6 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
       0,
       (a, s) => a + (s.completed!.distanceM ?? 0),
     );
-    final strip = [
-      for (var i = 0; i < 7; i++)
-        DayStripDay(
-          letter: 'MTWTFSS'[i],
-          dayNumber: widget.days[i].day,
-          isToday: _isSameDay(widget.days[i], now),
-          isFuture: DateTime(
-            widget.days[i].year,
-            widget.days[i].month,
-            widget.days[i].day,
-          ).isAfter(DateTime(now.year, now.month, now.day)),
-          sports: [
-            for (final s
-                in widget.weekMap[DateTime.utc(
-                      widget.days[i].year,
-                      widget.days[i].month,
-                      widget.days[i].day,
-                    )] ??
-                    const <ActivitySummary>[])
-              s.sport,
-          ].toSet().toList(),
-        ),
-    ];
     final blocks = buildAgenda(widget.days, widget.weekMap, now);
     final totalLine =
         '${completed.length} sessions · ${fmtHm(totalS)} · ${formatDistanceM(totalM, unit)}';
@@ -149,13 +126,12 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
             totalLine: totalLine,
           );
         }
-        return _buildAgendaList(strip, blocks, now, unit, totalLine);
+        return _buildAgendaList(blocks, now, unit, totalLine);
       },
     );
   }
 
   Widget _buildAgendaList(
-    List<DayStripDay> strip,
     List<AgendaBlock> blocks,
     DateTime now,
     String unit,
@@ -167,8 +143,16 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
       children: [
         _WeekNavCard(
           range: widget.range,
-          strip: strip,
-          onDayTapped: _scrollTo,
+          header: WeekMonthHeader(
+            onDaySelected: (d) {
+              // Wait a frame so the agenda has rebuilt for the new week.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final i = d.difference(widget.days.first).inDays;
+                if (i >= 0 && i <= 6) _scrollTo(i);
+              });
+            },
+          ),
           totalLine: totalLine,
         ),
         const SizedBox(height: 16),
@@ -186,24 +170,19 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
       ],
     );
   }
-
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 class _WeekNavCard extends ConsumerWidget {
   const _WeekNavCard({
     required this.range,
-    this.strip,
-    this.onDayTapped,
+    this.header,
     required this.totalLine,
   });
 
   final ({DateTime start, DateTime end}) range;
 
   /// Omitted in the grid layout, where the columns already show the days.
-  final List<DayStripDay>? strip;
-  final ValueChanged<int>? onDayTapped;
+  final Widget? header;
   final String totalLine;
 
   @override
@@ -237,8 +216,7 @@ class _WeekNavCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if (strip != null)
-              DayStrip(days: strip!, onTap: onDayTapped ?? (_) {}),
+            if (header != null) header!,
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),

@@ -307,3 +307,59 @@ final dayWorkoutsProvider =
     (map) => map[key] ?? [],
   );
 });
+
+// ---------------------------------------------------------------------------
+// calendarMarkersProvider
+//
+// Sports per day for the month grid containing [monthStart] (the phone week
+// header's expanded state). Re-fetches when the week data changes so markers
+// follow edits made in the agenda below.
+// ---------------------------------------------------------------------------
+
+final calendarMarkersProvider = FutureProvider.autoDispose
+    .family<Map<DateTime, List<ActivitySummary>>, DateTime>((
+      ref,
+      monthStart,
+    ) async {
+      final authState = await ref.watch(authNotifierProvider.future);
+      if (!authState.isAuthenticated) return {};
+      ref.watch(calendarWeekDataProvider);
+
+      final targetId =
+          ref.watch(calendarAthleteIdProvider) ?? authState.userId;
+      if (targetId == null) return {};
+
+      // Cover the leading/trailing days shown in the 6-row month grid.
+      final start = monthStart.subtract(const Duration(days: 7));
+      final end = DateTime.utc(monthStart.year, monthStart.month + 1, 0)
+          .add(const Duration(days: 7));
+      final startStr = start.toIso8601String().substring(0, 10);
+      final endStr = end.toIso8601String().substring(0, 10);
+
+      final supabase = Supabase.instance.client;
+      final plannedRaw = await supabase
+          .from('planned_workouts')
+          .select()
+          .eq('athlete_id', targetId)
+          .gte('scheduled_date', startStr)
+          .lte('scheduled_date', endStr)
+          .isFilter('deleted_at', null);
+      final completedRaw = await supabase
+          .from('completed_workouts')
+          .select()
+          .eq('athlete_id', targetId)
+          .gte('started_at', '${startStr}T00:00:00Z')
+          .lte('started_at', '${endStr}T23:59:59Z')
+          .isFilter('deleted_at', null);
+
+      final planned = (plannedRaw as List<dynamic>)
+          .map((r) => PlannedWorkoutRow.fromJson(r as Map<String, dynamic>))
+          .toList();
+      final completed = (completedRaw as List<dynamic>)
+          .map((r) => CompletedWorkoutRow.fromJson(r as Map<String, dynamic>))
+          .toList();
+
+      // Matches only affect whether a planned/completed pair counts once; for
+      // dots, an unmatched merge (one dot per row) is close enough.
+      return _mergeIntoWeekMap(planned, completed, const []);
+    });
