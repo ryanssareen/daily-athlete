@@ -48,6 +48,7 @@ class PlanHistoryScreen extends ConsumerWidget {
                       await ref.read(planHistoryProvider.future);
                     },
                     child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                       children: [
                         if (active != null) _ActivePlan(plan: active),
