@@ -108,6 +108,13 @@ jobs:
         working-directory: daily-athlete
       - run: flutter test
         working-directory: daily-athlete
+      # Day/week bucketing tests build instants from local components, so they
+      # only fail outside UTC. Re-run east and west of UTC so a UTC-day
+      # regression cannot merge green (see docs/solutions/flutter-utc-day-bucketing.md).
+      - run: TZ=Asia/Kolkata flutter test
+        working-directory: daily-athlete
+      - run: TZ=America/Los_Angeles flutter test
+        working-directory: daily-athlete
 
   # Apply pending migrations to the production database after tests pass on
   # main. Before this job existed, supabase/migrations/ was only ever applied
