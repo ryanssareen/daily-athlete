@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/layout.dart';
 import '../settings/units_notifier.dart';
 import '../shared/screen_header.dart';
+import '../shared/skeleton.dart';
 import 'dashboard_providers.dart';
 import 'home_cards.dart';
 import 'home_format.dart';
@@ -41,7 +42,7 @@ class AthleteDashboard extends ConsumerWidget {
     }
 
     final content = dataAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const DashboardSkeleton(),
       error: (err, stack) {
         debugPrint('AthleteDashboard: failed to load — $err\n$stack');
         return Center(

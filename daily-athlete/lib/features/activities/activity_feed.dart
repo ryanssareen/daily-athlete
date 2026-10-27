@@ -7,6 +7,7 @@ import '../../models/completed_workout.dart';
 import '../../models/sport.dart';
 import '../activities/activities_providers.dart';
 import '../activities/activity_row.dart';
+import '../shared/skeleton.dart';
 
 /// Sport filter tab definition.
 const _sportTabs = <({String label, Sport? sport})>[
@@ -38,7 +39,7 @@ class ActivityFeed extends ConsumerWidget {
         // Feed list
         Expanded(
           child: feedAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const ActivityFeedSkeleton(),
             error: (err, stack) {
               debugPrint(
                 'ActivityFeed: failed to load filteredFeedProvider — $err\n$stack',
