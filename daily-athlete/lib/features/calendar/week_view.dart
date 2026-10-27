@@ -168,9 +168,6 @@ class _WeekAgendaState extends ConsumerState<_WeekAgenda> {
       ],
     );
   }
-
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 class _WeekNavCard extends ConsumerWidget {
