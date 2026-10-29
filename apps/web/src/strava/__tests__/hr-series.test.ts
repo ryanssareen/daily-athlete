@@ -46,4 +46,15 @@ describe("toPerMinute", () => {
   it("omits cadence and speed when the streams are absent", () => {
     expect(toPerMinute([0], [140])).toEqual([{ minute: 0, avg: 140, max: 140 }]);
   });
+
+  it("adds mean altitude (allowing zero/negative) and power (ignoring zero)", () => {
+    const out = toPerMinute([0, 30, 60], [140, 142, 150], {
+      altitude: [-2, 2, 10],
+      watts: [200, 0, 220],
+    });
+    expect(out).toEqual([
+      { minute: 0, avg: 141, max: 142, elevation: 0, power: 200 },
+      { minute: 1, avg: 150, max: 150, elevation: 10, power: 220 },
+    ]);
+  });
 });

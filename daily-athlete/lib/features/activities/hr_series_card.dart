@@ -8,6 +8,8 @@ import 'hr_series.dart';
 const _lineColor = Color(0xFFD97E3A);
 const _cadenceColor = Color(0xFF4A7FB5);
 const _paceColor = Color(0xFF5B9A6E);
+const _elevationColor = Color(0xFF8A7A6A);
+const _powerColor = Color(0xFFA64CA6);
 
 /// "Heart rate by minute" card (heart rate, cadence and pace for runs).
 /// Hidden when Strava has no HR stream.
@@ -115,6 +117,8 @@ class HrMinuteChart extends StatelessWidget {
 
     final cadences = [for (final p in points) if (p.cadence != null) p.cadence!.toDouble()];
     final speeds = [for (final p in points) if (p.speed != null) p.speed!];
+    final elevations = [for (final p in points) if (p.elevation != null) p.elevation!];
+    final powers = [for (final p in points) if (p.power != null) p.power!.toDouble()];
 
     // Maps value v in [vLo, vHi] into the HR axis, leaving 5% headroom.
     double scale(double v, double vLo, double vHi, {bool invert = false}) {
@@ -153,6 +157,11 @@ class HrMinuteChart extends StatelessWidget {
     final sLo = speeds.isEmpty ? 0.0 : speeds.reduce((a, b) => a < b ? a : b);
     final sHi = speeds.isEmpty ? 0.0 : speeds.reduce((a, b) => a > b ? a : b);
 
+    final eLo = elevations.isEmpty ? 0.0 : elevations.reduce((a, b) => a < b ? a : b);
+    final eHi = elevations.isEmpty ? 0.0 : elevations.reduce((a, b) => a > b ? a : b);
+    final wLo = powers.isEmpty ? 0.0 : powers.reduce((a, b) => a < b ? a : b);
+    final wHi = powers.isEmpty ? 0.0 : powers.reduce((a, b) => a > b ? a : b);
+
     // bar index -> series kind, so tooltips can show the real value.
     final kinds = <String>['hr'];
     final bars = <LineChartBarData>[
@@ -172,6 +181,20 @@ class HrMinuteChart extends StatelessWidget {
         _paceColor,
       ));
     }
+    if (elevations.isNotEmpty) {
+      kinds.add('elevation');
+      bars.add(bar(
+        spotsFor((p) => p.elevation == null ? null : scale(p.elevation!, eLo, eHi)),
+        _elevationColor,
+      ));
+    }
+    if (powers.isNotEmpty) {
+      kinds.add('power');
+      bars.add(bar(
+        spotsFor((p) => p.power == null ? null : scale(p.power!.toDouble(), wLo, wHi)),
+        _powerColor,
+      ));
+    }
 
     final unit = isMiles ? '/mi' : '/km';
     Widget legend(Color c, String text) => Row(
@@ -187,7 +210,7 @@ class HrMinuteChart extends StatelessWidget {
 
     return Semantics(
       label: multi
-          ? 'Heart rate, cadence and pace for each minute of the run'
+          ? 'Heart rate with cadence, pace, elevation or power for each minute of the workout'
           : 'Average heart rate for each minute of the workout',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,6 +230,10 @@ class HrMinuteChart extends StatelessWidget {
                       _paceColor,
                       'Pace ${formatPace(sHi, isMiles)}–${formatPace(sLo, isMiles)} $unit',
                     ),
+                  if (elevations.isNotEmpty)
+                    legend(_elevationColor, 'Elevation ${eLo.round()}–${eHi.round()} m'),
+                  if (powers.isNotEmpty)
+                    legend(_powerColor, 'Power ${wLo.round()}–${wHi.round()} W'),
                 ],
               ),
             ),
@@ -282,6 +309,10 @@ class HrMinuteChart extends StatelessWidget {
         return 'Min ${minute + 1} · ${p.cadence} spm';
       case 'pace':
         return 'Min ${minute + 1} · ${formatPace(p.speed ?? 1, isMiles)} $unit';
+      case 'elevation':
+        return 'Min ${minute + 1} · ${p.elevation?.round()} m';
+      case 'power':
+        return 'Min ${minute + 1} · ${p.power} W';
       default:
         return 'Min ${minute + 1} · ${p.avg} bpm';
     }
