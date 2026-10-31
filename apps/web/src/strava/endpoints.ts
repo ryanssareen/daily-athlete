@@ -13,10 +13,12 @@ import "server-only";
 
 import { StravaError } from "./errors";
 import {
+  StravaAthleteStatsSchema,
   StravaAthleteZonesResponseSchema,
   StravaHrStreamResponseSchema,
   StravaLapsResponseSchema,
   StravaZonesResponseSchema,
+  type StravaAthleteStats,
   type StravaAthleteZones,
   type StravaLap,
   type StravaZone,
@@ -78,8 +80,19 @@ export async function fetchActivityHrStream(
   client: StravaClient,
   activityId: number,
   opts: { runMetrics?: boolean } = {}
-): Promise<{ time: number[]; heartrate: number[]; cadence?: number[]; velocity?: number[] } | null> {
-  const keys = opts.runMetrics ? "time,heartrate,cadence,velocity_smooth" : "time,heartrate";
+): Promise<{
+  time: number[];
+  heartrate: number[];
+  cadence?: number[];
+  velocity?: number[];
+  altitude?: number[];
+  watts?: number[];
+} | null> {
+  // altitude and watts are requested for every sport; Strava simply omits
+  // streams an activity doesn't have.
+  const keys = opts.runMetrics
+    ? "time,heartrate,cadence,velocity_smooth,altitude,watts"
+    : "time,heartrate,altitude,watts";
   const res = await client.fetch(`/activities/${activityId}/streams?keys=${keys}&key_by_type=true`);
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -96,7 +109,29 @@ export async function fetchActivityHrStream(
     heartrate: parsed.heartrate.data,
     cadence: parsed.cadence?.data,
     velocity: parsed.velocity_smooth?.data,
+    altitude: parsed.altitude?.data,
+    watts: parsed.watts?.data,
   };
+}
+
+/**
+ * Fetch the athlete's recent / year-to-date / all-time totals. Returns `null`
+ * on 404. Aggregates only.
+ */
+export async function fetchAthleteStats(
+  client: StravaClient,
+  stravaAthleteId: number
+): Promise<StravaAthleteStats | null> {
+  const res = await client.fetch(`/athletes/${stravaAthleteId}/stats`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new StravaError(
+      "unexpected",
+      `Strava /athletes/stats returned ${res.status}`,
+      res.status
+    );
+  }
+  return StravaAthleteStatsSchema.parse(await res.json());
 }
 
 /**

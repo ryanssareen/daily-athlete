@@ -15,6 +15,8 @@ class HrMinutePoint {
     required this.max,
     this.cadence,
     this.speed,
+    this.elevation,
+    this.power,
   });
 
   final int minute;
@@ -26,6 +28,12 @@ class HrMinutePoint {
 
   /// Metres per second; null when not recorded (or not a run).
   final double? speed;
+
+  /// Metres above sea level; null when not recorded.
+  final double? elevation;
+
+  /// Watts; null without a power meter.
+  final int? power;
 }
 
 enum HrSeriesStatus { ok, unavailable, rateLimited, reauthRequired, error }
@@ -67,6 +75,8 @@ HrSeriesResult parseHrSeriesResponse(int statusCode, String body) {
             max: ((p['max'] as num?) ?? (p['avg'] as num)).round(),
             cadence: (p['cadence'] as num?)?.round(),
             speed: (p['speed'] as num?)?.toDouble(),
+            elevation: (p['elevation'] as num?)?.toDouble(),
+            power: (p['power'] as num?)?.round(),
           ),
     ];
     if (points.isEmpty) return const HrSeriesResult(HrSeriesStatus.unavailable);

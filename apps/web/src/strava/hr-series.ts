@@ -15,6 +15,10 @@ export interface HrMinutePoint {
   cadence?: number;
   /** Mean speed in m/s over the moving samples; absent when not recorded. */
   speed?: number;
+  /** Mean altitude in metres; absent when not recorded. */
+  elevation?: number;
+  /** Mean power in watts over the pedalling samples; absent when no meter. */
+  power?: number;
 }
 
 /** Optional parallel streams, same length/ordering as `time`. */
@@ -23,6 +27,10 @@ export interface ExtraStreams {
   cadence?: readonly number[];
   /** Smoothed speed in m/s. */
   velocity?: readonly number[];
+  /** Altitude in metres. */
+  altitude?: readonly number[];
+  /** Power in watts. */
+  watts?: readonly number[];
 }
 
 // A day-long activity is 1440 buckets; anything beyond is junk data.
@@ -42,6 +50,8 @@ export function toPerMinute(
   const sums = new Map<number, { sum: number; count: number; max: number }>();
   const cad = new Map<number, { sum: number; count: number }>();
   const vel = new Map<number, { sum: number; count: number }>();
+  const alt = new Map<number, { sum: number; count: number }>();
+  const pow = new Map<number, { sum: number; count: number }>();
   const add = (m: Map<number, { sum: number; count: number }>, minute: number, v: number | undefined) => {
     // Zero means stopped / no cadence sensor reading; averaging it in would
     // drag the line toward 0 every time the athlete pauses.
@@ -61,6 +71,17 @@ export function toPerMinute(
     if (minute >= MAX_MINUTES) continue;
     add(cad, minute, extra.cadence?.[i]);
     add(vel, minute, extra.velocity?.[i]);
+    add(pow, minute, extra.watts?.[i]);
+    // Altitude can legitimately be zero or negative (sea level, Dead Sea),
+    // so it bypasses the > 0 guard in `add`.
+    const a = extra.altitude?.[i];
+    if (a !== undefined && Number.isFinite(a)) {
+      const b = alt.get(minute);
+      if (b) {
+        b.sum += a;
+        b.count += 1;
+      } else alt.set(minute, { sum: a, count: 1 });
+    }
     const bucket = sums.get(minute);
     if (bucket) {
       bucket.sum += hr;
@@ -80,6 +101,10 @@ export function toPerMinute(
       if (c) point.cadence = Math.round((c.sum / c.count) * 2);
       const v = vel.get(minute);
       if (v) point.speed = Math.round((v.sum / v.count) * 100) / 100;
+      const e = alt.get(minute);
+      if (e) point.elevation = Math.round((e.sum / e.count) * 10) / 10;
+      const w = pow.get(minute);
+      if (w) point.power = Math.round(w.sum / w.count);
       return point;
     });
 }

@@ -1,6 +1,10 @@
 import { getUserWithRoles } from "@/auth/roles";
+import { Suspense } from "react";
+
 import { createAdminClient } from "@/db/admin";
 import { hasStravaToken } from "@/db/strava-tokens";
+
+import { StravaTotalsSection } from "./StravaTotals";
 
 interface PageProps {
   searchParams: Promise<Record<string, string>>;
@@ -89,6 +93,11 @@ export default async function AthleteProfilePage({ searchParams }: PageProps) {
             >
               Powered by Strava
             </p>
+            {session && (
+              <Suspense fallback={null}>
+                <StravaTotalsSection admin={admin} userId={session.user.id} />
+              </Suspense>
+            )}
           </div>
         ) : (
           <div>

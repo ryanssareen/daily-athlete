@@ -181,5 +181,32 @@ export const StravaHrStreamResponseSchema = z.object({
   heartrate: z.object({ data: z.array(z.number()) }).optional(),
   cadence: z.object({ data: z.array(z.number()) }).optional(),
   velocity_smooth: z.object({ data: z.array(z.number()) }).optional(),
+  altitude: z.object({ data: z.array(z.number()) }).optional(),
+  watts: z.object({ data: z.array(z.number()) }).optional(),
 });
 export type StravaHrStreamResponse = z.infer<typeof StravaHrStreamResponseSchema>;
+
+// ─── /athletes/{id}/stats ─────────────────────────────────────────────────────
+
+// Strava-computed lifetime / year / recent totals. Aggregates only, so they
+// are safe to display (and cache briefly) per Strava ToS.
+export const StravaTotalsSchema = z.object({
+  count: z.number().int().nonnegative().default(0),
+  distance: z.number().nonnegative().default(0),
+  moving_time: z.number().nonnegative().default(0),
+  elevation_gain: z.number().nonnegative().default(0),
+});
+export type StravaTotals = z.infer<typeof StravaTotalsSchema>;
+
+export const StravaAthleteStatsSchema = z.object({
+  recent_run_totals: StravaTotalsSchema.optional(),
+  recent_ride_totals: StravaTotalsSchema.optional(),
+  recent_swim_totals: StravaTotalsSchema.optional(),
+  ytd_run_totals: StravaTotalsSchema.optional(),
+  ytd_ride_totals: StravaTotalsSchema.optional(),
+  ytd_swim_totals: StravaTotalsSchema.optional(),
+  all_run_totals: StravaTotalsSchema.optional(),
+  all_ride_totals: StravaTotalsSchema.optional(),
+  all_swim_totals: StravaTotalsSchema.optional(),
+});
+export type StravaAthleteStats = z.infer<typeof StravaAthleteStatsSchema>;

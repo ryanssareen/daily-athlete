@@ -40,6 +40,8 @@ export async function loadHrSeries(args: {
     const points = toPerMinute(stream.time, stream.heartrate, {
       cadence: stream.cadence,
       velocity: stream.velocity,
+      altitude: stream.altitude,
+      watts: stream.watts,
     });
     return points.length > 0 ? { status: "ok", points } : { status: "unavailable" };
   } catch (err) {

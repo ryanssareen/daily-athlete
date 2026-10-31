@@ -21,6 +21,8 @@ function fmtMinutes(m: number): string {
 
 const CADENCE_COLOR = "#4a7fb5";
 const PACE_COLOR = "#5b9a6e";
+const ELEVATION_COLOR = "#8a7a6a";
+const POWER_COLOR = "#a64ca6";
 
 function fmtPace(speed: number): string {
   const secPerKm = Math.round(1000 / speed);
@@ -28,7 +30,7 @@ function fmtPace(speed: number): string {
 }
 
 type Series = {
-  key: "hr" | "cadence" | "pace";
+  key: "hr" | "cadence" | "pace" | "elevation" | "power";
   label: string;
   unit: string;
   className: string;
@@ -60,6 +62,8 @@ export function HrTimelineChart({ points }: { points: HrMinutePoint[] }) {
 
   const hasCadence = points.some((p) => p.cadence != null);
   const hasPace = points.some((p) => p.speed != null);
+  const hasElevation = points.some((p) => p.elevation != null);
+  const hasPower = points.some((p) => p.power != null);
 
   const series: Series[] = [
     { key: "hr", label: "Heart rate", unit: "bpm", className: "wd-hr-chart-line", color: "#d97e3a", value: (p) => p.avg, fmt: (p) => `${p.avg} bpm` },
@@ -69,6 +73,12 @@ export function HrTimelineChart({ points }: { points: HrMinutePoint[] }) {
   }
   if (hasPace) {
     series.push({ key: "pace", label: "Pace", unit: "/km", className: "wd-hr-chart-line", color: PACE_COLOR, value: (p) => (p.speed != null ? p.speed : null), fmt: (p) => `${fmtPace(p.speed!)} /km` });
+  }
+  if (hasElevation) {
+    series.push({ key: "elevation", label: "Elevation", unit: "m", className: "wd-hr-chart-line", color: ELEVATION_COLOR, value: (p) => p.elevation ?? null, fmt: (p) => `${Math.round(p.elevation!)} m` });
+  }
+  if (hasPower) {
+    series.push({ key: "power", label: "Power", unit: "W", className: "wd-hr-chart-line", color: POWER_COLOR, value: (p) => p.power ?? null, fmt: (p) => `${p.power} W` });
   }
 
   // Map a series to chart-y through its own min/max (HR uses the labelled axis).
@@ -136,7 +146,7 @@ export function HrTimelineChart({ points }: { points: HrMinutePoint[] }) {
         role="img"
         aria-label={
           series.length > 1
-            ? "Heart rate, cadence and pace for each minute of the run"
+            ? "Heart rate with cadence, pace, elevation or power for each minute of the workout"
             : "Average heart rate for each minute of the workout"
         }
       >

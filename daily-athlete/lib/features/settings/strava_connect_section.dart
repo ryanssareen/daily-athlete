@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'settings_providers.dart';
+import 'strava_totals.dart';
 
 class StravaConnectSection extends ConsumerWidget {
   const StravaConnectSection({super.key});
@@ -84,6 +85,7 @@ class _StravaBody extends ConsumerWidget {
               'Powered by Strava',
               style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
+            const StravaTotalsView(),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () =>

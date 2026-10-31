@@ -23,6 +23,20 @@ void main() {
       expect(r.points.last.max, 151);
     });
 
+    test('parses elevation and power', () {
+      final r = parseHrSeriesResponse(
+        200,
+        jsonEncode({
+          'status': 'ok',
+          'points': [
+            {'minute': 0, 'avg': 120, 'max': 130, 'elevation': 12.5, 'power': 210},
+          ],
+        }),
+      );
+      expect(r.points.single.elevation, 12.5);
+      expect(r.points.single.power, 210);
+    });
+
     test('maps status codes', () {
       expect(parseHrSeriesResponse(429, '{}').status, HrSeriesStatus.rateLimited);
       expect(parseHrSeriesResponse(401, '{}').status, HrSeriesStatus.reauthRequired);
